@@ -670,9 +670,11 @@ check('glm accepts a randomized block design with an explicit design list', () =
   assert.equal(
     buildAnalysis('glm', { variables: ['drop'], by: 'trt', design: 'trt block trt*block' }),
     'GLM drop BY trt /DESIGN=trt block trt*block.')
-  assert.equal(
-    buildAnalysis('glm', { variables: ['y'], factors: ['g'], covariates: ['x'] }),
-    'GLM y BY g WITH x /DESIGN=g.')
+  // PSPP 2.1.3 rejects the WITH clause outright, so a covariate has to be a
+  // refusal with an explanation instead of syntax the engine cannot run.
+  assert.throws(
+    () => buildAnalysis('glm', { variables: ['y'], factors: ['g'], covariates: ['x'] }),
+    /不接受协变量/)
 })
 
 check('split accepts the break arguments the tool documents', () => {
@@ -741,12 +743,17 @@ await check('importDelimited honours encoding, delimiter and header', async () =
   assert.deepEqual(headerless.variables.map((variable) => variable.name), ['V1', 'V2'])
 })
 
-check('oneway carries the post-hoc methods PSPP implements and drops the rest', () => {
+check('oneway carries the post-hoc methods PSPP implements and refuses the rest', () => {
   const plain = buildAnalysis('oneway', { variables: ['iod'], by: 'group' })
   assert.equal(plain, 'ONEWAY iod BY group /STATISTICS=DESCRIPTIVES HOMOGENEITY.')
-  const chosen = buildAnalysis('oneway', { variables: ['iod'], by: 'group', postHoc: ['lsd', 'Duncan', 'tukey'] })
+  const chosen = buildAnalysis('oneway', { variables: ['iod'], by: 'group', postHoc: ['lsd', 'tukey'] })
   assert.equal(chosen, 'ONEWAY iod BY group /STATISTICS=DESCRIPTIVES HOMOGENEITY /POSTHOC=LSD TUKEY.')
-  assert.equal(buildAnalysis('oneway', { variables: ['iod'], by: 'group', statistics: false }), 'ONEWAY iod BY group.')
+  // Silently dropping a requested method meant the output looked complete
+  // while the comparison the user asked for was never run.
+  assert.throws(
+    () => buildAnalysis('oneway', { variables: ['iod'], by: 'group', postHoc: ['lsd', 'Duncan'] }),
+    /没有这些事后比较方法/)
+  assert.equal(buildAnalysis('oneway', { variables: ['iod'], by: 'group', statistics: false }), 'ONEWAY iod by group.'.replace(' by', ' BY'))
 })
 
 check('correlation exposes the options PSPP accepts', () => {

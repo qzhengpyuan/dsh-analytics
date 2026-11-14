@@ -4713,6 +4713,9 @@ let ITEM_CSV_PENDING = null
       }, [sessionId, st, refresh])
 
       // Static HTML snapshot of the output view; images keep their host URLs.
+      // Titles can carry quotes from a variable label; the export is a
+      // standalone HTML file, so they have to be escaped like the notes are.
+      const escapeForExport = (text) => String(text ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
       const exportOutput = useCallback(() => {
         const list = st?.items ?? []
         if (list.length === 0) { notify('还没有输出'); return }
@@ -4737,8 +4740,8 @@ let ITEM_CSV_PENDING = null
               parts.push(`<p class="ap-export-note">注：${safe}</p>`)
             }
           }
-          else if (item.kind === 'image') parts.push(`<h3>${item.title ?? ''}</h3><img src="${new URL(item.artifactUrl, document.baseURI)}" alt="${item.alt ?? ''}">`)
-          else parts.push(`<h3>${item.title ?? ''}</h3>`)
+          else if (item.kind === 'image') parts.push(`<h3>${escapeForExport(item.title ?? '')}</h3><img src="${new URL(item.artifactUrl, document.baseURI)}" alt="${escapeForExport(item.alt ?? '')}">`)
+          else parts.push(`<h3>${escapeForExport(item.title ?? '')}</h3>`)
         }
         const blob = new Blob([parts.join('\n')], { type: 'text/html;charset=utf-8' })
         const url = URL.createObjectURL(blob)

@@ -375,5 +375,57 @@ check('a perfect correlation still gets its stars', () => {
   assert.equal(rows.matrix[1][6], '***', 'the row layout keeps the same convention')
 })
 
+check('user missing values are excluded from means, SD and the test', () => {
+  // 999 is declared missing on age. Keeping it as data moved the mean to 281
+  // and the P value to .99; PSPP itself drops it and gets 45.
+  const dataset = {
+    variables: [
+      { name: 'grp', type: 'numeric', measure: 'nominal', valueLabels: { 1: '试验组', 2: '对照组' } },
+      { name: 'age', type: 'numeric', measure: 'scale', missing: [999] },
+    ],
+    rows: [[1, 40], [1, 42], [1, 999], [1, 44], [2, 46], [2, 48], [2, 999], [2, 50]],
+  }
+  const table = buildBaselineTable(dataset, { group: 'grp', variables: ['age'] })
+  assert.equal(table.matrix[1][1], '45.00 ± 3.74')
+  assert.equal(table.matrix[1][4], '0.021')
+  assert.ok(table.notes.some((note) => note.includes('MISSING VALUES') && note.includes('2 例')))
+})
+
+check('a THRU range of missing codes is honoured too', () => {
+  const dataset = {
+    variables: [
+      { name: 'grp', type: 'numeric', measure: 'nominal', valueLabels: { 1: '甲', 2: '乙' } },
+      { name: 'score', type: 'numeric', measure: 'scale', missing: [{ lo: 97, hi: 99 }] },
+    ],
+    rows: [[1, 10], [1, 98], [1, 12], [2, 20], [2, 99], [2, 22]],
+  }
+  const table = buildBaselineTable(dataset, { group: 'grp', variables: ['score'] })
+  assert.equal(table.matrix[1][1], '16.00 ± 5.89')
+})
+
+check('a numeric code with a nominal level prints as n(%) with a chi-square', () => {
+  // Gender coded 1/2 is the classic case: a mean of 1.50 ± 0.53 is wrong, the
+  // table has to count levels and run chi-square.
+  const dataset = {
+    variables: [
+      { name: 'arm', type: 'numeric', measure: 'nominal', valueLabels: { 1: '试验组', 2: '对照组' } },
+      { name: 'sex', type: 'numeric', measure: 'nominal', valueLabels: { 1: '男', 2: '女' } },
+    ],
+    rows: [[1, 1], [1, 1], [1, 2], [1, 2], [2, 1], [2, 1], [2, 1], [2, 2]],
+  }
+  const table = buildBaselineTable(dataset, { group: 'arm', variables: ['sex'] })
+  assert.ok(table.matrix[1][0].includes('n（%）'), 'the row is a count row')
+  assert.equal(table.matrix[1][1], '8（100.0）')
+  assert.ok(table.matrix[1].at(-1).startsWith('V='), "Cramér's V is reported")
+})
+
+check('two constant groups with different means have no t test', () => {
+  // Zero variance in both groups: se is 0 and the difference is infinite.
+  // The old code returned t = 0, p = 1 — "no difference" for complete separation.
+  assert.equal(welch([5, 5, 5], [9, 9, 9]), null)
+  const same = welch([5, 5], [5, 5])
+  assert.equal(same.p, 1)
+})
+
 console.log(`\n${checks} checks passed${failures ? ` (with ${failures} failures)` : ''}`)
 if (failures > 0) process.exitCode = 1

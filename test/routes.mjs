@@ -531,5 +531,18 @@ console.log('save syntax', r.code, written === 'FREQUENCIES /VARIABLES=score.\n'
 r = await call('POST', `${base}/api/saveSyntax`, { sessionId: sid, path: join(home, 'x.txt'), text: 'x' })
 console.log('save syntax bad ext', r.code, /\.sps/.test(String(r.json().error)))
 
+// Text writes and reads from the browser half are limited to document
+// extensions: a same-origin page must not be able to overwrite ~/.bashrc or
+// read a credentials file through this plugin's endpoints.
+r = await call('POST', `${base}/api/writeText`, { sessionId: sid, path: join(home, 'evil.sh'), text: '#!/bin/sh\n' })
+console.log('writeText refuses a script', r.code, r.code === 400 && /\.sh/.test(String(r.json().error)))
+const hiddenTarget = join(home, '.bashrc')
+r = await call('POST', `${base}/api/writeText`, { sessionId: sid, path: hiddenTarget, text: 'x' })
+console.log('writeText refuses a dotfile', r.code, r.code === 400)
+r = await call('POST', `${base}/api/readFile`, { sessionId: sid, path: join(home, 'not-text.sav') })
+console.log('readFile refuses a binary extension', r.code, r.code === 400)
+r = await call('POST', `${base}/api/readFile`, { sessionId: sid, path: home })
+console.log('readFile refuses a directory', r.code, r.code === 400 && /普通文件/.test(String(r.json().error)))
+
 r = await call('POST', `${base}/api/close`, { sessionId: sid })
 console.log('closed ->', r.code, r.json().state.dataset)

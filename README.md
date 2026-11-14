@@ -15,7 +15,7 @@ PSPP 作为 DeepSeek Harness 插件自带引擎的统计分析工作台：**不�
 
 | 半边 | 文件 | 职责 |
 | --- | --- | --- |
-| Host | `index.js`、`lib/*.js` | 自带引擎的进程管理、每会话工作区、数据读写、输出解析、`/analytics` HTTP API、12 个 agent 工具 |
+| Host | `index.js`、`lib/*.js` | 自带引擎的进程管理、每会话工作区、数据读写、输出解析、`/analytics` HTTP API、23 个 agent 工具 |
 | Client | `client.js` | 通过 `ctx.betterSidebar.registerTab()` 注册侧栏页签；所有请求走同一套 API |
 
 Host 与 UI 共用**同一组 `Workspace` 方法**，所以"用户在对话框点确定"和"模型在对话里调 `pspp_analyze`"执行的是同一条代码路径，状态不会分叉。
@@ -48,7 +48,7 @@ Host 与 UI 共用**同一组 `Workspace` 方法**，所以"用户在对话框�
 
 ## HTTP API（前缀 `/analytics`）
 
-`api/state` `api/open` `api/new` `api/rows` `api/run` `api/save` `api/export` `api/exportDoc` `api/merge` `api/cell` `api/case` `api/variable` `api/clear` `api/dir` `api/artifact`
+`api/state` `api/active` `api/open` `api/new` `api/rows` `api/output` `api/history` `api/run` `api/save` `api/saveSyntax` `api/export` `api/exportDoc` `api/exportOffice` `api/exportReport` `api/merge` `api/cell` `api/case` `api/paste` `api/variable` `api/sort` `api/flip` `api/find` `api/replace` `api/clear` `api/close` `api/convert` `api/sheets` `api/upload` `api/dir` `api/readFile` `api/writeText` `api/valuelabels` `api/mrset` `api/chart` `api/pairwise` `api/partial` `api/publication` `api/artifact`
 所有请求经 `ctx.connection.requestRejection()` 做宿主同源的 Host/Origin 与浏览器认证检查。
 
 ## 数据编辑与联动

@@ -89,6 +89,24 @@ if (genderVar?.valueLabels?.F !== '女' || genderVar?.valueLabels?.M !== '男') 
 }
 console.log('value labels ok:', JSON.stringify(genderVar.valueLabels))
 
+// A quoted string may contain a line break (a multi-line address, an open
+// answer pasted into a cell). The save path goes through CSV, and PSPP's TXT
+// reader cannot carry an embedded newline: three cases came back as four, with
+// the value split across rows.
+const newlineWorkspace = new Workspace({ id: 'smoke-newline', engine, root, config: { timeoutMs: 60000 } })
+await newlineWorkspace.init()
+await newlineWorkspace.createDataset({
+  variables: [{ name: 'id', type: 'numeric' }, { name: 'text', type: 'string', width: 40 }],
+  rows: [[1, 'first line\nsecond line'], [2, 'plain'], [3, 'third']],
+})
+const newlinePath = join(root, 'newline.sav')
+await newlineWorkspace.save(newlinePath)
+await newlineWorkspace.open(newlinePath)
+const newlineRows = newlineWorkspace.dataset.rows
+if (newlineRows.length !== 3) throw new Error(`a newline inside a string changed the case count: ${newlineRows.length}`)
+if (newlineRows[0][1] !== 'first line second line') throw new Error(`the newline was not folded: ${JSON.stringify(newlineRows[0][1])}`)
+console.log('newline in string ok:', JSON.stringify(newlineRows[0][1]))
+
 const run1 = await workspace.runSyntax('FREQUENCIES gender /BARCHART.\nDESCRIPTIVES age score /STATISTICS=MEAN STDDEV MIN MAX.')
 console.log('items:', run1.items.map((item) => `${item.kind}:${item.title}`))
 console.log('diagnostics:', run1.diagnostics)

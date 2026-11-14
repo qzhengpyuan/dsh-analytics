@@ -1,10 +1,8 @@
 name: test
 
-# The JavaScript half of the plugin needs no build step, so this is the whole
-# check that runs on a push: syntax, the pure syntax/chart builders, the engine
-# resolver, the client bundle (mounted in jsdom), and dsh-plugin-toolkit's
-# packaging checks. The engine-dependent suites (smoke, routes) need a PSPP
-# binary, which is why they stay local and out of this workflow.
+# The JavaScript half of the plugin needs no build step. The unit job runs every
+# suite that does not spawn the engine; the engine job below downloads the
+# released PSPP build and runs the ones that do (smoke, routes, pdf-notes).
 on:
   # Push/PR checks only; engine builds are in build-engine.yml.
   push:
@@ -26,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        node: [20, 22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,8 +41,24 @@ jobs:
       - name: install dev dependencies
         run: npm install --no-audit --no-fund
 
+      # Everything below is engine-free. Keeping the list explicit (rather than
+      # a glob) means a new suite cannot slip in without being noticed, but the
+      # omission of eleven of them for two releases is why it is long now.
       - name: pure tests
-        run: node test/build.mjs && node test/engine.mjs
+        run: |
+          set -euo pipefail
+          node test/build.mjs
+          node test/engine.mjs
+          node test/tables.mjs
+          node test/regression.mjs
+          node test/messages.mjs
+          node test/stage.mjs
+          node test/order.mjs
+          node test/mrsets.mjs
+          node test/raster.mjs
+          node test/xlsx.mjs
+          node test/ods.mjs
+          node test/dta.mjs
 
       - name: client bundle (jsdom)
         run: node test/client.mjs
@@ -89,6 +103,15 @@ jobs:
           gh release download engine-v1 --repo "${{ github.repository }}" --pattern engine-linux-x64.tgz --output engine.tgz --clobber
           tar -C engine -xzf engine.tgz
           engine/linux-x64/bin/pspp --version
+
+      # These need the binary above. smoke is the data round trip (missing
+      # values, newline in a string, save/reopen), routes is the whole HTTP
+      # surface — neither had ever run in CI.
+      - name: engine tests
+        run: |
+          set -euo pipefail
+          node test/smoke.mjs
+          node test/routes.mjs
 
       - name: pdf table notes
         run: node test/pdf-notes.mjs
