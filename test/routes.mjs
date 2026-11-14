@@ -490,6 +490,12 @@ if (exportTarget) {
   console.log('export office one table by id', r.code, r.json().result?.tables === 1, oneBytes.length > 1000)
   r = await call('POST', `${base}/api/exportOffice`, { sessionId: sid, path: join(home, 'gone.xlsx'), items: ['run-999-0'] })
   console.log('export office unknown id fails loudly', r.code === 400, /已经不在了/.test(String(r.json().error)))
+  // A path that runs *through* an existing file: the message has to name the
+  // file, otherwise the user has no idea which segment to change.
+  await writeFile(join(home, 'blocker.csv'), 'a,b\n1,2\n')
+  r = await call('POST', `${base}/api/exportOffice`, { sessionId: sid, path: join(home, 'blocker.csv', 'deep', 'out.xlsx') })
+  const blockerMessage = String(r.json().error)
+  console.log('export office names the blocking file', r.code === 400, /blocker\.csv 是一个文件/.test(blockerMessage))
 }
 // A chart is an output entry too: exporting only it must not drag a table in.
 const imageTarget = stateItems.find((entry) => entry.kind === 'image')

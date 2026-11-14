@@ -213,6 +213,18 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   const stats = await revived.runSyntax('DESCRIPTIVES y.', {})
   if (!stats.items?.length) throw new Error('hydrated dataset must still run analysis')
   console.log('idle workspaces release their dataset and hydrate on demand:', dropped.join(','))
+
+  // ensure() must not release the session that is asking for the data: that
+  // costs a write of work.sav plus a read back, for nothing.
+  const third = await registry.ensure('idle-c')
+  await third.createDataset({ variables: [{ name: 'z', type: 'numeric' }], rows: [[7]] })
+  for (const workspace of registry.list()) workspace.lastUsedAt = Date.now() - 60 * 60 * 1000
+  const kept = await registry.ensure('idle-c')
+  if (kept.dataset.rows.length !== 1) throw new Error('ensure must not release the workspace it returns')
+  const skipped = await registry.evictIdle({ maxIdleMs: 30 * 60 * 1000, skip: 'idle-c' })
+  if (skipped.includes('idle-c')) throw new Error('evictIdle must honour skip')
+  if (registry.get('idle-c').dataset.rows.length !== 1) throw new Error('skip must leave the rows alone')
+  console.log('ensure and evictIdle skip the session being served')
 }
 
 await rm(root, { recursive: true, force: true })

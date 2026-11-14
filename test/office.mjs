@@ -633,6 +633,21 @@ await check('the optional data sheet is appended and stays hidden', () => {
   assert.doesNotMatch(without['xl/workbook.xml'].toString('utf8'), /数据/, 'no data sheet unless asked for')
 })
 
+await check('a missing value in the data sheet leaves the cell out entirely', () => {
+  const items = [{ kind: 'table', table: { caption: 'm', matrix: [['', 'N'], ['m', '2']] } }]
+  const files = unzip(buildXlsx({
+    items,
+    data: { variables: [{ name: 'm' }, { name: 'n' }], rows: [[1, null], [2, 3], [null, 5]] },
+  }))
+  const data = files['xl/worksheets/sheet2.xml'].toString('utf8')
+  assert.doesNotMatch(data, /<v>0<\/v>/, 'a missing value is not written as 0')
+  assert.doesNotMatch(data, /r="B2"/, 'B2 has no cell at all instead of an empty string')
+  assert.doesNotMatch(data, /r="A4"/, 'A4 is missing for the same reason')
+  assert.match(data, /<c r="B4" s="0"><v>5<\/v><\/c>/, 'the neighbouring value is still written')
+  const cells = (data.match(/<c r=/g) ?? []).length
+  assert.equal(cells, 6, 'header 2 + row2 1 + row3 2 + row4 1: the two blanks are skipped')
+})
+
 await check('a correlation column writes its Sig. as a t tail of r and N', () => {
   const matrix = [
     ['', '', 'age', 'score'],

@@ -95,6 +95,24 @@ check('a constant predictor is undefined rather than zero', () => {
   const table = collinearityTable(dataset, { dependent: 'y', independents: ['k', 'x'] })
   assert.equal(table.matrix[1][1], '—')
   assert.ok(table.notes.some((note) => /K 是常数/.test(note)))
+  assert.equal(table.notes.filter((note) => note.includes('是常数')).length, 1, 'one note per constant predictor, not one per pair')
+})
+
+check('two constant predictors give exactly two notes', () => {
+  const dataset = {
+    variables: [
+      { name: 'k1', label: 'K1', type: 'numeric' },
+      { name: 'k2', label: 'K2', type: 'numeric' },
+      { name: 'x', label: 'X', type: 'numeric' },
+      { name: 'y', type: 'numeric' },
+    ],
+    rows: [[3, 5, 1, 2], [3, 5, 2, 4], [3, 5, 3, 5], [3, 5, 4, 8], [3, 5, 5, 9]],
+  }
+  const table = collinearityTable(dataset, { dependent: 'y', independents: ['k1', 'k2', 'x'] })
+  const constantNotes = table.notes.filter((note) => note.includes('是常数'))
+  assert.equal(constantNotes.length, 2, 'K1 and K2 each get one note')
+  assert.match(constantNotes.join(' '), /K1/)
+  assert.match(constantNotes.join(' '), /K2/)
 })
 
 check('the note names the collinear pair instead of blaming every row', () => {
