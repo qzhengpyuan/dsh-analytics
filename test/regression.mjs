@@ -1,0 +1,299 @@
+// Collinearity diagnostics, computed in Node because the engine crashes on TOL.
+import assert from 'node:assert/strict'
+import { collinearityTable } from '../lib/regression.js'
+import { annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, degradeStatistics, describeFailure } from '../lib/workspace.js'
+
+let checks = 0
+const failures = []
+const check = (name, fn) => {
+  try {
+    fn()
+    checks += 1
+    console.log(`ok   ${name}`)
+  } catch (error) {
+    failures.push(name)
+    console.error(`FAIL ${name}: ${error.message}`)
+  }
+}
+
+// Reference values from R on exactly this table (1 / car::vif(lm(score ~ age + id))):
+// both predictors come out at 0.9113718, i.e. VIF 1.097.
+const demo = {
+  variables: [
+    { name: 'score', type: 'numeric', label: '得分' },
+    { name: 'age', type: 'numeric', label: '年龄' },
+    { name: 'id', type: 'numeric', label: '编号' },
+  ],
+  rows: [
+    [73, 53, 1], [68, 45, 2], [66, 61, 3], [60, 38, 4], [58, 49, 5],
+    [72, 55, 6], [64, 42, 7], [69, 58, 8], [61, 47, 9], [57, 36, 10],
+  ],
+}
+
+check('collinearity matches the R reference on a two-predictor model', () => {
+  const table = collinearityTable(demo, { dependent: 'score', independents: ['age', 'id'] })
+  assert.deepEqual(table.matrix[0], ['变量', '容忍度', 'VIF'])
+  assert.equal(table.matrix[1][0], '年龄')
+  // Rounded to three decimals either way; R prints 0.9929 / 1.0072.
+  assert.equal(table.matrix[1][1], '0.911')
+  assert.equal(table.matrix[1][2], '1.097')
+  assert.equal(table.matrix[2][1], '0.911')
+  assert.ok(table.notes.some((note) => note.includes('容忍度 = 1 − R²')))
+})
+
+check('a single predictor has tolerance and VIF of exactly one', () => {
+  const table = collinearityTable(demo, { dependent: 'score', independents: ['age'] })
+  assert.deepEqual(table.matrix[1], ['年龄', '1.000', '1.000'])
+  assert.ok(table.notes.some((note) => note.includes('+Infinit')))
+})
+
+check('perfectly collinear predictors report a tolerance of zero', () => {
+  const doubled = {
+    variables: [
+      { name: 'y', type: 'numeric' },
+      { name: 'a', type: 'numeric', label: 'A' },
+      { name: 'b', type: 'numeric', label: 'B' },
+    ],
+    rows: [[1, 2, 4], [2, 4, 8], [3, 6, 12], [4, 8, 16], [5, 10, 20]],
+  }
+  const table = collinearityTable(doubled, { dependent: 'y', independents: ['a', 'b'] })
+  assert.equal(table.matrix[1][1], '0.000')
+  assert.equal(table.matrix[1][2], '∞')
+})
+
+check('a variable outside a collinear block keeps its own tolerance', () => {
+  // a and b are exact duplicates, so the design is singular; c is still
+  // estimable and its tolerance must be 1 - R²(c ~ a) = 0.772, not 0.
+  const dataset = {
+    variables: [
+      { name: 'a', label: 'a', type: 'numeric' },
+      { name: 'b', label: 'b', type: 'numeric' },
+      { name: 'c', label: 'c', type: 'numeric' },
+      { name: 'y', label: 'y', type: 'numeric' },
+    ],
+    rows: [
+      [1, 2, 3, 1], [2, 4, 1, 2], [3, 6, 4, 3], [4, 8, 1, 4],
+      [5, 10, 5, 5], [6, 12, 9, 6], [7, 14, 2, 7], [8, 16, 6, 8],
+    ],
+  }
+  const table = collinearityTable(dataset, { dependent: 'y', independents: ['a', 'b', 'c'] })
+  assert.equal(table.matrix[1][1], '0.000')
+  assert.equal(table.matrix[2][1], '0.000')
+  assert.equal(table.matrix[3][1], '0.772')
+  assert.equal(table.matrix[3][2], '1.295')
+})
+
+check('a constant predictor is undefined rather than zero', () => {
+  const dataset = {
+    variables: [
+      { name: 'k', label: 'K', type: 'numeric' },
+      { name: 'x', label: 'X', type: 'numeric' },
+      { name: 'y', label: 'y', type: 'numeric' },
+    ],
+    rows: [[5, 1, 2], [5, 2, 4], [5, 3, 5], [5, 4, 8], [5, 5, 9]],
+  }
+  const table = collinearityTable(dataset, { dependent: 'y', independents: ['k', 'x'] })
+  assert.equal(table.matrix[1][1], '—')
+  assert.ok(table.notes.some((note) => /K 是常数/.test(note)))
+})
+
+check('the note names the collinear pair instead of blaming every row', () => {
+  const doubled = {
+    variables: [
+      { name: 'y', type: 'numeric' },
+      { name: 'a', type: 'numeric', label: 'A' },
+      { name: 'b', type: 'numeric', label: 'B' },
+    ],
+    rows: [[1, 2, 4], [2, 4, 8], [3, 6, 12], [4, 8, 16], [5, 10, 20]],
+  }
+  const table = collinearityTable(doubled, { dependent: 'y', independents: ['a', 'b'] })
+  // Both predictors are "fully explained" by the other, but the cause is the
+  // pair itself: the note has to say which two to separate.
+  assert.ok(table.notes.some((note) => /A 与 B 完全相关/.test(note)), 'the note names both variables')
+  assert.ok(table.notes.some((note) => /先删掉其中一个/.test(note)))
+})
+
+check('a NaN coefficient table is explained, an ordinary one is not', () => {
+  const bad = [{
+    kind: 'table',
+    id: 'coef',
+    title: 'Coefficients',
+    table: { matrix: [['', 'B', 'S.E.', 't', 'Sig.'], ['a', 'NaN', '+Infinit', '.', '.']] },
+  }]
+  annotateNonFiniteCoefficients(bad)
+  assert.equal(bad[0].notes.length, 1)
+  assert.match(bad[0].notes[0], /完全共线/)
+  // Running it twice must not stack the same caveat.
+  annotateNonFiniteCoefficients(bad)
+  assert.equal(bad[0].notes.length, 1)
+
+  const fine = [{ kind: 'table', id: 'c2', title: 'Coefficients', table: { matrix: [['', 'B', 't', 'Sig.'], ['a', '.37', '5.94', '.000']] } }]
+  annotateNonFiniteCoefficients(fine)
+  assert.equal(fine[0].notes, undefined)
+  // A descriptives table with no t/Sig. pair is left alone even if it shows NaN.
+  const other = [{ kind: 'table', id: 'd', title: 'Descriptives', table: { matrix: [['', 'Mean'], ['x', 'NaN']] } }]
+  annotateNonFiniteCoefficients(other)
+  assert.equal(other[0].notes, undefined)
+})
+
+check('too few cases say so instead of inventing numbers', () => {
+  const tiny = {
+    variables: [
+      { name: 'y', type: 'numeric' },
+      { name: 'a', type: 'numeric', label: 'A' },
+      { name: 'b', type: 'numeric', label: 'B' },
+    ],
+    rows: [[1, 2, 3], [2, 3, 4]],
+  }
+  const table = collinearityTable(tiny, { dependent: 'y', independents: ['a', 'b'] })
+  assert.equal(table.matrix[1][1], '—')
+  assert.ok(table.notes.some((note) => note.includes('不足以估计')))
+})
+
+check('rows with a missing cell are dropped before the fit', () => {
+  const holed = {
+    variables: [
+      { name: 'y', type: 'numeric' },
+      { name: 'a', type: 'numeric', label: 'A' },
+      { name: 'b', type: 'numeric', label: 'B' },
+    ],
+    rows: [[1, 2, 3], [2, null, 4], [3, 4, 5], [4, 5, null], [5, 6, 7], [6, 7, 8], [7, 8, 9]],
+  }
+  const table = collinearityTable(holed, { dependent: 'y', independents: ['a', 'b'] })
+  assert.notEqual(table.matrix[1][1], '—')
+})
+
+
+// D8: a retry has to remove ALL as well, because /STATISTICS=ALL drags TOL in
+// with it and the retry then crashes exactly like the run it was rescuing.
+check('a retry strips TOL and ALL, and never leaves an empty list', () => {
+  assert.equal(
+    degradeStatistics('REGRESSION /DEPENDENT=y /METHOD=ENTER a /STATISTICS=COEFF R ANOVA CI TOL.'),
+    'REGRESSION /DEPENDENT=y /METHOD=ENTER a /STATISTICS=COEFF R ANOVA CI.',
+  )
+  assert.equal(
+    degradeStatistics('REGRESSION /DEPENDENT=y /METHOD=ENTER a /STATISTICS=ALL.'),
+    'REGRESSION /DEPENDENT=y /METHOD=ENTER a /STATISTICS=COEFF R ANOVA CI BCOV.',
+  )
+  // A lone TOL leaves nothing behind; an empty /STATISTICS= produces no table.
+  assert.equal(
+    degradeStatistics('REGRESSION /DEPENDENT=y /METHOD=ENTER a /STATISTICS=TOL.'),
+    'REGRESSION /DEPENDENT=y /METHOD=ENTER a /STATISTICS=COEFF R ANOVA CI BCOV.',
+  )
+  // Other commands keep their own STATISTICS keywords untouched.
+  assert.equal(
+    degradeStatistics('FREQUENCIES /VARIABLES=x /STATISTICS=ALL.'),
+    'FREQUENCIES /VARIABLES=x /STATISTICS=ALL.',
+  )
+  // Multi-line commands survive the rewrite with their layout intact.
+  const multi = "GET FILE='x.sav'.\nREGRESSION\n  /DEPENDENT=y\n  /METHOD=ENTER a b\n  /STATISTICS=ALL."
+  assert.equal(
+    degradeStatistics(multi),
+    "GET FILE='x.sav'.\nREGRESSION\n  /DEPENDENT=y\n  /METHOD=ENTER a b\n  /STATISTICS=COEFF R ANOVA CI BCOV.",
+  )
+})
+
+// D8: the old message read "引擎没有产出任何表：引擎没有给出原因" and threw away the
+// GSL line. It now carries the exit code and the engine's own words.
+check('a crash with no tables reports the exit code and the engine line', () => {
+  const text = describeFailure({
+    code: 19,
+    stderr: '',
+    stdout: 'src/math/linreg.c:261:gsl_blas_dsymm: matrix/vector sizes are not conformant',
+  })
+  assert.ok(text.includes('退出码 19'), text)
+  assert.ok(text.includes('gsl_blas_dsymm'), text)
+  const named = describeFailure({ code: 1, stderr: 'error: nosuchvar is not a variable name.', stdout: '' })
+  assert.ok(named.includes('退出码 1') && named.includes('nosuchvar'), named)
+  const silent = describeFailure({ code: 2, stderr: '', stdout: '' })
+  assert.equal(silent, '退出码 2，引擎没有输出任何诊断信息')
+})
+
+
+// PSPP prints "Variables in the Equation" with two header rows: the first carries
+// B/S.E./Wald/df/Sig./Exp(B), the second carries the Lower/Upper labels of the CI.
+// The separation note has to read that shape and only trust predictor rows.
+const equationMatrix = (predictor, constant) => [
+  ['', '', 'B', 'S.E.', 'Wald', 'df', 'Sig.', 'Exp(B)', '95% CI for Exp(B)', ''],
+  ['', '', '', '', '', '', '', '', 'Lower', 'Upper'],
+  predictor,
+  constant,
+]
+const separationNotes = (matrix) => {
+  const items = [{ kind: 'table', id: 'x', title: 'Variables in the Equation', table: { matrix } }]
+  annotateSeparation(items, 'logistic')
+  return items[0].notes ?? []
+}
+
+check('a big intercept is not separation', () => {
+  // 2000 cases with 10 negatives: the constant legitimately reaches Exp(B)=149.40
+  // while the predictor is ordinary (B=.30, S.E.=.55, Exp(B)=1.35, CI .46-4.01).
+  const matrix = equationMatrix(
+    ['Step 1', 'score', '.30', '.55', '.30', '1', '.586', '1.35', '.46', '4.01'],
+    ['', '常数', '5.01', '.46', '118.6', '1', '.000', '149.40', '', ''],
+  )
+  assert.deepEqual(separationNotes(matrix), [])
+})
+
+check('a genuinely strong predictor is not separation either', () => {
+  // OR 150 with a tight CI (120-190) is a real effect, not a runaway estimate.
+  const matrix = equationMatrix(
+    ['Step 1', 'score', '5.01', '.12', '1742', '1', '.000', '150.00', '120.00', '190.00'],
+    ['', 'Constant', '-5.06', '1.32', '14.70', '1', '.000', '.01', '', ''],
+  )
+  assert.deepEqual(separationNotes(matrix), [])
+})
+
+check('an exploding standard error raises the note', () => {
+  const matrix = equationMatrix(
+    ['Step 1', 'score', '23.06', '5073.53', '.00', '1', '.996', '1.03E+010', '.000', '+Infinit'],
+    ['', 'Constant', '-1.02', '.48', '4.5', '1', '.034', '.36', '', ''],
+  )
+  const notes = separationNotes(matrix)
+  assert.equal(notes.length, 1)
+  assert.match(notes[0], /Firth/)
+})
+
+check('a confidence interval wider than a thousandfold raises the note', () => {
+  // Exp(B)=55.06 alone is below the old 100 threshold, but CI .81-3765.36 is not
+  // a usable interval: it is the same separation seen from the other side.
+  const matrix = equationMatrix(
+    ['Step 1', 'score', '.52', '2.13', '.06', '1', '.807', '55.06', '.81', '3765.36'],
+    ['', 'Constant', '-1.02', '.48', '4.5', '1', '.034', '.36', '', ''],
+  )
+  assert.equal(separationNotes(matrix).length, 1)
+})
+
+check('a table without CI columns still works', () => {
+  // The label sits in column 1, so B starts at column 2 — the same offset PSPP uses.
+  const matrix = [
+    ['', '', 'B', 'S.E.', 'Wald', 'df', 'Sig.', 'Exp(B)'],
+    ['Step 1', 'score', '-9.20', '1200.40', '.00', '1', '.999', '.00'],
+  ]
+  assert.equal(separationNotes(matrix).length, 1)
+})
+
+check('other tables are left alone', () => {
+  const items = [{ kind: 'table', id: 'x', title: 'ANOVA', table: { matrix: [['变量', 'N'], ['a', '1']] } }]
+  annotateSeparation(items, 'oneway')
+  assert.equal(items[0].notes, undefined)
+})
+
+check('a frequency table over a continuous variable is flagged as oversized', () => {
+  const matrix = [['值', 'Frequency', 'Percent']]
+  for (let value = 0; value < 600; value += 1) matrix.push([String(value), '1', '.2'])
+  const items = [{ kind: 'table', id: 'big', title: 'score', table: { matrix } }]
+  annotateOversizedTables(items)
+  assert.equal(items[0].notes.length, 1)
+  assert.match(items[0].notes[0], /这张表有 601 行/)
+  assert.match(items[0].notes[0], /描述统计/)
+})
+
+check('an ordinary table is not flagged', () => {
+  const items = [{ kind: 'table', id: 'small', title: 'ANOVA', table: { matrix: [['a', 'b'], ['1', '2']] } }]
+  annotateOversizedTables(items)
+  assert.equal(items[0].notes, undefined)
+})
+
+console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)
+if (failures.length > 0) process.exitCode = 1

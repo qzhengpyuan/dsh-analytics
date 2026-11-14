@@ -1,0 +1,94 @@
+name: test
+
+# The JavaScript half of the plugin needs no build step, so this is the whole
+# check that runs on a push: syntax, the pure syntax/chart builders, the engine
+# resolver, the client bundle (mounted in jsdom), and dsh-plugin-toolkit's
+# packaging checks. The engine-dependent suites (smoke, routes) need a PSPP
+# binary, which is why they stay local and out of this workflow.
+on:
+  # Push/PR checks only; engine builds are in build-engine.yml.
+  push:
+    branches: [master]
+    paths-ignore:
+      - 'engine/**'
+      - 'docs/**'
+      - '**.md'
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: syntax
+        run: |
+          set -euo pipefail
+          for file in index.js client.js lib/*.js scripts/*.mjs; do
+            node --check "$file"
+          done
+
+      - name: install dev dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: pure tests
+        run: node test/build.mjs && node test/engine.mjs
+
+      - name: client bundle (jsdom)
+        run: node test/client.mjs
+
+      # dsh-plugin-toolkit reads `npm pack --json`; npm 12 answers with an object
+      # keyed by package name while the toolkit expects the array earlier npm
+      # versions return, so the tool is pinned to the npm the runners ship
+      # (node 20 -> npm 10, node 22 -> npm 10/11).
+      - name: package manifest (doctor)
+        run: npx --yes dsh-plugin-toolkit@latest doctor .
+
+      # Mounting is skipped: the panel is a dsh-better-sidebar tab, and the
+      # toolkit's stub host has no betterSidebar service to register against.
+      # test/client.mjs covers that half with a host that does have it.
+      - name: package tarball (verify)
+        run: npx --yes dsh-plugin-toolkit@latest verify . --no-mount
+
+  # The PDF path replays an analysis with an appended ECHO, so nothing in
+  # JavaScript can prove the table notes reach the page: this job reads the PDF
+  # back with pdftotext. It needs a PSPP engine, which the release ships.
+  pdf-notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # pdftotext reads the PDF back; fonts-noto-cjk is what lets PSPP's PDF
+      # driver write the Chinese table notes as text instead of bare glyph ids.
+      - name: poppler (pdftotext) and a CJK font
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils fonts-noto-cjk
+
+      # The repository is private, so the release asset needs the job's token:
+      # an anonymous download of a private release answers 404.
+      - name: engine (linux-x64 from the engine-v1 release)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p engine
+          gh release download engine-v1 --repo "${{ github.repository }}" --pattern engine-linux-x64.tgz --output engine.tgz --clobber
+          tar -C engine -xzf engine.tgz
+          engine/linux-x64/bin/pspp --version
+
+      - name: pdf table notes
+        run: node test/pdf-notes.mjs

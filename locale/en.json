@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Analytics",
+    "description": "dsh-analytics: an SPSS-style statistics workbench backed by a bundled GNU PSPP engine — data view, variable view, syntax, output viewer, analysis dialogs, and agent-readable datasets."
+  }
+}

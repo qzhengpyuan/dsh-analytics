@@ -1,0 +1,222 @@
+name: build-engine
+
+# Prebuilt PSPP engines, one per platform, produced the way other projects ship
+# native binaries: build on a machine of that platform (or in a container with
+# the oldest glibc we support) and attach the artifact to a release.
+#
+#   workflow_dispatch            build all legs, keep artifacts 14 days
+#   push tag engine-v*           same, then attach the tarballs to the release
+#
+# Each engine directory is what ships inside the plugin: engines are committed
+# nowhere (`engine/` is gitignored), so a release tarball per platform is the
+# distribution channel for users who cannot build PSPP themselves.
+
+on:
+  workflow_dispatch:
+    inputs:
+      legs:
+        description: '只跑这些腿（逗号分隔的 platform，空 = 全部）'
+        required: false
+        default: ''
+      notes:
+        description: '本次构建的说明（可选）'
+        required: false
+        default: ''
+  push:
+    tags:
+      - 'engine-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: linux (${{ matrix.platform }})
+    continue-on-error: ${{ matrix.experimental == true }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # AlmaLinux 8 = glibc 2.28, the oldest floor worth supporting.
+          - platform: linux-x64
+            engine_arch: amd64
+          - platform: linux-arm64
+            engine_arch: arm64
+            # Compiled under QEMU, which takes far longer than the native legs;
+            # a failure here must not hold the release hostage.
+            experimental: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: build inside AlmaLinux 8
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.legs == '' || contains(github.event.inputs.legs, matrix.platform)
+        run: |
+          set -euo pipefail
+          mkdir -p build/engine-prefix
+          extra=""
+          if [ "${{ matrix.engine_arch }}" != "amd64" ]; then
+            docker run --privileged --rm tonistiigi/binfmt --install "${{ matrix.engine_arch }}"
+            extra="--platform linux/${{ matrix.engine_arch == 'arm64' && 'arm64/v8' || matrix.engine_arch }}"
+          fi
+          docker run --rm $extra \
+            -v "$PWD/build/engine-prefix:/work/out" \
+            -v "$PWD/scripts/build-pspp-inner.sh:/build/build-pspp.sh:ro" \
+            docker.io/library/almalinux:8 bash /build/build-pspp.sh
+
+      - name: bundle
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.legs == '' || contains(github.event.inputs.legs, matrix.platform)
+        run: |
+          set -euo pipefail
+          node scripts/bundle-engine.mjs --from-prefix build/engine-prefix --platform ${{ matrix.platform }}
+          # The prefix binaries are the container's; the bundled launchers are ours.
+          # A cross build (arm64 on an x86 runner) cannot execute here, so probe the
+          # header instead of running it.
+          if [ "${{ matrix.engine_arch }}" = "amd64" ]; then
+            engine/${{ matrix.platform }}/bin/pspp --version
+          else
+            file engine/${{ matrix.platform }}/libexec/pspp | grep -qi 'aarch64'
+          fi
+          tar -C engine -czf engine-${{ matrix.platform }}.tgz ${{ matrix.platform }}
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.legs == '' || contains(github.event.inputs.legs, matrix.platform)
+        with:
+          name: engine-${{ matrix.platform }}
+          path: engine-${{ matrix.platform }}.tgz
+          retention-days: 14
+
+  macos:
+    name: macos (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    # PSPP has no Homebrew formula and gnulib's macOS support is less travelled
+    # than its Linux one: treat this leg as experimental until it is green.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: darwin-arm64
+            runner: macos-15
+          - platform: darwin-x64
+            runner: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: build from source
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.legs == '' || contains(github.event.inputs.legs, matrix.platform)
+        run: bash scripts/build-engine-macos.sh --platform ${{ matrix.platform }}
+
+      - name: package
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.legs == '' || contains(github.event.inputs.legs, matrix.platform)
+        run: |
+          set -euo pipefail
+          engine/${{ matrix.platform }}/bin/pspp --version
+          tar -C engine -czf engine-${{ matrix.platform }}.tgz ${{ matrix.platform }}
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.legs == '' || contains(github.event.inputs.legs, matrix.platform)
+        with:
+          name: engine-${{ matrix.platform }}
+          path: engine-${{ matrix.platform }}.tgz
+          retention-days: 14
+
+  windows:
+    name: windows (win32-x64)
+    runs-on: windows-latest
+    # No MSYS2 package and no upstream binaries: this leg compiles PSPP with
+    # mingw-w64. Experimental until it is green on the first runs.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: locate node
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.legs == '' || contains(github.event.inputs.legs, 'win32-x64')
+        id: node
+        shell: pwsh
+        run: |
+          "dir=$(Split-Path (Get-Command node).Source)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            make
+            tar
+            gzip
+            curl
+            diffutils
+            pkgconf
+            python
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-gsl
+            mingw-w64-x86_64-libxml2
+            mingw-w64-x86_64-cairo
+            mingw-w64-x86_64-pango
+            mingw-w64-x86_64-glib2
+            mingw-w64-x86_64-gmp
+            mingw-w64-x86_64-ncurses
+            mingw-w64-x86_64-readline
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-gettext
+
+      - name: build from source
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.legs == '' || contains(github.event.inputs.legs, 'win32-x64')
+        shell: msys2 {0}
+        # The MSYS2 shell does not see the toolcache Node that setup-node added to
+        # the Windows PATH, and the bundler is the step that collects the DLLs.
+        env:
+          NODE_DIR: ${{ steps.node.outputs.dir }}
+        run: |
+          set -euo pipefail
+          export PATH="$(cygpath -u "$NODE_DIR"):$PATH"
+          node --version
+          bash scripts/build-engine-windows.sh --platform win32-x64
+
+      - name: package
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.legs == '' || contains(github.event.inputs.legs, 'win32-x64')
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          # bash cannot exec a .cmd, so probe the real binary with lib/ on PATH.
+          PATH="$PWD/engine/win32-x64/lib:$PATH" engine/win32-x64/libexec/pspp.exe --version
+          tar -C engine -czf engine-win32-x64.tgz win32-x64
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.legs == '' || contains(github.event.inputs.legs, 'win32-x64')
+        with:
+          name: engine-win32-x64
+          path: engine-win32-x64.tgz
+          retention-days: 14
+
+  release:
+    name: attach engines to the release
+    needs: [linux, macos, windows]
+    if: startsWith(github.ref, 'refs/tags/engine-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: engine-*
+          merge-multiple: true
+          path: dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.tgz
+          generate_release_notes: true
+          body: |
+            Prebuilt PSPP engines for dsh-analytics.
+
+            Unpack next to the plugin so that `engine/<platform>-<arch>/` exists,
+            then restart DSH. Pick the file matching `node -p "process.platform + '-' + process.arch"`.

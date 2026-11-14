@@ -1,0 +1,75 @@
+{
+  "name": "dsh-analytics",
+  "version": "0.23.33",
+  "private": true,
+  "description": "dsh-analytics: AI-assisted statistics workbench for DeepSeek Harness, built on a bundled GNU PSPP engine with an SPSS-style interface — data editor, syntax editor, output viewer, charts, agent tools, and multi-format import (.sav/.por/.xlsx/.ods/.dta/.csv).",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib",
+    "locale",
+    "icon.svg",
+    "cordis.patch.yml",
+    "engine",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "scripts",
+    "docs"
+  ],
+  "engines": {
+    "node": ">=20",
+    "dsh": ">=0.2.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "dsh-better-sidebar"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "dsh-better-sidebar": "^0.28.0"
+  },
+  "peerDependenciesMeta": {
+    "dsh-better-sidebar": {
+      "optional": true
+    }
+  },
+  "license": "MIT",
+  "icon": "./icon.svg",
+  "scripts": {
+    "bundle-engine": "node scripts/bundle-engine.mjs",
+    "test": "node test/build.mjs && node test/order.mjs && node test/raster.mjs && node test/office.mjs && node test/xlsx.mjs && node test/ods.mjs && node test/dta.mjs && node test/engine.mjs && node test/stage.mjs && node test/messages.mjs && node test/mrsets.mjs && node test/tables.mjs && node test/regression.mjs && node test/client.mjs && node test/smoke.mjs && node test/routes.mjs && node test/pdf-notes.mjs",
+    "pack": "node scripts/pack.mjs --with-engine",
+    "engine:fetch": "node scripts/fetch-engine.mjs",
+    "pack:portable": "node scripts/pack.mjs",
+    "doctor": "dsh-plugin doctor .",
+    "verify:pack": "dsh-plugin verify . --no-mount"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qzhengpyuan/dsh-analytics.git"
+  },
+  "devDependencies": {
+    "dsh-plugin-toolkit": "^0.20.3",
+    "jsdom": "^26.1.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  }
+}

@@ -1,0 +1,581 @@
+# dsh-analytics 功能说明
+
+> 版本 0.23.6 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
+> **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 23 个 agent 工具，让模型能在对话里直接分析、转换、画图。
+
+---
+
+## 1. 它是什么
+
+| 项 | 说明 |
+| --- | --- |
+| 定位 | DSH 插件，不是"连接本机 SPSS"的桥；PSPP 二进制随插件打包，机器上不装 PSPP 也能用 |
+| 界面 | 右侧栏（dsh-better-sidebar）一个 `PSPP` 页签，SPSS 风格菜单栏 + 工具条 + 四视图 |
+| 计算 | 每次操作生成一段 PSPP 语法，交给引擎跑；输出解析成「表格矩阵 + 图表文件」 |
+| 双入口 | ① 人在面板里点菜单/对话框；② 模型在对话里调 `pspp_*` 工具。**两者共用同一组 `Workspace` 方法**，所以面板里看到的和 agent 算出来的永远是同一份状态 |
+| 数据落点 | `~/.dsh/analytics/<sessionId>/`，工作文件 `work.sav`，每次运行为 `runs/<n>/`（含 `run.sps`、图表 SVG 等） |
+
+引擎定位顺序：`config.engineDir` → 环境变量 `DSH_ANALYTICS_ENGINE`（旧名仍兼容）→ 包内 `engine/<平台>-<架构>/bin/pspp` → 包内扁平 `engine/` → 系统 `pspp`。状态栏会显示当前用的是「内置 / 系统 / 缺失」以及二进制路径。
+
+---
+
+## 2. 界面总览
+
+```
+┌ 菜单栏：文件 编辑 数据 转换 分析 图形 实用程序 帮助
+├ 工具条：打开数据 保存 显示：标签/数值 | 频率 描述 交叉表 相关 回归 | 运行语法 清除输出
+├ 视图页签：数据视图 | 变量视图 | 语法 | 输出
+├ 主区域
+└ 状态栏：60 个个案 · 5 个变量 · 未保存 | /path/to/data.sav   （引擎信息在悬停提示里）
+```
+
+- **主题与字体**：面板所有颜色经 `--ap-*` 私有变量间接取自 Harness token（`--dsw-alias-bg-base`、`-label-primary/secondary/tertiary`、`-brand-primary`、`-interactive-bg-hover`、`-state-error-primary`、`-tooltip-bg`），字面值只作回退。token 挂在 `<body>`（浅色）与 `body[data-ds-dark-theme]`（深色）上，面板只读不写，所以皮肤中心的皮肤、`dsh-opencode-palette` 之类的主题插件、深色主题都会即时生效。
+  两点派生规则（都是实测踩出来的）：Harness 的 `--dsw-alias-bg-layer-1/2/3` 在深色主题里与 `bg-base` 同为 `#0A0A0A`，直接用会让工具条/表头/状态栏全糊成一片，所以它们与网格线、斑马纹一样**按文字色混合**（5%/6%/7%/10% 面板、线 12/20/28/45%）：浅色下得到 `#f3f3f3`/`#e7e7e7`/`#e2e2e2` 跟原来的 SPSS 观感一致，深色下得到 `#151515`/`#212121`/`#252525`，两套都分层可见。
+  字体跟随「设置 → 通用」：正文用 `--dsh-font-family-text` + `--dsh-content-font-size`（实测 13 px），语法编辑器用 `--dsh-font-family-code` + `--dsh-code-font-size`，表格行高 `max(22px, 1.7em)` 随字号伸缩，调大字号不会截字。
+  面板根元素带 `data-dsh-plugin="analytics"` / `data-dsh-surface="panel"` / `data-dsh-part="panel"`，皮肤中心 L2 的语义属性契约可以直接命中它。
+- **多数据集**：已经有数据时再打开或拖入一个文件，不会顶掉当前数据集。**能力边界**：右栏原生 surface 一种插件只保留一个标签页，所以在右栏是**面板内**再加一条文档标签条（`文件名`，一份数据一个，可关；**只有一个文档时这条标签条也显示**，和 SPSS 的 Data Editor 一样）；**底部工作台**的标签页是真标签页，每份数据一个「统计分析」标签。两种情况每个文档在 host 侧都有独立工作区（`<sessionId>~<n>`），各有数据集、输出与撤销栈；关掉文档会释放对应工作区。对话里的 13 个 `pspp_*` 工具跟随**当前焦点文档**（`POST api/active` 把焦点同步给 host，`WorkspaceRegistry.resolveForTools` 按它派发）。
+- **数据视图**：表格，虚拟滚动；双击单元格进入编辑（**编辑框里就是格子里看到的文字**：开着「显示：标签」时看到「男」就编辑「男」，写回时自动换回对应数值）；工具条按钮在「值标签 ↔ 原始数值」之间切换（单元格 tooltip 显示另一侧），选择记在 localStorage 里；**拖动列标题右边界可改列宽**（表头最后 8 px 都是热区，40–600 px，双击该热区恢复默认 96 px），表头与表体同步。
+- **变量视图的「列」**：新增一列显示/编辑数据视图的显示宽度（像素），与拖动表头等价；数值存在 localStorage。
+- **行高**：不做菜单（SPSS 数据视图行高也固定），按字号自适应 `max(22px, 1.7em)`。
+- **冻结首行 / 首列**：数据视图默认冻结列标题行和行号列，纵向滚动时表头不动、横向滚动时行号与第一个变量的列不动（宽度按行号列实测宽度算）。视图 → 「冻结列标题行」「冻结行号列」可分别关掉，选择记在 localStorage（`ap.freezeRows` / `ap.freezeCols`）。
+- **跳转到个案**：视图 → 「跳转到个案…」，输入个案号（1 起）回车，视图把这一行滚到眼前并选中；目标行不在已加载的 500 行窗口里时会先向 host 请求附近的 200 行再定位。
+- **输出摘要**：导航栏每张表下面多一行灰色小字，是这张表里最该先看的数字——有检验统计量就写 `F=139.28 · df=2 · p=.000`，只有描述统计就写 `N=60 · 均值=59.3450 · SD=9.07276`（取值靠 PSPP 的英文列头，认不出的表就只显示标题）。
+- **输出区**：左侧导航栏宽度可拖动（120–460 px），表格单元格自动换行，长表格不再横向溢出。视图 → 「在输出中查找…」按关键字筛选输出项（匹配标题、图注、表格标题与全部单元格文字），状态栏显示「输出筛选「q」：命中/总数」，点旁边的「清除」恢复全部。每一项输出有标题栏：`▾/▸` 折叠该项（折叠后导航栏里变淡并加 `▸`，状态记在 localStorage）、`复制 CSV` / `下载 CSV`（仅表格）、`删除`（只从输出里移除这一项，不动数据、不动其它输出）。
+- **多选**：点单元格单选；`Ctrl+点击` 增减单元格；`Shift+点击` 以原锚点拉出矩形；`Ctrl+A` 全选；`Ctrl+C` 把选中区域按制表符分隔复制到剪贴板（可粘进 Excel / 文本）；**`Ctrl+V` 把剪贴板里的制表符/换行块粘到选区左上角**（越界的行列自动忽略，整次粘贴算一步撤销，任何一个单元格类型不对则整块不写入）。网格内关闭了浏览器的原生文字选择（`user-select:none`），所以拖选只看到表格高亮，不会同时出现歪斜的文本高亮；要选文字请用输出区或编辑框。选区的填充会盖住斑马纹（偶数行同样变蓝），当前单元格另有一圈强调色边框。行高随字号自适应，不支持拖动（SPSS 数据视图同样不可拖行高）。
+- **拖入语法文件**：`.sps` 不当数据打开，而是把内容填进**当前文档的语法编辑器并切到「语法」视图**；不新建文档、不动当前数据集（所以紧接着拖入数据文件时，标签页不会张冠李戴）。
+- **语法草稿按文档分开**：每个数据文档各有一份语法草稿（存 localStorage 的 `ap.syntaxByDoc`，键是文档 id），切换标签页时编辑器跟着换；关掉文档时它的草稿一并丢弃。所以一段语法只在它所属的那个数据集上运行。
+- **拖放打开**：把 `.sav/.por/.sys/.csv/.txt/.tsv/.xlsx/.ods/.dta/.sps` 拖到面板上会先上传进工作区（`<sessionId>/uploads/<10 位以上时间戳+3 位序号>-<原文件名>`，同一文件反复拖入不会变成 `名字 (3).sav`）再按正常流程打开；上限 64 MB。显示时一律去掉数字前缀。浏览器只把文件的内容交给页面、不交路径，所以这份是**副本**：host 对副本的 `sourcePath` 直接返回 `null`，界面只能显示「文件名（拖入副本 · 路径未知）」，此时点保存会要求「另存为…」而不是悄悄写回副本。用「文件 → 打开数据…」选择磁盘路径则是就地打开，保存写回原文件。拖放事件在面板内 `stopPropagation`，所以文件不会同时被对话输入框收走；拖到面板外松手时蓝色提示层会立即消失。
+- **变量视图**：列 = 名称 / 类型 / 宽度 / 小数 / 标签 / 值 / 缺失 / 列 / 测量 / 对齐 / 角色；单击单元格就地编辑（回车提交并下移、Tab 提交并右移、Esc 取消，输入框把原值显示为占位提示），改名称/类型/宽度/小数/标签/对齐在保存时写回 `.sav`（`FORMATS` + `VARIABLE ALIGNMENT`）。**表头右边界可拖动改列宽**（48–600 px，双击恢复默认），宽度存在 localStorage 的 `ap.varWidths`。
+- **语法视图**：等宽编辑区 + 左侧行号栏，`Ctrl+Enter` 运行；`Tab` 在编辑器内插入两个空格（不跳出编辑器）；「运行并保存数据」用于会产生数据变更的语法。输入时自动补全：**数据集变量（优先级最高）→ 已用到的变量 → PSPP 命令前缀**，最多 8 条；`↑↓` 选择、`Enter`/`Tab` 接受、`Esc` 关闭、`Ctrl+Space` 手动唤出；注释内部不提示。
+- **语法高亮**：命令（`FREQUENCIES`、`COMPUTE` 等，行首词）用强调色加粗，子命令（`/VARIABLES`、`/STATISTICS`、`BY`、`WITH` 等大写词）用暗色加粗，字符串 `'…'`/`"…"` 绿色、数字紫色，`*` 整行注释与 `/* … */` 块注释灰色斜体（块注释可跨行）。高亮层是 textarea 背后的一层 `<pre>`，编辑、选区、输入法、撤销都是原生行为；滚动位置与行号栏同步。深色主题下三色会自动换成亮一档的版本。
+- **输出视图**：左侧目录树（点条目跳转），右侧按顺序显示日志、表格、图表；每张表带「编辑表格 / 复制为 CSV / 下载为 CSV」，图表可「点击放大」。
+- **编辑表格**：每张表的标题栏有「编辑表格…」——逐列改表头文字、给列宽（像素，留空自动），再填一行脚注（如「注：数据以均数±标准差表示」），用于三线表排版。保存后这张表按矩阵重绘（PSPP 自带的 HTML 装不下这些属性），导出 HTML 时一并生效；Word/Excel 导出仍是 PSPP 原始表格。
+
+**已知交互约定**（不是 bug，是当前设计）：
+
+- 对话框左侧变量列表里，**灰掉的变量是类型不匹配**（例如"检验变量"只收数值型）。
+- 单选目标框（如"因变量""检验变量"）要**先点右侧的框、再点左侧变量**；直接连点两个变量会互相覆盖。
+- 菜单展开后点页面空白处不一定收起，再点一次菜单标题即可。
+
+---
+
+## 3. 文件
+
+| 菜单项 | 行为 |
+| --- | --- |
+| 新建数据 | 建空数据集 |
+| 打开数据… | 路径浏览对话框（可输入完整路径直达，会列出父目录），支持 `.sav .por .sys .csv .txt .tsv .xlsx .ods .dta` |
+| 保存数据 | 覆盖当前来源文件 |
+| 另存为… | 选路径保存为 `.sav` |
+| 转换数据格式（pspp-convert）… | 用引擎自带的 `pspp-convert` 转换当前数据集，目标格式由扩展名决定（`.sav .por .csv .dta`），不经过语法解析 |
+| 导出为 CSV… | 数据集导出 CSV |
+| 导出输出为 PDF… / ODT… | 把当前输出重放成可打印文档（PDF 中文正常）。表注以「注：<表名>：…」的形式追加在文档末尾（PSPP 自己排版，插件只能通过 `ECHO` 补写） |
+| 关闭数据集 | 释放工作区（不动磁盘文件） |
+| 保存语法文件（.sps）… | 把语法编辑器的内容写进一个 `.sps` 文件（host 端落盘，默认落在当前目录的 `<数据集名>.sps`） |
+| 导出输出为 HTML… | 整页 HTML，内联样式、图片内嵌 URL，表注以斜体小字跟在表后 |
+| 导出输出为 Word（.docx）… | 表格 + 图表一起进 Word：每张表一个带标题的边框表（三线表风格），图表以 PNG 用 `wp:inline` **嵌在所属表格内部**（合并单元格的一行，位置在标题与表头之间，不用浮动锚点），表注以斜体 10.5 pt「注：…」紧跟在表下，A4 版面。**配对规则**：图记录它画自哪一轮分析，该轮只有一张表就嵌那张；多表轮次只在「图的变量与分组变量同时出现在同一张表」时嵌，否则图单独排版；图表对话框的「导出时图表归属（可选）」可以显式钉到某张输出表（`pspp_chart` 的 `tableId` 同理），显式选择会被记住（`localStorage` 的 `ap.chartTarget`），同一张表连画多张图不必重复选，指定的表不在了就回到「自动」；显式指定优先于所有自动规则，指定的表不在了就单独排版 |
+| 导出图表为 PNG / SVG | 输出里每张图的标题栏有「导出 PNG」「导出 SVG」，也可以让 agent 用 `pspp_export_chart` 导出。SVG 是原矢量图（文字可编辑）；PNG 由 host 端光栅化（自写编码器，无依赖），**文字不绘制**——没有字体光栅化器，标签请在文档里补，几何与配色是精确的；PNG 可用 `scale` 放大到 4 倍 |
+| 导出输出为 Excel（.xlsx）… | 每张表一个工作表（表名取表格标题，重名自动加序号，最长 31 字符），标题合并首行，纯数字单元格写成数值型（可在 Excel 里直接求和/作图）；**表内自洽量写成真公式**（频率表百分比 = 计数/合计、Valid Percent = 计数/有效合计、Cumulative Percent 逐行累加、合计行 = SUM；交叉表行/列合计 = SUM；交叉表的 `Chi-Square Tests` 表按行标签（Pearson / Likelihood Ratio / Continuity / Linear-by-Linear）写 `_xlfn.CHISQ.DIST.RT(Value, df)`，Fisher 精确检验与个案数行跳过；t 检验 `Sig. (2-tailed)` = `_xlfn.T.DIST.2T(ABS(t), df)`、卡方检验 `Asymp. Sig.` = `_xlfn.CHISQ.DIST.RT(χ², df)`（Excel 2010 之后的函数必须带 `_xlfn.` 前缀，否则真 Excel 报 `#NAME?`）；Logistic 系数表 Wald = (B/S.E.)²、Sig. = CHISQ.DIST.RT(Wald,1)、Exp(B) = EXP(B)、区间 = EXP(B ± 1.96·S.E.)；ANOVA 的 F 检验 = `_xlfn.F.DIST.RT(F, df1, df2)`（df1 取 Regression 行、df2 取 Residual 行，同表内即可算）；回归系数表的 Sig. 因 df 不在本表，按标题里的因变量名找到同批输出的 `ANOVA (x)` 工作表，取 Residual 行的 df 写成跨表引用 `_xlfn.T.DIST.2T(ABS(t),'ANOVA (x)'!C4)`，表名含空格/括号/引号时按 Excel 规则加单引号并双写内部引号，找不到对应 ANOVA 表就退回数值），相关表（`CORRELATIONS`）的 `Sig. (2-tailed)` 按 `t = r·√((N-2)/(1-r²))` 写成 `_xlfn.T.DIST.2T(ABS(<r>*SQRT((<N>-2)/(1-<r>^2))),<N>-2)`（r 与 N 就在同一列，对角线 r=1 无 Sig. 不写）；非参数检验的 `Test Statistics` 是竖排（统计量/df/Asymp. Sig. 各占一行），卡方类写 `_xlfn.CHISQ.DIST.RT(χ², df)`，Wilcoxon/ Mann-Whitney 的 Z 写 `2*(1-_xlfn.NORM.S.DIST(ABS(Z),TRUE))`，只有 `Asymp. Sig.` 没印统计量的（二项、游程、K-S）不写；Model Summary 的 R、R Square、Adjusted R Square 按 `1 - SSres/SStot`、`SQRT(...)`、`1-(1-R²)(n-1)/(n-p-1)` 写跨表公式，n-1 与 n-p-1 直接取 ANOVA 表的两个 df；每个公式带打印值作为缓存结果，改输入单元格才重算；均数、标准差无法从表内重算，仍是数值，需要重算时勾选「附带原始数据页」附一张隐藏的个案表；每张表的标题栏还有「单独导出…」，只把这一张表写进 .docx/.xlsx（文件名后缀决定格式，请求里带该表的 id；指定的表已经不在了会直接报错，不会退化成导出全部）；每个图条目的标题栏也有同样的「单独导出…」（导出范围只含这张图：Word 是一条内嵌图片段落、不包空表，Excel 里图占独立工作表并锚在 A1），agent 侧用 `pspp_export_office` 的 `items` 传条目 id，表格与图表都认；导出对话框的「写入 Excel 公式」勾选（默认开）可以关掉全部公式，得到纯数字表格；「附带原始数据页」（默认关）会把当前个案写成一张 `state="hidden"` 的工作表附在末尾（表头是变量名，最多 2 万行），报告里没打印的量可以用 `AVERAGE`/`STDEV.S` 自己算，含敏感数据时不要勾；图表以 `oneCellAnchor` 锚定在表格首格，表格上方预留空行/行高，图片不会压住数据；配对规则同 Word，配对不上的图单独进「图表」工作表；同一张图在两种文件里尺寸一致（像素 ÷ 96 dpi，封顶 14 cm）；表注写在矩阵下方并跨列合并 |
+| 导出表格为 CSV… | 只导表格，不含图 |
+
+**在「文件」面板里直接打开（file viewer）**：注册了一个 better-sidebar 文件查看器 `analytics:data`，扩展名 = `.sav .por .sys .dta`。在左侧「文件」树里点这类文件时，better-sidebar 会为它开一个自己的标签页——这个标签页**只做转交**：把路径交给统计分析面板、把面板切到前台，然后 60 ms 后自己关掉。所以文件最终是作为**面板内的一份文档**打开的（文档标签条上多一个「文件名」），不会在侧栏里多出一个同名标签，也不会和面板抢同一个位置。同一份文件重复点会打开新的文档；面板里已经有的数据集不受影响。
+
+面板内的文档各有独立工作区：主文档用会话 id，后续文档用 `<sessionId>~<n>`，查看器转交的这份用 `file-<8 位十六进制>`（路径哈希，所以重新点同一个文件能拿回原来的数据集）。工作区已有数据集时只恢复、不重开，改过没保存的数据不会被磁盘上的原文件覆盖。
+
+`csv` / `xlsx` / `ods` / `txt` **故意不接管**：这类文件用户经常只想当文本或表格看一眼，抢过来会让人没法用别的查看器；想导入分析时，面板自己的「打开数据…」和拖放都支持它们。要改接管名单，改 `client.js` 里的 `DATA_VIEWER_EXTS` 即可（后续会做成插件设置项）。
+
+---
+
+## 3.1 编辑
+
+| 菜单项 | 说明 |
+| --- | --- |
+| 撤销（Ctrl+Z） | 菜单上直接显示将被撤销的动作，如「撤销 编辑单元格」；灰显表示没有可撤销的操作 |
+| 重做（Ctrl+Y） | 同上 |
+| 查找…（Ctrl+F） | 在整个数据集或指定变量里找子串，命中后跳到数据视图的第一个命中单元格，并提示总数 |
+| 替换… | 全部替换。文本变量按子串替换，数值变量只做整格替换（避免把 12 变成 1X）；一次替换算一个撤销点 |
+
+撤销栈：单元格编辑只记前后值；插入/删除个案与变量、排序、转置、合并、带 `SAVE` 写回的语法各记一份快照。深度 30 步，数据集超过 1200 万个单元格时不记（防止吃内存）。
+
+---
+
+## 3.2 工作区与多开（能力边界）
+
+- 每个标签页一个独立工作区：`~/.dsh/analytics/<sessionId>/`，正在编辑的数据是 `work.sav`，配套的 `dataset.json` 记住它属于哪个磁盘文件（`sourcePath`）以及是不是拖入的副本（`temporary`）。
+- dsh web 重启后，面板会**接着显示原来的数据**（从 `work.sav` 恢复并读回 `dataset.json`），不会把标签页里记录的路径重新打开一遍——对拖入的文件，那条路径只是工作区里的副本。
+- 只有当工作区确实是空的（新标签页）时，标签页才会按它的 `path` 打开文件。
+- **状态栏的文件身份**：打开的文件显示完整路径；拖入的文件只显示文件名并标注 `（拖入副本 · 路径未知）`——浏览器只把字节交给网页，永远拿不到原路径。要写回原文件，用「文件 → 打开数据…」选一次磁盘路径。
+- **工作区恢复规则**：只有 `dataset.json` 里记着真实磁盘文件的工作区才会在下次打开面板时恢复；拖入的副本不恢复（免得凭空冒出一份你没打开过的文件）。
+- **文件对话框**：打开/另存为从**当前会话的工作目录**起步（取自侧边栏的会话服务），不是 dsh 服务进程的 cwd。
+- **缓存目录**：`~/.dsh/analytics/<sessionId>/`（每份数据一份 `work.sav`、输出 `runs/`、拖入副本 `uploads/`）。**目前不会自动清理**：删除 DSH 会话不会删除这里，需要手动删目录。
+- 多开只在**底部工作台**成立；右侧边栏的原生 surface 对工具类标签是「一种只留一个」，第二次打开会顶掉前一个。这是 dsh-better-sidebar 的能力边界，不是本插件的行为。
+
+## 4. 数据
+
+| 菜单项 | 说明 |
+| --- | --- |
+| 插入变量… | 对话框：变量名、类型（数值/字符串）、宽度、小数、变量标签、值标签（每行 `值=标签`）、缺失值；确认后新列出现在数据视图与变量视图 |
+| 插入个案 | 末尾追加一行 |
+| 删除个案 | 删除当前选中行 |
+| 转置 | 行列互换（PSPP `FLIP`，会生成 `CASE_LBL`/`VAR000…` 列名） |
+| 排序个案… | 多选排序变量 + 升序/降序 |
+| 选择个案… | 条件表达式（如 `score > 60`），**不满足的个案会被删除**（可用撤销退回） |
+| 加权个案… | 选一个变量做权重 |
+| 关闭加权 | 取消加权（`WEIGHT OFF`），加权汇总数据分析完后必须做 |
+| 拆分文件… | 多选拆分变量，后续分析按组分别输出；**拆分状态由工作区记住并在每次运行前自动重放**（PSPP 的 `SPLIT FILE` 是会话设置、不写进 `.sav`），`SPLIT FILE OFF` 关闭 |
+| 随机抽样… | 比例 1–100（默认 25），按近似比例抽样后**直接写回数据集** |
+| 合并文件 → 添加个案… | 选一个 `.sav/.por/.sys`，按 `ADD FILES` 纵向追加 |
+| 合并文件 → 按关键变量合并… | 选文件 + 键变量（空格分隔），按 `MATCH FILES /BY` 横向拼接 |
+
+---
+
+## 5. 转换
+
+| 菜单项 | 生成语法 |
+| --- | --- |
+| 计算变量… | `COMPUTE 目标 = 表达式.` + `EXECUTE.` |
+| 重新编码为不同变量… | `RECODE 源 (映射) INTO 目标.` + `EXECUTE.`（映射示例 `(1 THRU 3=1) (ELSE=2)`） |
+| 自动重新编码… | `AUTORECODE VARIABLES=源 /INTO 目标.` + `EXECUTE.`（字符串分类转连续编号，PSPP 会把值标签一并带过去） |
+| 汇总… | `AGGREGATE /OUTFILE=* MODE=ADDVARIABLES /BREAK=… /目标=函数(变量).`（函数 MEAN/SUM/MAX/MIN/COUNT） |
+| 计数… | `COUNT 目标 = 变量… (值).`（目标变量名会做合法性校验） |
+| 排秩… | `RANK VARIABLES=x /RANK INTO 目标 /TIES=MEAN|LOW|HIGH.`（目标名默认 `r_<变量>`） |
+
+以上都会**写回工作文件**。
+
+---
+
+## 6. 分析（统计过程）
+
+共 40 个对话框。表格里「语法」列是该对话框确定后真正执行的东西（`[…]` 视选项有无）。
+
+### 6.1 描述统计
+
+| 对话框 | 字段 | 选项 | 语法 |
+| --- | --- | --- | --- |
+| 频率 | 变量（多选，数值） | 统计量：均值/标准差/中位数（默认）、众数/最小/最大（默认）、总和/方差/偏度/峰度；图表：条形图/直方图；百分位（文本，如 `25 50 75`） | `FREQUENCIES /VARIABLES=… [/STATISTICS=…] [/PERCENTILES=…] [/BARCHART] [/HISTOGRAM].` |
+| 描述 | 变量（多选，数值） | 均值/标准差/最小/最大（默认）、均值标准误/方差/极差/偏度/峰度/总和 | `DESCRIPTIVES /VARIABLES=… [/STATISTICS=…].` |
+| 探索 | 变量（多选，数值）、分组变量（可选） | 箱线图（默认）/直方图/正态概率图；描述统计表（中位数、四分位数、四分位数间距、偏度峰度、Shapiro-Wilk）默认输出 | `EXAMINE v… [BY g] /PLOT=BOXPLOT\|NPPLOT /STATISTICS=DESCRIPTIVES /NOTOTAL.` |
+| 交叉表 | 行变量、列变量、分层变量（可选） | 统计量：卡方（默认）/Phi 与 Cramer's V/列联系数/Lambda/Gamma；单元格：计数（默认）/行百分比/列百分比/期望频数/残差类 | `CROSSTABS /TABLES=… BY … [BY 层] [/STATISTICS=…] /CELLS=…`（`BY 层` 相当于 SPSS 的「层 1 of 1」） |
+
+### 6.2 比较平均值
+
+| 对话框 | 字段 | 语法 |
+| --- | --- | --- |
+| 平均值 | 因变量（多选）、自变量（必填） | `MEANS … BY … /CELLS=MEAN COUNT STDDEV …` |
+| 单样本 T 检验 | 检验变量（多选，数值）、检验值（默认 0）、95% 置信区间 | `T-TEST /TESTVAL=x /VARIABLES=… [/CRITERIA=CI(.95)].` |
+| 独立样本 T 检验 | 检验变量（多选，数值）、分组变量、组值（两个，从分组变量观测值里点选） | `T-TEST GROUPS=g(1 2) /VARIABLES=… [/CRITERIA=CI(.95)].`（字符串组值自动加引号） |
+| 配对样本 T 检验 | 配对变量（多选，顺序两两配对） | `T-TEST PAIRS=a b c d.` |
+| 单因素 ANOVA | 因变量（多选，数值）、因子、描述性/方差齐性、事后检验（Tukey/LSD/Bonferroni/Sidak/Scheffé） | `ONEWAY … BY … [/STATISTICS=…] [/POSTHOC=…].` |
+
+### 6.3 一般线性模型 / 相关 / 回归 / 降维 / 刻度
+
+| 对话框 | 字段 | 语法 |
+| --- | --- | --- |
+| 单变量（GLM） | 因变量（多选）、因子（可多个）、协变量、（工具）设计项 | `GLM y BY f1 f2 [WITH x] [/DESIGN=f1 f2].`；多因子即随机区组（`GLM drop BY trt block /DESIGN=trt block`） |
+| 双变量相关 | 变量（多选，数值）、双尾/单尾、显著性列、描述统计量、成对/整行排除缺失 | `CORRELATIONS /VARIABLES=… /PRINT=TWOTAIL SIG /STATISTICS=DESCRIPTIVES /MISSING=LISTWISE.` |
+| 偏相关（插件自算，PSPP 没有这条命令） | 分析变量（多选，数值，至少两个）、控制变量（多选，数值，可空） | 不进引擎：两个变量分别对控制变量做含截距的最小二乘回归，取残差求 Pearson r；`t = r·√(df/(1-r²))`，`df = N − 控制变量数 − 2`，P 由 t 分布双尾给出；输出「变量对 / 控制变量 / r / df / P / N / 标记」，缺失按列表删除（N 可能小于总个案数）。面板入口：分析 → 相关 → 偏相关…；agent 用 `pspp_partial`。表格形式可选「逐对一行」（r/df/P/N/标记）或「矩阵」（变量 × 变量、对角线 1、上下对称，整表共用一次列表删除，适合多变量共用一个控制集时排版） |
+| 线性回归 | 因变量、自变量（多选）、统计量（R/系数/方差分析/置信区间/**共线性诊断（插件计算）**）、保存（未标准化预测值/残差、标准化预测/残差、学生化残差、Cook's D） | `REGRESSION /DEPENDENT=… /METHOD=ENTER … [/STATISTICS=COEFF R ANOVA CI] [/SAVE=PRED RESID…].`；勾了「保存」会写回数据集（新变量 `PRED1`、`RES1`…）。**默认不向引擎要 `TOL`**：PSPP 2.1.3 带 TOL 约 1/6 的运行会崩在 `gsl_blas_dsymm`（exit 19、零张表），所以容忍度与 VIF 由插件算（`lib/regression.js`，与 R `car::vif` 对过账），单独出一张「共线性诊断（插件计算）」表；只有一个自变量时固定 1.000 / 1.000（PSPP 自己会打印 `+Infinit`/`NaN`）。显式传 `statistics:["TOL"]` 或 `["ALL"]` 仍可让引擎算，崩溃时自动去掉 TOL/ALL 重跑一次（`/STATISTICS` 摘空则降级为 `COEFF R ANOVA CI BCOV`），重跑后照样补出插件算的共线性表；引擎那列只有在数值有限、落在 0–1 且与重算相差 ≤0.02 时才被采用，否则以重算为准并注明。退出码非 0 且零张表会直接报错（带退出码与引擎原文），不再静默返回空输出。只有两个预测变量互为镜像时，表里所有容忍度都会是 0：插件会额外写一条表注点名是哪两个变量完全相关，提示先删掉其中一个，而不是让用户以为是别的变量有问题。系数表里出现 `NaN` 或 `+Infinit` 时也会加表注说明这几行不能用。PSPP 没有 Durbin-Watson |
+| 二元 Logistic | 因变量、协变量（多选）、选项「输出 Exp(B) 的 95% 置信区间」（默认开）。当预测变量出现分离的直接证据（`S.E. > 5`、CI 含 `+Infinit`、或上下限相差 1000 倍以上）时自动加一条表注；常数项再大也不触发 | `LOGISTIC REGRESSION y WITH x1 x2 /PRINT=CI(95) SUMMARY.` —— 输出 `Variables in the Equation` 含 `B`、`S.E.`、`Wald`、`df`、`Sig.`、`Exp(B)` 与 `95% CI for Exp(B) Lower/Upper`。PSPP 不接受 `/METHOD=ENTER`，插件不生成它 |
+| 因子分析 | 变量（多选）、旋转（VARIMAX/EQUAMAX/QUARTIMAX/PROMAX/不旋转）、输出（初始解/提取/KMO） | `FACTOR /VARIABLES=… /PRINT=INITIAL KMO EXTRACTION ROTATION /ROTATION=….`；KMO 与 Bartlett 默认打印，旋转后载荷矩阵单独成表；「不旋转」正确发成 `NOROTATE`（PSPP 不认 `NONE`） |
+| 快速聚类 | 变量（多选）、聚类数（默认 2） | `QUICK CLUSTER … /CRITERIA=CLUSTER(k).` |
+| 可靠性分析 | 变量（多选） | `RELIABILITY /VARIABLES=… /SCALE('all') ALL /MODEL=ALPHA.` |
+| ROC 曲线 | 检验变量、状态变量、状态值（默认 1）、选项「输出曲线坐标」（默认开） | `ROC v BY g(1) /PLOT=CURVE /PRINT=COORDINATES.` —— 除曲线图与 AUC 外，多一张 `Coordinates of the Curve`（阈值 / 灵敏度 / 1 − 特异度），可用于约登指数。状态值只收单值，`(0 1)` 会被引擎拒绝 |
+
+### 6.4 非参数检验（9 个）
+
+| 对话框 | 语法 |
+| --- | --- |
+| 卡方 | `NPAR TESTS /CHISQUARE=v.` |
+| 二项式 | `NPAR TESTS /BINOMIAL(0.5)=v.`（变量需为二分） |
+| K-S 正态性 | `NPAR TESTS /K-S(NORMAL)=v.` |
+| 游程 | `NPAR TESTS /RUNS(MEDIAN)=v.` |
+| 2 个相关样本（Wilcoxon） | `NPAR TESTS /WILCOXON=a b c.`（至少两个变量） |
+| 2 个相关样本（符号） | `NPAR TESTS /SIGN=a b c.` |
+| 2 个独立样本（Mann-Whitney） | `NPAR TESTS /MANN-WHITNEY=v BY g(1 2).` |
+| K 个独立样本（Kruskal-Wallis） | `NPAR TESTS /KRUSKAL-WALLIS=v BY g(1 3).`（PSPP 把 `(1 3)` 解释为范围，会包含中间组） |
+| K 个独立样本（Jonckheere-Terpstra，有序备择） | `NPAR TESTS /JONCKHEERE-TERPSTRA=v BY g(1 3).`（组顺序有意义时用；实测 score 按 group：J-T=698.00、Z=.51、p=.613） |
+| K 个相关样本（Friedman） | `NPAR TESTS /FRIEDMAN=a b c.` |
+
+### 6.6 多选题（MRSETS）
+
+SPSS 的「多选题」在这里是**插件自己算的**：PSPP 2.1.3 能把 `MRSETS` 写进字典，却没有任何命令能用这些集合（`FREQUENCIES /VARIABLES=$q1` 报 `$q1不是有效的变量名`，连 `DISPLAY MRSETS` 都没有）。
+
+- 「转换 → 定义多选题…」：二分法（每个变量是一个是/否题，勾选的算一次）或多分类（同一组值出现在多个变量里，例如第一/第二/第三选择）。多分类要写清「计数哪些值」，可选「每个响应者只算一次」与「把没人选的类别也列出来（计数 0）」。
+- 「转换 → 多选题面板…」：左侧是已定义的集合，右侧出「频数表」（响应数 / 百分比 / 个案百分比，可切百分比基数）或按一个分组变量出交叉表；也能编辑、删除。
+- 计值规则：二分法按变量逐列计；多分类只在声明的值域内计；声明为缺失的值、值域外的编码都不计；交叉表里没有值标签的分组码不算一个分组。
+- 重新打开 `.sav` 时会把这些定义读回来。属性串的编码跟平台走：PSPP 在 Windows 上按系统 ANSI 代码页（中文系统 cp936）写，在 Linux 上写 UTF-8，所以读的时候先按 UTF-8 严格解，失败再按 GB18030 解 —— 否则中文标签会变成「��ѡ�����」。这条回退只对中文 Windows 成立：GB18030 几乎能接受任何字节序列，西文 ANSI（如 cp1252 的 `Müller`）会被当成汉字解出怪字符；西文环境请把数据另存为 UTF-8。
+- 保存数据时定义会重放成 `MRSETS /MCGROUP NAME=$q1 LABEL='…' VARIABLES=a b c.` 写进 `.sav`，SPSS 打开能认出这些集合（PSPP 只认不带斜杠的 `VARIABLES`/`VALUE`，不吃 `/COUNTEDVALUES`）。
+- **写回 `.sav` 的限制**：PSPP 2.1.3 每个 `MRSETS` 只收一个 `/VALUE`（写成列表报 `Syntax error expecting NAME, VARIABLES, LABEL, LABELSOURCE, VALUE, or CATEGORYLABELS`），而同名再定义会覆盖前一条，所以多分类集合写进 `.sav` 时只记下**第一个计数值**，标签里会注明实际计了哪些值（例如「得分组 （值 58/59/60/…，PSPP 只记 58）」）。面板里的频数与交叉表不受影响，它们直接读数据行。
+
+## 6.5 表 → 自定义表（CTABLES）
+
+字段：行（数值变量）、列（分类变量）、标题（可空，空则「行 按 列 统计」）、CI 水平（默认 95）。
+
+- 统计量 12 项：`COUNT MEAN STDDEV MINIMUM MAXIMUM`（默认）+ `SUM MEDIAN VARIANCE SEMEAN MODE VALIDN MISSING`。
+- 类别选项：列变量含缺失值类别。
+- 列变量若是**刻度（scale）**，插件会在同一份语法前加 `VARIABLE LEVEL <列> (NOMINAL).` 临时降级（PSPP 不允许 scale 变量上列轴），**不改工作文件**。
+- 生成语法形如：
+
+```
+CTABLES /TABLE=score [COUNT, MEAN] BY group
+/TITLES TITLE='score 按 group 统计'
+/CATEGORIES VARIABLES=group ORDER=A
+/CRITERIA CILEVEL 95.
+```
+
+---
+
+## 7. 图形（6 种，条形图 3 种形态）
+
+| 对话框 | 字段 | 出图方式 |
+| --- | --- | --- |
+| 条形图 | 变量（数值）+ 类别轴（可选）+ 分组（并列，可选）+ 堆叠（可选）+ 「条形图选项」里的误差线（不显示 / ±1 SD / ±1 SE / 95% CI）、自动显著性标注、百分比堆叠 | 插件自绘 SVG，按均值汇总。三种形态：普通柱、**分组并列柱**（第二个变量把每根柱拆成并排的几根，带图例）、**堆叠柱**（第二个变量把每根柱切成几段）。**误差线** 三选一：±1 个标准差（样本标准差，n−1 分母）、±1 个标准误、95% 置信区间（用 t(0.975, n−1)，小样本不是拿 1.96 顶），每组至少 2 个案才画；**自动显著性标注**对每一对类别做 Welch t 检验，括号上标 `***`(<0.001) / `**`(<0.01) / `*`(<0.05) / `ns`，括号按重叠分层、顶部自动留白；**百分比堆叠** = 每根柱按自身合计归一化到 100%，段内标占比、纵轴固定 0–100。类别轴、分组、堆叠不能重复用同一个变量，分组与堆叠也不能同时选 |
+| 直方图 | 变量（数值）、分箱数（可选） | 自绘 SVG；柱子上必带**正态曲线叠加**（μ/σ 标在右上角），按「期望频数 = n × 箱宽 × 密度」与柱子同尺度画 |
+| 散点图 | X 变量、Y 变量 | PSPP 引擎 |
+| 箱线图 | 变量（数值）+ 分组变量（可选） | 插件自绘 SVG（五数概括 + 1.5×IQR 须线 + 离群点） |
+| 折线图 | 变量（数值）+ 类别轴（必填）+ 分线变量（可选）+ 第二变量（右轴，可选）+ 选项里的误差线（SD / SE / 95% CI） | 插件自绘 SVG（按均值）；选了分线变量就一个取值一条线，缺类别处断开，多线带图例；误差线三选一（SD / SE / 95% CI）；填了第二变量就变**双 Y 轴**：两个变量各读自己的刻度，网格跟左轴，图例标（左轴）/（右轴） |
+| 面积图 | 变量（数值）+ 类别轴（必填）+ 分层变量（可选） | 插件自绘 SVG；分层就堆叠成累积面积，不分层就是单条填充曲线 |
+| 饼图 | 类别变量（+ 选项里可勾「显示为环形图」） | 插件自绘 SVG（含百分比图例）；环形图把占比画在环上 |
+
+SVG 尺寸 560×360，字体 Noto Sans CJK SC，中文标签正常。图表文件落在 `runs/<n>/chart.svg`，输出视图里可点开放大。
+
+**表 1 / 表 2**（分析 → 表）：选一个分组变量，插件直接从当前数据集算出一张期刊格式的表——连续变量给均数±标准差（或中位数与四分位间距），分类变量逐水平给 n（%），P 列之后还有一列**效应量**（两组给 Cohen's d、三组以上给 η²、分类变量给 Cramér's V——P 只说「有没有差别」，效应量说「差多少」）。P 列本身：两组用 Welch t 检验，三组以上用单因素方差分析，分类变量用 Pearson 卡方。表 1 多一列「总体」，表 2 去掉它。任何单元格期望频数 < 5 时，表下方的备注会指出该用 Fisher 确切概率法，而不是给一个不可靠的卡方 P。分布函数（t / F / 卡方）在 `lib/tables.js` 里就地实现，不依赖宿主装了什么统计包。agent 侧对应工具 `pspp_publication_table`。
+
+**两两比较**（`pspp_pairwise`，面板入口有两处）：独立样本 T、单因素 ANOVA、GLM 的结果标题栏有「两两比较」按钮，点开直接用这套变量与分组；也可以走「分析 → 比较平均值 → 两两比较…」自己选。输出均数差、标准误、t、**df**（Welch–Satterthwaite）、原始 P、Bonferroni 校正 P、95% 置信区间（用该对比较自己的 df 算 t(0.975, df)）、Cohen's d、**d 的 95% CI**（Hedges & Olkin 近似）与星号；对话框「表格形式」可切换成**矩阵表**（行是变量、列是每组对，单元格为均数差加星号，多组论文的常用排法，agent 侧 `layout:"matrix"`）（`***`/`**`/`*`/`ns`）。**默认就做 Bonferroni 校正**（乘数 = 同一变量的比较对数，上限 1），标记按校正后 P 判定 —— 三组就是三对，把未校正的 P 抄进论文是读者看不出来的错误；确实要原始 P 时显式传 `adjust:'none'`，表头会写「P（未校正）」、备注里也不出现 Bonferroni 字样。不要求方差齐，组例数悬殊时比方差分析的事后检验可靠。
+
+**偏相关**（分析 → 相关 → 偏相关…，工具 `pspp_partial`）：PSPP 2.1.3 没有 `PARTIAL CORR`，这张表由插件自己算——两个变量分别对控制变量做含截距的最小二乘回归，取两组残差求 Pearson r；`t = r·√(df/(1-r²))`，`df = N − 控制变量数 − 2`，P 是 t 分布的双尾概率。输出「变量对 / 控制变量 / r / df / P / N / 标记」，缺失按列表删除（只保留分析变量与控制变量都齐全的个案，所以 N 会小于总个案数，备注里写明了）；控制变量个数超过 `N-2` 时那对变量给「—」并说明自由度不足。多个分析变量会两两成行，一个控制变量集适用于所有变量对。r 的残差算法与闭式解 `(rxy − rxz·ryz)/√((1−rxz²)(1−ryz²))` 在测试里对过账。两种输入错误会直接报错而不是给空表：控制变量之间完全共线（含某个控制变量是常数）报「无法求残差，请删掉一个控制变量」，字符串变量报「偏相关只能用于数值变量」。没有指定控制变量时，备注会说明这里的 r 就是普通的 Pearson 相关（df = N − 2）。
+
+**图表编辑器**：输出里的图表条上有「编辑图表」按钮（双击图也能开）。可改标题、X/Y 轴标题、主色（8 个预设：默认/蓝/青/绿/橙/紫/红/灰）与类别顺序（默认/升序/降序）；应用后 host 用 `applyChartOverrides` 重算模型、重写 `chart.svg` 与 `chart.json`，并把输出项的图片地址加上 `&v=<时间戳>` 以穿透浏览器缓存。模型侧有同名能力：`pspp_edit_chart`，参数与对话框一致（`runId` + 可选覆盖项）。
+
+---
+
+## 7.1 报告卡（导出选中的结果）
+
+输出区每个结果左侧有勾选框，勾上若干项后顶部出现「报告卡：已选 N 个结果」与「导出报告卡…」：按输出顺序重放这些结果背后的语法，导出成 PDF / ODT / `.spv`。
+
+- 重放从当前工作数据出发：`GET FILE` 头与结尾的 `SAVE` 会被去掉，所以不会把变换再跑一遍，也不会改写数据文件。
+- 能进报告卡的是表格类结果；图表目前走「导出 PNG/SVG」。空选择会明确提示，不会让引擎去跑空脚本。
+
+## 8. 实用程序 / 帮助
+
+- **运行语法**：跑语法视图里的内容（`Ctrl+Enter` 同效）。
+- **清除输出**：清空输出视图与目录树（不动数据）。
+- **关于 PSPP 分析**：提示"内置 PSPP 引擎 + SPSS 风格工作台；统计过程由 PSPP 执行"。
+
+---
+
+## 9. 对话里怎么用（23 个 agent 工具）
+
+模型在对话中通过以下工具操作**同一个工作区**，用户不用打开面板也能完成分析；面板每 3 秒轮询一次状态，agent 的改动会在面板里出现并弹「PSPP 有新输出」。
+
+| 工具 | 作用 | 关键参数 |
+| --- | --- | --- |
+| `pspp_status` | 引擎与数据集状态 | — |
+| `pspp_open` | 打开数据文件 | `path`（.sav/.por/.sys/.csv/.txt/.tsv） |
+| `pspp_variables` | 变量字典（名称/类型/标签/测量/值标签/缺失） | — |
+| `pspp_data` | 分页读取个案 | `offset`、`limit`、`variables` |
+| `pspp_run` | 跑任意 PSPP 语法 | `syntax`、`persist`（默认 false；改数据的命令要 true 才写回） |
+| `pspp_analyze` | 统计过程 | `procedure` + 各过程参数 |
+| `pspp_transform` | 数据变换 | `operation`：compute/recode/sort/aggregate/select/filter/weight/split/rename/delete/sample/count/rank |
+| `pspp_chart` | 出图 | `type`：bar/histogram/scatterplot/boxplot/line/pie；可选 `title`/`xLabel`/`yLabel`/`accent`/`sortCategories` |
+| `pspp_edit_chart` | 改已生成图表的外观（重算并覆盖同一个 `chart.svg`） | `runId`、`title`、`xLabel`、`yLabel`、`accent`（`#rrggbb`）、`sortCategories`（asc/desc/none） |
+| `pspp_save` | 保存 | `path`（缺省覆盖来源） |
+| `pspp_merge` | 合并文件 | `path`、`kind`（add/match）、`by` |
+| `pspp_export_document` | 输出转 PDF/ODT | `path`、`syntax`（可选，只放只读过程） |
+| `pspp_export_office` | 输出转 Word/Excel（`.docx` 带图表，`.xlsx` 每表一页，自洽量写成公式） | `path`、`scope`（`last` 只导最新一批条目）、`formulas`（默认 true，false 只写数值）、`dataSheet`（默认 false，true 附加隐藏的原始个案页） |
+| `pspp_export_chart` | 图表导出 PNG/SVG | `path`、`runId` 或 `url`、`scale` |
+| `pspp_export` | 数据集导 CSV | `path` |
+| `pspp_publication_table` | 表 1 / 表 2（期刊格式） | `kind`（baseline/compare）、`group`、`variables`、`continuous`（mean/median） |
+| `pspp_pairwise` | 两两比较（Welch t，默认 Bonferroni） | `group`、`variables`、`adjust`、`layout`（rows/matrix） |
+| `pspp_partial` | 偏相关（残差法，PSPP 没有 PARTIAL CORR） | `variables`（≥2）、`controls`（可空） |
+
+`pspp_analyze` 支持的过程：
+`frequencies`、`descriptives`、`crosstabs`、`ttest_independent`、`ttest_paired`、`ttest_one_sample`、`oneway`、`glm`、`correlation`、`regression`、`logistic`、`factor`、`reliability`、`npar`（卡方）、`npar_binomial`、`npar_ks`、`npar_runs`、`npar_wilcoxon`、`npar_sign`、`npar_mannwhitney`、`npar_kruskal`、`npar_friedman`、`npar_jonckheere`、`npar_mcnemar`、`npar_cochran`、`npar_kendall`、`examine`、`means`、`ctables`、`roc`、`cluster`。
+
+> 工具路径与对话框路径生成的是**同一份语法**（例如两者都输出 `T-TEST /TESTVAL=60 /VARIABLES=score.`），所以结果可以互相复现。
+>
+> **回传给模型的表格最多 200 行**（0.23.31 起）：一张把连续变量放进频率表的结果可以到 4135 行，整张回传只会吃掉调用方的上下文。超出时 `rows` 只含前 200 行，并多一个 `truncated: { rows: 总行数, shown: 200, hint }`；面板与导出的文件不受影响，仍是完整表格。
+
+---
+
+## 10. HTTP 接口（面板用）
+
+前缀 `/analytics`，需要 DSH 会话 cookie（未授权 401）。
+
+| 路由 | 用途 |
+| --- | --- |
+| `GET api/state` | 数据集形状 + 输出条目（面板轮询） |
+| `POST api/open` / `api/new` / `api/close` / `api/clear` | 打开 / 新建 / 关闭数据集 / 清输出 |
+| `POST api/paste` | `{cells:[{row,variable,value}]}` 批量写单元格（先整体校验，再一次写入，一步撤销） |
+| `POST api/output` | `{action:"remove", id}` 删掉一项输出；缺 `action` 时等同清空，返回新 `state` |
+| `GET api/rows` | 分页取个案 |
+| `POST api/run` | 跑语法（可选 persist） |
+| `POST api/chart` | 生成图表 |
+| `POST api/save` / `api/export` / `api/exportDoc` | 保存与三种导出 |
+| `POST api/cell` / `api/case` / `api/variable` | 单元格、个案、变量（含标签/缺失/测量）编辑 |
+| `POST api/sort` / `api/flip` / `api/merge` | 排序、转置、合并 |
+| `POST api/history` | 撤销 / 重做（`{action: 'undo' | 'redo'}`） |
+| `POST api/find` / `api/replace` | 查找（返回命中行列）/ 批量替换（可撤销） |
+| `POST api/convert` | 调 `pspp-convert` 转格式 |
+| `POST api/upload` | 拖入的文件落盘（base64，上限 64 MB） |
+| `POST api/sheets` | 列出 `.xlsx`/`.ods` 的工作表名 |
+
+---
+
+## 11. 文件格式
+
+| 方向 | 支持 |
+| --- | --- |
+| 导入 | `.sav`（SPSS 系统文件）、`.por`、`.sys`、`.csv`、`.txt`、`.tsv`、`.xlsx`、`.ods`、`.dta`（Stata 117/118） |
+| 导出（数据） | `.sav`、`.csv` |
+| 导出（输出） | PDF、ODT、HTML、Word（`.docx`）、Excel（`.xlsx`）、表格 CSV、图表 PNG/SVG |
+
+CSV 导入规则：自动识别表头；列名里非法字符替换成 `_`、数字开头加 `V` 前缀；前 200 个非空样本全可转数字则判数值型（`F12.2`、宽度 12、2 位小数、刻度、右对齐），否则字符串型（`A<宽度>`、名义、左对齐）；空单元格为系统缺失。
+
+**文本导入选项**（打开 `.csv/.txt/.tsv` 时先弹对话框）：编码（自动 / UTF-8 / GBK / GB18030 / Big5 / Latin-1；自动 = 先严格按 UTF-8，失败再按 GB18030）、分隔符（自动 / `,` / `;` / Tab / `|`；自动按首行出现最多的分隔符）、首行是否变量名（`.csv/.tsv` 默认是，`.txt` 默认否）。非 ASCII 的列名会变成 `V1…Vn`，原列名写进变量**标签**——PSPP 用自身 locale 读生成的语法，中文标识符会变乱码。
+
+**Excel 导入**（`.xlsx`）：自带只读解析层 `lib/xlsx.js`，零依赖——用 Node 内置 `zlib` 解 ZIP 容器，读 `xl/workbook.xml`（工作表名）、`xl/sharedStrings.xml`（共享字符串）、`xl/styles.xml`（日期格式）、`xl/worksheets/*.xml`（单元格）。支持共享字符串 / 内联字符串 / 布尔 / 数值 / 公式结果，日期按 `numFmtId` 14–22、45–47 或含 `y/m/d` 的自定义格式转成 `YYYY-MM-DD`；多工作表会弹「导入 Excel 工作表」让你选（`pspp_open` 用 `sheet` 参数，可给名字或从 0 开始的序号）；工作表末尾的空行空列会丢掉。26k 行实测解析 0.74 s。
+
+**OpenDocument 导入**（`.ods`）：`lib/ods.js` 同样零依赖，复用 ZIP 与 XML 解析，读 `content.xml` 的 `office:value-type`（数值/字符串/布尔/日期/货币/百分比），展开 `table:number-rows-repeated` / `table:number-columns-repeated`（空行重复超过 1000 就直接停，避免整表高度的填充行把内存撑爆），合并单元格的 `covered-table-cell` 记为空格，`text:s text:c` 的空格与 `text:line-break` 都还原。多工作表同样弹选择框。实测 LibreOffice 导出的 60 行 CSV→ODS 导入为 60 案 5 变量。
+
+**Stata 导入**（`.dta`，release 117/118）：`lib/dta.js` 读带标签的分段格式，处理 `<K>`（16 位）/`<N>`（64 位）的二进制字段、117/118 之间名字段从 33 变到 129、标签段从 81 变到 321 的差异（宽度按段长除变量数推导），类型 byte/int/long/float/double/str#，缺失值按各类型的顶部编码判成系统缺失，字符串段与格式串（`%9.0g`→`F9.0`）转成 PSPP 的宽度小数位，变量标签与值标签一并带过来。Stata 12 及更早（113–115，无标签的定长格式）与含 strL 长字符串的文件会给出明确提示而不是读到半截。用 R `haven` 写出的真实 118 文件做了回归测试（`test/fixtures/haven-118.dta`）。
+
+**受引擎限制的功能**（分析菜单最后一项，与 `pspp_status.capabilities.unsupported` 一一对应）：生存分析、复杂抽样、多重插补、ANCOVA（GLM 的 WITH）、决策树/报表/概率图、CURVEFIT、多选题直接进其他过程、Durbin-Watson，每条都点开就有原因与**替代做法**（如 ANCOVA 用「回归 → 线性」加哑变量、CURVEFIT 用「计算变量」造 x²/ln(x) 再回归、DW 用「保存残差」后自己算）。
+
+**导出范围**：导 Word/Excel 时路径对话框顶部有「导出范围」——「整个会话」导出全部表与图；「最近一次运行」只导最后那个动作产出的条目（面板里做的表 1/两两比较、多选题频数表、图表都算），用来避免把十几次旧分析一起塞进文档。
+
+**不支持**：`.sas7bdat`（需要额外解析层）；旧版 `.dta`（113–115）与含 strL 的 `.dta` 需先另存为 118 或导出 CSV。
+
+---
+
+## 12. 引擎与平台
+
+- 引擎：GNU PSPP 2.1.3（GPLv3+），按平台打包在 `engine/<process.platform>-<process.arch>/`，随包的是 `engine/linux-x64/`（23 MB、45 个共享库）；`bin/pspp` 是设好 `LD_LIBRARY_PATH`/`DYLD_LIBRARY_PATH` 的启动器，真二进制在 `libexec/`。
+- 平台：仓库随包 **Linux x86-64**，在原地（AlmaLinux 8, glibc 2.28）编译，所以依赖 **glibc ≥ 2.28**：RHEL/Alma/Rocky 8+、Ubuntu 18.10+/20.04+、Debian 10+、openSUSE Leap 15+ 都能跑（旧的 Fedora 44 产物要 2.43，已弃用）。
+- `lib/engine.js` 按平台选目录、按平台设动态库变量（Linux `LD_LIBRARY_PATH`、macOS `DYLD_LIBRARY_PATH`、Windows `PATH`）；找不到本平台引擎时 `pspp_status` 会给出 `hint`，按提示跑 `npm run engine:fetch` 即可从 Release 取回。
+- **五个平台的引擎由 CI 产出**（`.github/workflows/build-engine.yml`，标签 `engine-v*`）：`engine-linux-x64`（10.2 MB）、`engine-linux-arm64`（9.7 MB）、`engine-darwin-arm64`（8.6 MB）、`engine-darwin-x64`（8.9 MB）、`engine-win32-x64`（23.3 MB），已发布在 Release `engine-v1`。仓库里**只随包 `engine/linux-x64`**，其余平台用 `npm run engine:fetch` 下载。
+- 插件自身的 CI 是 `.github/workflows/test.yml`（Node 20/22 跑 `node --check` + 纯函数测试）；**改插件 JS 不触发引擎重编**，引擎只在换 PSPP 版本/依赖基线/新平台时重编。
+- 运行时 npm **零依赖**；peer 只有 `@deepseek-ai/cordis ^4.0.5` 与 `dsh-better-sidebar ^0.28.0`（可选，没有它就没有侧栏页签）。
+
+---
+
+## 12.1 导入改名与超大表提示（0.23.25）
+
+PSPP 的变量名只能用 ASCII、最长 64 字符且不能重复，而电子表格的表头三者都可能违反。导入时按规则改名，并在面板提示里列出被改的列（agent 侧走 `pspp_open` 的 `renamed` 字段），原表头一律保留为变量标签：
+
+| 情况 | 结果 | 提示 |
+| --- | --- | --- |
+| 表头超过 64 字符 | 截断到 64 | 「超过 64 个字符，变量名截成…」 |
+| 表头全是中文/符号 | `V2`、`V3`… | 「没有可用的 ASCII 字符，变量名改为…」 |
+| 两列同名 | `name`、`name_2` | 「与前面的列重名，变量名改为…」 |
+
+只有表头的 CSV 现在导入为 0 个个案（此前会多出一个全缺失的幻影个案）。矩阵超过 500 行的表（典型情况：连续变量放进了频率表）会自动附一条注，说明这张表为什么这么长、该改用描述统计，注随表进入 Word/Excel/PDF 导出。
+
+## 12.2 性能基线与会话内存（0.23.28）
+
+测试机（Fedora 44 x86-64、32 GB 内存）实测：
+
+| 场景 | 时间 | 结果 |
+| --- | --- | --- |
+| 导入 1 万例 × 7 变量 CSV | 473 ms | — |
+| 导入 5 万例 CSV | 1400 ms | — |
+| 1 万例 FREQUENCIES / CROSSTABS+CHISQ / DESCRIPTIVES / 回归 | 237 / 146 / 143 / 142 ms | 0 错误 |
+| 5 万例另存 .sav | 1108 ms | 2.6 MB |
+| 5 万例 .sav 重新打开 | 709 ms | 50000 个案、7 变量，数值逐位一致 |
+| 27 表 + 2 图导出 .docx | 573 ms | 10.9 MB |
+| 27 表 + 2 图导出 .xlsx（含隐藏数据页 20000 行） | 591 ms | 8.5 MB、29 张工作表 |
+| LibreOffice 打开上面两份 | 成功 | `Err:`/`#NAME`/`#VALUE` 计数 0 |
+| 3 个会话并发各跑一次回归 | — | 各 3 张表、0 错误 |
+
+默认上限：`maxRows` 200000（超过截断并标 `truncated`）、`timeoutMs` 120000（单个引擎进程）。
+
+会话内存：`WorkspaceRegistry` 在 `ensure()` 时顺手调用 `evictIdle()`，把 30 分钟没被访问、也不在屏幕上的会话**释放个案行**（`Workspace.release()`）：变量、标签、值标签、多选题集合都留在内存里，未保存的改动先写进 `work.sav` 再释放，撤销栈清空。下一次请求进来时 `hydrate()` 从 `work.sav` 把行读回来，会话继续用，不需要重新打开文件。`config.evictIdle === false` 关闭，`config.maxIdleMs` 改阈值。
+
+字符串分组变量的引号：`T-TEST`/`MANN-WHITNEY`/`KRUSKAL-WALLIS` 按变量类型自动决定 `grp('A' 'B')` 还是 `grp(0 1)`；码里的单引号双写。此前工具侧漏了引号，引擎只回「Syntax error expecting string.」，完全不提引号。
+
+## 13. 已知限制（逐条实测核对，0.23.29）
+
+核对方法：直接用包内引擎跑 `GET FILE=… .` + 待测命令，记录退出码与 stderr 原文（2026-11-14，PSPP 2.1.3，`engine/linux-x64/bin/pspp -b`）。原文照抄，便于拿同样的命令复核。
+
+### 13.1 引擎没有实现（报 `X is not yet implemented`，不是插件省掉的）
+
+| SPSS 过程 | 命令 | 引擎原文 | 这里的替代 |
+| --- | --- | --- | --- |
+| 判别分析 | `DISCRIMINANT` | `DISCRIMINANT is not yet implemented` | 二元 Logistic；多分类没有替代（可用哑变量 + 线性回归凑，但没有判别函数与分类结果表） |
+| 协方差分析 | `GLM x BY g WITH cov` | `GLM: Syntax error expecting MISSING, INTERCEPT, CRITERIA, METHOD, or DESIGN` | 线性回归 + 组别哑变量（组别先「重新编码为不同变量」成 0/1） |
+| 一般线性模型（多因变量/混合/重复测量） | `GLM x y BY g`、`UNIANOVA`、`MIXED` | `Multivariate analysis is not yet implemented`、`UNIANOVA is not yet implemented`、`MIXED is not yet implemented` | 只有单变量 GLM；多因变量逐个跑 |
+| 生存分析 | `COXREG`、`KM` | `COXREG is not yet implemented`、`KM is not yet implemented` | 无 |
+| 决策树 | `TREE` | `TREE is not yet implemented` | 无 |
+| 报表 / 代码簿 | `REPORT`、`CODEBOOK` | `REPORT is not yet implemented`、「Unknown command CODEBOOK」 | 输出导航栏 + 导出 Word/Excel/PDF |
+| P-P / Q-Q 概率图 | `PPLOT` | `PPLOT is not yet implemented` | `EXAMINE /PLOT=NPPLOT` 给正态性检验，不给图 |
+| 曲线估计 | `CURVEFIT` | `CURVEFIT is not yet implemented` | 「计算变量」造 x²、ln(x) 后线性回归 |
+| 偏相关 | `PARTIAL CORR` | `PARTIAL CORR is not yet implemented` | **插件自算**：「分析 → 相关 → 偏相关…」，残差法，支持逐对与矩阵两种表 |
+| 多选题 | `MULT RESPONSE`、`SUMMARIZE` | `MULT RESPONSE is not yet implemented`、`SUMMARIZE is not yet implemented`（`MRSETS` 本身能定义，且能存进 `.sav`，但没有任何过程会用它算数） | **插件自算**：`MRSETS` 定义集 + 频数/交叉表（见 6.6），量表不能直接喂给 `CROSSTABS` |
+| 非线性回归 | `NLR` | `NLR is not yet implemented` | 无 |
+| 对数线性 / 分层对数线性 | `HILOGLINEAR`、`LOGLINEAR`、`GENLOG` | 三者均 `is not yet implemented` | 无（可用交叉表 + 卡方看关联） |
+| 多维标度 | `ALSCAL`、`PROXIMITY` | `ALSCAL is not yet implemented`、「Unknown command PROXIMITY」 | 无 |
+| 有序回归 / 概率回归 | `PLUM` | `PLUM is not yet implemented` | 可退化成二分类 Logistic（切一刀），会丢信息 |
+| 缺失值分析 | `MVA` | `MVA is not yet implemented` | 「描述」看有效数；各过程自己做列表删除 |
+| 多重插补 | `MULTIPLE IMPUTATION` | 「Unknown command MULTIPLE」 | 无 |
+| 复杂抽样 | `CSDESCRIPTIVES` | `CSDESCRIPTIVES is not yet implemented` | 无（加权个案可做设计权重的点估计，没有方差估计） |
+| 广义线性模型 | `GENLIN` | 「Unknown command GENLIN」 | 线性回归与二元 Logistic 两个特例可用 |
+| 层次聚类 | `CLUSTER` | `CLUSTER is not yet implemented` | 只有快速聚类（`QUICK CLUSTER`） |
+| 数据重构 | `CASESTOVARS`、`VARSTOCASES` | 两者均 `is not yet implemented` | 无；长宽转换只能靠「转置」或先导出 CSV 处理 |
+| 图表构建器 | `GGRAPH` | `GGRAPH is not yet implemented` | 插件自绘 SVG 六种图；引擎的 `GRAPH /BAR` 也能出图，但样式不可控 |
+| 别名命令 | `K-MEANS` | 「Unknown command K」 | 用 `QUICK CLUSTER`，面板对话框已对应 |
+
+### 13.2 能跑但会静默丢结果（最危险的一类，插件已绕过）
+
+| 命令 | 实测 | 插件怎么处理 |
+| --- | --- | --- |
+| `RELIABILITY … /STATISTICS=DESCRIPTIVE` | 退出码 0，只有 warning：`The STATISTICS subcommand is not yet implemented.  No statistics will be produced.`——表照出，统计量一个没有 | 面板不勾这个子命令；要描述统计另跑「描述」 |
+| `REGRESSION … /STATISTICS=TOL` | Linux：退出码 1、`No valid data found`，但回归表仍完整产出；Windows：约 1/6 次直接崩在 `linreg.c:261`、退出码 19、**0 张表**（同一份数据在没有 TOL 时正常） | 默认不发 `TOL`，容忍度/VIF 由插件对每个预测变量做最小二乘自己算；显式传了 TOL 而崩溃时，插件会去掉 TOL 重跑一次并在日志里写明 |
+| `FREQUENCIES /PERCENTILES=2.5 97.5` | 退出码 0，列名变成 `Percentiles 3` 与 `98`（四舍五入到整数） | 只用整数百分位，对话框里提示 |
+| `CTABLES` | 统计量必须写在行变量方括号里：`/TABLE=score [COUNT,MEAN] BY g`；`/STATISTICS=` 不被接受；列轴不能放 scale 变量（`Scale variables may appear only on one axis`）；`MIN`/`MAX` 要写全 `MINIMUM`/`MAXIMUM` | 对话框按此生成；列轴是 scale 时临时发 `VARIABLE LEVEL … (NOMINAL)`（独立进程，不写回工作文件） |
+| `LOGISTIC REGRESSION … /METHOD=ENTER` | `Syntax error expecting MISSING, ORIGIN, NOORIGIN, NOCONST, EXTERNAL, CATEGORICAL, PRINT, or CRITERIA`——没有 `/METHOD` | 只做 ENTER（全部协变量同时进入）；`/PRINT=CI(95)` 可用 |
+| `REGRESSION … /METHOD=STEPWISE` | `Syntax error expecting ENTER.` | 没有逐步回归 |
+| `REGRESSION … /RESIDUALS=DURBIN` | `Syntax error expecting VARIABLES, DEPENDENT, ORIGIN, NOORIGIN, METHOD, STATISTICS, or SAVE` | 没有 Durbin-Watson；残差可用 `/SAVE=RESID` 存进数据集自己算 |
+
+### 13.3 写 `pspp_run` 时的语法坑（都实测过）
+
+- `DO IF … ELSE … END IF` 必须**换行**写；一行写完报 `DO IF: Syntax error expecting end of command`。
+- `LOOP` 必须配 `END LOOP`，否则 `LOOP: At end of input: Syntax error expecting END LOOP`。
+- `NPAR TESTS /CHISQUARE=var(1,3)` 的区间用**逗号**；写 `(1 3)` 报 `expecting ','`；字符串变量不能进 `CHISQUARE`（`expecting number`）。
+- `MEANS` 没有 `/STATISTICS` 子命令：`MEANS TABLES=x BY grp /STATISTICS=MEAN STDDEV` → `MEANS: Syntax error expecting MISSING or CELLS`，只能写 `/CELLS=MEAN STDDEV MIN MAX COUNT`。
+- `WEIGHT BY` 只收数值变量：`The weighting variable must be numeric`。
+- `CORRELATIONS /MATRIX=OUT(*)` 不可用：`CORRELATIONS: MATRIX is not a variable name`。
+- `CROSSTABS … /METHOD=EXACT` 不可用（没有 EXACT 子命令）：`Syntax error expecting subcommand name or variable name`。
+- `MATRIX … END MATRIX` 可用（`MATRIX. COMPUTE x={1,2;3,4}. PRINT x. END MATRIX.` 退出码 0），但必须写完整块，只写 `MATRIX.` 报 `Unexpected end of input expecting matrix command`。
+
+### 13.4 文件格式
+
+- 引擎**只能写 CSV/TAB**：`SAVE TRANSLATE /TYPE=XLSX` → `Syntax error expecting CSV or TAB.`；**只能读** TXT/PSQL/GNM/ODS：`GET DATA /TYPE=XLSX` → `Syntax error expecting TXT, PSQL, GNM, or ODS.`。所以 `.xlsx`、`.dta`、`.ods` 的读写全是插件自己实现的（`lib/xlsx.js`、`lib/dta.js`、`lib/ods.js`、`lib/office.js`、`lib/zip.js`）。
+- `.sas7bdat` 不支持：按 SAS 官方字段与 Python `sas7bdat` 两套口径都对不齐列元数据，宁可不接。需要时先导出 CSV 或 `.xlsx`。
+- `.dta` 只支持 release 117/118；113–115 与含 strL 的会明确报错而不是读半截。
+
+### 13.5 与 SPSS 的数据编辑差异（保留实现口径）
+
+- 「选择个案」用 `SELECT IF` + 保存实现，不满足条件的个案被**真正删除**（SPSS 是临时过滤），对话框里已标注，可用撤销退回。
+- 「转置」沿用 `FLIP`，而 `FLIP` **只保留数值列**：字符串列的内容会被静默丢掉（转置后是缺失值 `.`），变量名变成 `VAR000`、`VAR001`…，并多出 `CASE_LBL` 一行。0.23.30 起面板检测到字符串变量会先弹确认框（勾「我明白」才执行），`api/flip` 需要 `force: true` 才放行，否则报错并列出会丢哪几列；要保住内容请先「重新编码为不同变量」成数值。
+- 缺失值只支持离散数值列表，不支持 `LO THRU HI` 这类范围表达式（引擎支持，UI 未开放）。
+- 一次只处理一个工作数据集（`DATASET` 命令引擎支持，未暴露到 UI）。
+- 撤销栈 30 步、超过 1200 万个单元格不记录；行高固定，列宽可拖。
+- 「加权个案」需数值权重变量；「拆分文件」只支持按变量分层。
+
+---
+
+## 14. SPSS 操作对照表
+
+按 SPSS 的菜单路径索引，写清在这里点哪里、由谁算。状态含义：**原生** = 面板对话框与 agent 工具都支持，语法与 SPSS 对得上；**等价** = 换个名字或分两步；**自算** = 插件自己算，不经 PSPP；**缺** = 没有替代。
+
+| SPSS 菜单 | 在这里怎么做 | 状态 |
+| --- | --- | --- |
+| 文件 → 打开 → 数据 | 文件 → 打开数据…（`.sav` `.por` `.sys` `.dta` `.csv` `.txt` `.tsv` `.xlsx` `.ods`） | 原生 |
+| 文件 → 另存为 / 导出 → 保存数据 | 文件 → 保存数据 / 另存为…（写 `.sav`）；导出为 CSV… | 原生 |
+| 文件 → 导出 → Word/Excel/PDF | 文件 → 导出输出为 PDF… / ODT… / HTML…；表头「单独导出…」出 `.docx`/`.xlsx` | 原生（xlsx 带真公式） |
+| 编辑 → 撤销 / 重做 | Ctrl+Z / Ctrl+Y，编辑菜单同名项 | 原生 |
+| 编辑 → 查找 / 替换 | 编辑 → 查找…（数据视图与变量视图都支持） | 原生 |
+| 数据 → 定义变量属性 | 变量视图直接改：名称/类型/宽度/小数/标签/值/缺失/测量/对齐/角色 | 原生 |
+| 数据 → 插入变量 / 插入个案 | 变量视图末尾「新建变量行」；数据视图右键「插入个案」 | 等价 |
+| 数据 → 转置 | 数据 → 转置 | 原生（`FLIP`，字符串列会编码成 0/1） |
+| 数据 → 排序个案 | 数据 → 排序个案… | 原生 |
+| 数据 → 选择个案 | 数据 → 选择个案…（真删，可撤销） | 等价 |
+| 数据 → 加权个案 | 数据 → 加权个案… | 原生（权重须数值） |
+| 数据 → 拆分文件 | 数据 → 拆分文件… | 原生 |
+| 数据 → 合并文件 → 添加个案 | 数据 → 合并文件 → 添加个案… | 原生（`ADD FILES`） |
+| 数据 → 合并文件 → 添加变量 | 数据 → 合并文件 → 按关键变量合并… | 原生（`MATCH FILES /BY`） |
+| 数据 → 重构 | — | 缺（`CASESTOVARS`/`VARSTOCASES` 未实现） |
+| 数据 → 汇总 | 转换 → 汇总… | 原生（`AGGREGATE`） |
+| 数据 → 标识重复个案 / 标识异常个案 | — | 缺（SPSS 数据菜单有，这里没有；可先用「转换 → 排秩」或「描述」看极端值） |
+| 转换 → 计算变量 | 转换 → 计算变量… | 原生 |
+| 转换 → 重新编码为不同变量 | 转换 → 重新编码为不同变量… | 原生 |
+| 转换 → 重新编码为相同变量 | 变量视图直接改值标签，或用「计算变量」+ 条件 | 等价 |
+| 转换 → 自动重新编码 | 转换 → 自动重新编码… | 原生 |
+| 转换 → 计数 | 转换 → 计数… | 原生 |
+| 转换 → 排秩 | 转换 → 排秩…（结值：均值/低/高/顺序） | 原生 |
+| 转换 → 替换缺失值 | 「计算变量」里用 `MISSING()` + 条件 | 等价 |
+| 转换 → 创建时间序列 / 日期和时间向导 | — | 缺 |
+| 转换 → 随机数生成器 | 「随机抽样」对话框（`SAMPLE`） | 等价 |
+| 分析 → 描述统计 → 频率 | 分析 → 描述统计 → 频率 | 原生（百分位只认整数） |
+| 分析 → 描述统计 → 描述 | 分析 → 描述统计 → 描述 | 原生 |
+| 分析 → 描述统计 → 探索 | 分析 → 描述统计 → 探索（箱线图、正态性检验、极端值） | 原生（`EXAMINE`） |
+| 分析 → 描述统计 → 交叉表 | 分析 → 描述统计 → 交叉表（期望频数、残差、列百分比） | 原生 |
+| 分析 → 描述统计 → 比率 / TURF | — | 缺 |
+| 分析 → 描述统计 → P-P / Q-Q 图 | — | 缺（`PPLOT` 未实现；可用探索的正态性检验代替判断） |
+| 分析 → 比较平均值 → 平均值 | 分析 → 比较平均值 → 平均值 | 等价（PSPP 的 `MEANS` 只有 Case Processing Summary + Report 两张表，没有 SPSS 的 ANOVA 表与关联量度；组间差异请用单因素 ANOVA） |
+| 分析 → 比较平均值 → 单样本 T | 分析 → 比较平均值 → 单样本 T 检验 | 原生 |
+| 分析 → 比较平均值 → 独立样本 T | 分析 → 比较平均值 → 独立样本 T 检验 | 原生（字符串分组也可，自动加引号） |
+| 分析 → 比较平均值 → 配对样本 T | 分析 → 比较平均值 → 配对样本 T 检验 | 原生 |
+| 分析 → 比较平均值 → 单因素 ANOVA | 分析 → 比较平均值 → 单因素 ANOVA（+ LSD/Bonferroni/Sidak/Tukey/Scheffé） | 原生 |
+| 分析 → 比较平均值 → 单因素 ANOVA → 对比（Contrasts） | — | 未开放（引擎 `ONEWAY /CONTRAST=` 实测可用、能出 Contrast 表，只是面板没给入口；可在「实用程序 → 运行语法」里手写） |
+| 分析 → 一般线性模型 → 单变量 | 分析 → 一般线性模型 → 单变量（含事后检验） | 原生（无 WITH 协变量、无 `/PRINT=DESCRIPTIVE`） |
+| 分析 → 一般线性模型 → 多变量 / 重复测量 / 混合 | — | 缺 |
+| 分析 → 相关 → 双变量 | 分析 → 相关 → 双变量（Pearson/Spearman/Kendall） | 原生 |
+| 分析 → 相关 → 偏相关 | 分析 → 相关 → 偏相关…（逐对或矩阵） | 自算 |
+| 分析 → 相关 → 距离 | — | 缺 |
+| 分析 → 回归 → 线性 | 分析 → 回归 → 线性（存预测值/残差；共线性诊断由插件算） | 原生（只 ENTER；无 Durbin-Watson） |
+| 分析 → 回归 → 线性（逐步 / Stepwise） | — | 缺（`/METHOD=STEPWISE` 报 `Syntax error expecting ENTER`；只能 ENTER 后逐个加变量看 ΔR²） |
+| 分析 → 回归 → 曲线估计 | — | 缺（`CURVEFIT` 未实现；用计算变量 + 线性回归） |
+| 分析 → 回归 → 二元 Logistic | 分析 → 回归 → 二元 Logistic（可出 Exp(B) 95% CI） | 原生（只 ENTER） |
+| 分析 → 回归 → 多项 / 有序 / 概率 / 非线性 / 权重估计 / 2SLS | — | 缺 |
+| 分析 → 对数线性 | — | 缺 |
+| 分析 → 分类 → 快速聚类 | 分析 → 降维 → 快速聚类 | 原生（`QUICK CLUSTER`） |
+| 分析 → 分类 → 判别 / 层次聚类 / 最近邻 | — | 缺（`DISCRIMINANT`、`CLUSTER` 未实现） |
+| 分析 → 降维 → 因子 | 分析 → 降维 → 因子（初始解/KMO/Bartlett/抽取/旋转 VARIMAX/EQUAMAX/QUARTIMAX/PROMAX） | 原生 |
+| 分析 → 降维 → 对应分析 / 最优尺度 | — | 缺 |
+| 分析 → 刻度 → 可靠性分析 | 分析 → 刻度 → 可靠性分析 | 原生（`/STATISTICS` 会被引擎丢掉，要描述统计另跑） |
+| 分析 → 刻度 → 多维标度 | — | 缺 |
+| 分析 → 非参数检验 → 单样本（卡方/二项/K-S/游程） | 分析 → 非参数检验 → 同名四项 | 原生 |
+| 分析 → 非参数检验 → 相关样本（Wilcoxon/符号/McNemar/Cochran Q/Kendall W/Friedman） | 分析 → 非参数检验 → 同名六项 | 原生（McNemar 只给精确 P，无 χ²） |
+| 分析 → 非参数检验 → 独立样本（M-W/K-W/Jonckheere） | 分析 → 非参数检验 → 同名三项 | 原生 |
+| 分析 → 非参数检验 → 中位数检验 | — | 缺 |
+| 分析 → 时间序列 / 生存 / 复杂抽样 / 多重插补 / 缺失值分析 | — | 缺（见 13.1） |
+| 分析 → 表 → 自定义表 | 分析 → 表 → 自定义表 | 原生（`CTABLES`，统计量写在行变量方括号里） |
+| 分析 → 表 → 多重响应集 | 数据 → 多选题集合 + 输出里的多选题频数表/交叉表 | 自算 |
+| 分析 → ROC 曲线 | 分析 → ROC 曲线（Logistic 结果头还能一键接过去） | 原生 |
+| 图形 → 图表构建器 / 旧对话框 | 图形 → 条形图 / 直方图 / 箱线图 / 折线图 / 饼图 / 散点图 / 面积图 | 自绘 SVG：条形（SD/SE/95%CI 误差线、显著性括号、类别排序、分组并列/堆叠/百分比堆叠）、折线（可双 Y 轴、可 95%CI、可按第二变量分线）、散点、直方（可叠正态曲线）、箱线、饼/环；没有图表构建器的图层叠加、3D、模板/主题、参考线、自定义刻度格式，也不能把多张图拼成一张盘 |
+| 图形 → 编辑图表（图表编辑器） | 输出表头「编辑图表」/ `pspp_edit_chart` | 自绘（标题、轴名、主色、类别排序可改） |
+| 图形 → P-P / Q-Q | — | 缺 |
+| 实用程序 → 变量 / OMS | 变量视图 + 输出导航栏 | 等价（无 OMS 语法） |
+| 扩展 → Python / R | — | 缺（可用 `pspp_run` 跑宏；跨语言计算得把数据导出后再回来） |
+| 帮助 → 关于 | 帮助 → 关于 PSPP 分析 | 原生 |
+
+规模：分析菜单 35 个入口（其中 PSPP 过程对话框 31 个，另 4 个是插件自己的入口：两两比较、偏相关、表 1、表 2）、转换 8 个、数据 10 项、图形 7 种、输出工具 23 个（`pspp_*`，对话里可直接调用，和面板走同一套引擎与会话数据集）。
+
+---
+
+## 15. 测试与仓库
+
+```bash
+npm test          # build（语法构造 + 图表模型）+ engine（引擎定位/环境变量）+ smoke（引擎端到端）+ routes（HTTP）
+npm run bundle-engine   # 从系统 PSPP 重新打包 engine/<本机平台>/
+node scripts/bundle-engine.mjs --from-prefix out --platform linux-x64   # 从容器里编好的 prefix 导入
+```
+
+- 纯函数测试 227 项（`build` 71、`office` 43、`tables` 22、`regression` 15、`raster` 13、`mrsets` 12、`order` 11、`stage` 9、`dta` 7、`engine` 7、`ods` 6、`messages` 6、`xlsx` 5），覆盖每个对话框的语法构造、七种图表模型、公式映射、错误分支与引擎定位（平台目录优先、扁平回退、动态库变量分平台）。
+- smoke：真实引擎跑一遍打开 → 分析 → 保存。
+- routes：39 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收）。
+
+目录：
+
+```
+index.js          # host 入口：等 webServer 就绪后注册 /analytics
+client.js         # 单文件 UI（菜单、对话框、四视图、自绘图表）
+lib/engine.js     # 引擎定位与调用
+lib/workspace.js  # 工作区：数据集、运行、保存、合并、导出、数据编辑
+lib/dataset.js    # 字典与 CSV 的读写
+lib/html.js       # PSPP HTML 输出 → 表格矩阵
+lib/charts.js     # 六种图表模型与 SVG 渲染
+lib/routes.js     # HTTP 路由
+lib/tools.js      # 23 个 agent 工具
+test/             # build.mjs / engine.mjs / smoke.mjs / routes.mjs
+docs/             # 本文档、安装说明、截图
+engine/           # PSPP 2.1.3 二进制，按平台分目录（不入 Git）
+```
+
+---
+
+## 16. 一句话总结
+
+**面板里能点到的 SPSS 常见过程（分析菜单 35 个入口 / 31 个 PSPP 过程 + 8 个转换对话框 + 7 种图 + 图表编辑 + 导入导出 + 数据编辑）都在，统计由 PSPP 执行；对话里模型能用 23 个工具对同一份数据做同样的分析、变换和可视化。** 缺的是 PSPP 2.1.3 自己没实现的那些（13.1 逐条列了引擎原文）：生存分析、判别分析、混合/多变量模型、决策树、数据重构、时间序列、多重插补与复杂抽样；以及需要专有算法的曲线估计、对数线性、多维标度。

@@ -1,0 +1,575 @@
+/**
+ * Client-bundle tests: the panel is plain JS loaded through the module loader,
+ * so there is nothing to import — the bundle is evaluated against a fake loader
+ * the way the host evaluates it, then the tab it registers is rendered in jsdom.
+ *
+ * This is the shape dsh-plugin-toolkit's testkit uses for slot panels. Ours
+ * registers a better-sidebar tab instead of a slot, so the harness below does
+ * the same three things by hand: a loader, a context with the services the
+ * plugin declares, and a real React root.
+ */
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { JSDOM } from 'jsdom'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const root = join(here, '..')
+
+const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://127.0.0.1:3080/' })
+const { window } = dom
+globalThis.window = window
+globalThis.document = window.document
+Object.defineProperty(globalThis, 'navigator', { value: window.navigator, configurable: true })
+globalThis.HTMLElement = window.HTMLElement
+globalThis.MouseEvent = window.MouseEvent
+globalThis.KeyboardEvent = window.KeyboardEvent
+globalThis.localStorage = window.localStorage
+window.matchMedia ??= () => ({ matches: false, addEventListener() {}, removeEventListener() {} })
+
+const React = await import('react')
+const { createRoot } = await import('react-dom/client')
+globalThis.IS_REACT_ACT_ENVIRONMENT = true
+const { act } = React
+
+const REQUIRED = { react: React }
+
+function loadBundle(file) {
+  globalThis.__AP_TEST_HOOKS__ = {}
+  let captured
+  window.__ModuleLoader__ = { load(descriptor) { captured = descriptor } }
+  window.fetch = async () => ({ ok: true, status: 200, text: async () => '{"ok":true,"state":{}}' })
+  const source = readFileSync(file, 'utf8')
+  new Function('window', 'module', 'exports', 'require', source)(
+    window,
+    { exports: {} },
+    {},
+    (name) => {
+      if (name in REQUIRED) return REQUIRED[name]
+      throw new Error(`unexpected require(${name})`)
+    },
+  )
+  assert.ok(captured, 'the bundle never called __ModuleLoader__.load')
+  return captured.factory((name) => {
+    if (name in REQUIRED) return REQUIRED[name]
+    throw new Error(`unexpected require(${name})`)
+  })
+}
+
+const registered = { tabs: [], viewers: [] }
+function makeContext() {
+  const services = {
+    betterSidebar: {
+      registerTab(definition) { registered.tabs.push(definition); return () => {} },
+      registerFileViewer(definition) { registered.viewers.push(definition); return () => {} },
+      openTab() {},
+      closeTab() {},
+    },
+    locale: { register() { return () => {} }, bind: () => (key) => key },
+  }
+  const ctx = {
+    ...services,
+    get: (name) => services[name],
+    effect(run) { const off = run(); return () => { if (typeof off === 'function') off() } },
+    on() { return () => {} },
+    logger: { info() {}, warn() {}, error() {}, debug() {} },
+  }
+  return ctx
+}
+
+const plugin = loadBundle(join(root, 'client.js'))
+assert.deepEqual(plugin.inject, ['betterSidebar'], 'the plugin must declare the service it reads')
+
+const ctx = makeContext()
+// A plugin body must survive a context whose services were not injected yet.
+assert.doesNotThrow(() => plugin.apply({ ...ctx, betterSidebar: undefined, get: () => undefined }), 'apply must not throw without the service')
+
+plugin.apply(ctx)
+assert.equal(registered.tabs.length, 1, 'exactly one tab is registered')
+assert.equal(registered.tabs[0].id, 'analytics')
+assert.equal(registered.viewers.length, 1, 'exactly one data-file viewer is registered')
+assert.equal(registered.viewers[0].id, 'analytics:data')
+assert.deepEqual(registered.viewers[0].exts, ['sav', 'por', 'sys', 'dta'])
+
+const container = window.document.getElementById('root')
+const clientRoot = createRoot(container)
+const props = {
+  ctx,
+  store: { getSnapshot: () => ({ state: null }), subscribeState: () => () => {}, reduce() {} },
+  scope: { sessionId: 'session-test', cwd: '/tmp' },
+  tab: { id: 'analytics', type: 'analytics', title: '统计分析', meta: {} },
+  visible: true,
+}
+await act(async () => {
+  clientRoot.render(React.createElement(registered.tabs[0].component, props))
+  await new Promise((resolve) => setTimeout(resolve, 0))
+})
+
+const text = () => container.textContent.replace(/\s+/g, ' ')
+assert.match(text(), /文件/, 'the menu bar renders')
+assert.match(text(), /分析/, 'the analysis menu renders')
+assert.equal(container.querySelector('.ap-doctabs'), null, 'an empty workbench shows no document strip')
+
+await act(async () => { clientRoot.unmount() })
+
+// The Files-panel viewer hands the path over and must retire its own tab. The
+// close went wrong twice for two different reasons (the service read threw, and
+// the tab record carries a title but no path), so this asserts the outcome.
+const closed = []
+const handoffCtx = makeContext()
+handoffCtx.get = (name) => (name === 'sidebarRight'
+  ? {
+    tabsIn: () => [{ id: 'tab2', kind: 'editor', title: 'demo.sav' }, { id: 'tab3', kind: 'analytics', title: '统计分析' }],
+    closeIn: (sessionId, id) => { closed.push({ sessionId, id }) },
+    close: (id) => { closed.push({ id }) },
+  }
+  : undefined)
+window.__analyticsHandoff = null
+const viewer = registered.viewers[0].component
+const viewerHost = window.document.createElement('div')
+window.document.body.appendChild(viewerHost)
+const viewerRoot = createRoot(viewerHost)
+await act(async () => {
+  viewerRoot.render(React.createElement(viewer, {
+    ctx: handoffCtx,
+    store: props.store,
+    scope: { sessionId: 'session-test', cwd: '/tmp' },
+    path: '/tmp/demo.sav',
+    title: 'demo.sav',
+  }))
+  await new Promise((resolve) => setTimeout(resolve, 50))
+})
+// Timers scheduled by the effect run outside act: let the 120 ms close land.
+await new Promise((resolve) => setTimeout(resolve, 400))
+assert.match(viewerHost.textContent, /已交给「统计分析」打开/, 'the viewer says where the file went')
+assert.deepEqual(closed, [{ sessionId: 'session-test', id: 'tab2' }],
+  'the handoff closes the editor tab and leaves the analytics tab alone')
+await act(async () => { viewerRoot.unmount() })
+
+const hooks = globalThis.__AP_TEST_HOOKS__
+
+// The file dialog is the one place the panel sees raw host paths. On Windows
+// they are 'C:\data\x.sav' with backslashes and a drive letter; a '/' split
+// made '.. 上级目录' reopen the same folder and built children like
+// 'C:\data\x.sav/y.sav'.
+assert.equal(hooks.pathDirname('C:\\psppdata\\中文目录\\保存.sav'), 'C:\\psppdata\\中文目录')
+assert.equal(hooks.pathDirname('C:\\psppdata\\保存.sav'), 'C:\\psppdata')
+assert.equal(hooks.pathDirname('C:\\'), 'C:\\', 'a drive root stays itself')
+assert.equal(hooks.pathDirname('/tmp/SPSS数据文件/a.sav'), '/tmp/SPSS数据文件')
+assert.equal(hooks.pathDirname('/a.sav'), '/', 'a file at the root has the root as parent')
+assert.equal(hooks.pathJoin('C:\\psppdata\\中文目录', 'new.sav'), 'C:\\psppdata\\中文目录\\new.sav')
+assert.equal(hooks.pathJoin('C:\\', 'a.sav'), 'C:\\a.sav', 'joining at a drive root keeps one separator')
+assert.equal(hooks.pathJoin('/tmp/数据', 'a.sav'), '/tmp/数据/a.sav')
+
+// Table layout edits: three-line tables need a wider first column, a rewritten
+// header and the note line under the table.
+const edited = hooks.matrixHtml(
+  [['', 'Mean', 'SD'], ['score', '14.05', '2.69']],
+  'ap-tbl-three',
+  { headers: ['变量', '均数', '标准差'], widths: [120, 0, 0], footnote: '注：数据以均数±标准差表示' },
+)
+assert.match(edited, /<colgroup><col style="width:120px"><col><col><\/colgroup>/, 'only the given column is pinned')
+assert.match(edited, /<th>变量<\/th>/, 'the header wording is replaced')
+assert.match(edited, /<td>14.05<\/td>/, 'the numbers are untouched')
+assert.match(edited, /<tfoot><tr><td colspan="3" class="ap-footnote">注：/, 'the footnote spans the table')
+assert.equal(hooks.matrixHtml([['', 'Mean']], '', null).includes('<colgroup>'), false, 'no edits means no colgroup')
+
+// Value-label import: both shapes a user pastes, and the reversed column order.
+const pasted = hooks.parseValueLabelLines("1,男\n2,女")
+assert.deepEqual(pasted.labels, { 1: '男', 2: '女' })
+assert.equal(pasted.problems.length, 0)
+const reversed = hooks.parseValueLabelLines("男,1\n女,2")
+assert.deepEqual(reversed.labels, { 1: '男', 2: '女' }, 'label,value order is recognised')
+const fromSyntax = hooks.parseValueLabelLines("VALUE LABELS sex 1 '男' 2 '女'.")
+assert.deepEqual(fromSyntax.labels, { 1: '男', 2: '女' })
+assert.equal(hooks.parseValueLabelLines('garbage').problems.length, 1)
+
+// Syntax completion: variables while typing an operand, commands by prefix.
+const script = 'FREQUENCIES /VARIABLES=sc'
+const candidates = hooks.completionCandidates(script, script.length, ['score', 'gender'])
+assert.equal(candidates[0].name, 'score', 'the dataset variable comes first')
+const command = hooks.completionCandidates('FREQ', 4, [])
+assert.ok(command.some((item) => item.name === 'FREQUENCIES'), 'a command prefix completes to the command')
+assert.deepEqual(hooks.completionCandidates('* comment sco', 12, ['score']), [], 'no completion inside a comment')
+// A "/" starts a subcommand, "=" or "," starts an option keyword.
+const subs = hooks.completionCandidates('FREQUENCIES /VA', 15, ['score'])
+assert.ok(subs.length > 0 && subs.every((item) => item.kind === '子命令'), 'after a slash only subcommands are offered')
+assert.ok(subs.some((item) => item.name === 'VARIABLES'), 'VARIABLES completes from a subcommand prefix')
+const keys = hooks.completionCandidates('DESCRIPTIVES /STATISTICS=ME', 28, ['score'])
+assert.ok(keys.length > 0 && keys.every((item) => item.kind === '选项'), 'after "=" only keywords are offered')
+assert.ok(keys.some((item) => item.name === 'MEAN'), 'MEAN completes from a keyword prefix')
+
+
+// Output outline summaries: the numbers a reader looks for first.
+const anova = hooks.summarizeTable({
+  matrix: [
+    ['', 'Sum of Squares', 'df', 'Mean Square', 'F', 'Sig.'],
+    ['Between Groups', '80.08', '2', '40.04', '139.28', '.000'],
+    ['Within Groups', '6.04', '21', '.29', '', ''],
+  ],
+})
+assert.equal(anova, 'F=139.28 · df=2 · p=.000', `summary of an ANOVA table: ${anova}`)
+const descriptives = hooks.summarizeTable({
+  matrix: [
+    ['', 'N', 'Mean', 'Std. Deviation'],
+    ['score', '60', '59.3450', '9.07276'],
+  ],
+})
+assert.equal(descriptives, 'N=60 · 均值=59.3450 · SD=9.07276', `summary of a descriptives table: ${descriptives}`)
+assert.equal(hooks.summarizeTable({ matrix: [['a', 'b'], ['1', '2']] }), '', 'a table without known headers gets no summary')
+assert.equal(hooks.summarizeTable(undefined), '', 'a missing table gets no summary')
+
+console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip hidden, handoff closes its tab, label import, completion, outline summary')
+
+// Right-clicking a cell in the data sheet opens the cell menu; the cell's
+// variable name heads it, and a command that needs a variable is hidden when
+// the cell has none. This broke silently once (the menu was never mounted), so
+// it is asserted through the rendered DOM rather than the source.
+{
+  const apiCalls = []
+  const sheetCtx = makeContext()
+  const sheetRoot = createRoot(container)
+  window.fetch = async (url, options) => {
+    apiCalls.push(String(url))
+    const body = options?.body ? JSON.parse(options.body) : null
+    if (String(url).includes('api/state')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(globalThis.__sheetPayload ??= {
+          ok: true,
+          state: {
+            id: 'session-test',
+            engine: { source: 'bundled', bin: '/x/pspp' },
+            cwd: '/tmp',
+            dataset: {
+              sourcePath: '/tmp/a.sav',
+              caseCount: 3,
+              dirty: false,
+              temporary: false,
+              name: 'a.sav',
+              variables: [
+                { name: 'score', label: '得分', position: 1, type: 'numeric', width: 8, decimals: 2, format: 'F8.2', measure: 'scale', alignment: 'right', missing: [], valueLabels: {} },
+                { name: 'note', label: '', position: 2, type: 'string', width: 8, decimals: 0, format: 'A8', measure: 'nominal', alignment: 'left', missing: [], valueLabels: {} },
+              ],
+              history: { undo: 0, redo: 0 },
+            },
+            items: [{
+              kind: 'table',
+              id: 'run-1-0',
+              runId: 1,
+              title: 'ANOVA',
+              table: { caption: 'ANOVA', matrix: [['', '平方和'], ['组间', '12.5']], html: '' },
+              pairwise: { group: 'gender', variables: ['score'] },
+              roc: { by: 'gender', variables: ['score'] },
+            }, {
+              // A chart is an output entry too; it has to offer the same
+              // single-entry export, not just the batch one.
+              kind: 'image',
+              id: 'chart-1-0',
+              runId: 1,
+              title: 'score 的直方图',
+              artifactUrl: '/analytics/api/artifact?runId=1&name=chart.svg',
+              alt: 'score 的直方图',
+            }],
+            splitBy: ['gender'],
+            weightBy: 'freq',
+            filterBy: null,
+            selectIf: null,
+          },
+        }),
+      }
+    }
+    if (String(url).includes('api/rows')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ ok: true, page: { rows: [[1, 'a'], [2, 'b'], [3, 'c']], total: 3, offset: 0 } }),
+      }
+    }
+    // The export dialog opens a file browser, which lists a directory first.
+    if (String(url).includes('api/dir')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => {
+          // Echo the requested path back: the browser lists a directory and
+          // keeps the name the caller typed, so the test can assert on it.
+          const asked = decodeURIComponent(String(url).split('path=')[1] ?? '')
+          return JSON.stringify({ ok: true, path: asked || '/tmp', entries: [{ name: 'out.xlsx', dir: false, size: 0 }], pick: null })
+        },
+      }
+    }
+    if (String(url).includes('api/run')) globalThis.__lastRunBody = body
+    if (String(url).includes('api/partial')) {
+      if (body) globalThis.__lastPartialBody = body
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { matrix: [['变量对'], ['age × score']], notes: [] }, state: globalThis.__sheetPayload?.state ?? null }) }
+    }
+    if (String(url).includes('api/exportOffice')) {
+      if (body) globalThis.__lastOfficeBody = body
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { path: '/tmp/out.xlsx', format: 'xlsx', bytes: 1234, tables: 1, images: 0 } }) }
+    }
+    if (String(url).includes('api/chart')) {
+      if (body) globalThis.__lastChartBody = body
+      // The real route answers with the whole state; the panel keeps polling,
+      // so a null state here would tear the sheet down mid-test.
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state: globalThis.__sheetPayload?.state ?? null }) }
+    }
+    return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state: null, ...(body ? {} : {}) }) }
+  }
+  // The panel calls the bare global `fetch`, not `window.fetch`.
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    sheetRoot.render(React.createElement(registered.tabs[0].component, { ...props, ctx: sheetCtx }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const cell = container.querySelector('td[data-row="0"][data-column="0"]')
+  assert.ok(cell, 'the data sheet renders a cell')
+  await act(async () => {
+    cell.dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 40, clientY: 50 }))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  })
+  const menu = () => container.querySelector('.ap-var-menu')
+  assert.ok(menu(), 'right-clicking a cell opens the cell menu')
+  const items = [...menu().querySelectorAll('.ap-var-item')].map((node) => node.textContent)
+  assert.equal(menu().querySelector('.ap-menu-label').textContent, 'score · 第 1 行', 'the menu names the cell it came from')
+  assert.ok(items.includes('复制这个值'), 'the copy command is offered')
+  assert.ok(items.includes('清空这个格子'), 'the clear command is offered for a real variable')
+  assert.ok(items.includes('删除第 1 个个案'), 'case commands are offered')
+  assert.ok(items.includes('设为系统缺失值'), 'a numeric cell can be marked missing')
+  await act(async () => {
+    window.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  })
+  assert.equal(menu(), null, 'clicking outside closes the cell menu')
+
+  // A run that came from the ANOVA dialog carries its variable and group, so
+  // the result can offer the pairwise table without asking for them again.
+  const outputTab = [...container.querySelectorAll('.ap-view-tab')].find((tab) => tab.textContent.includes('输出'))
+  assert.ok(outputTab, 'the output view has a tab')
+  await act(async () => {
+    outputTab.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const pairwiseButton = [...container.querySelectorAll('.ap-tool')].find((button) => button.textContent === '两两比较')
+  assert.ok(pairwiseButton, 'an ANOVA result offers a pairwise comparison button')
+
+  // A logistic result carries its outcome and predictors; the head offers a ROC
+  // curve pre-filled with them instead of asking for both variables again.
+  const rocButton = [...container.querySelectorAll('.ap-tool')].find((button) => button.textContent === 'ROC 曲线…')
+  assert.ok(rocButton, 'a logistic result offers a ROC curve button')
+  await act(async () => {
+    rocButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const rocDialog = [...container.querySelectorAll('.ap-modal')].find((node) => node.offsetParent !== null || node.textContent.includes('ROC 曲线'))
+  assert.ok(rocDialog, 'clicking the button opens the ROC dialog')
+  assert.match(rocDialog.textContent, /检验变量/, 'the ROC dialog is the one the spec declares')
+  assert.match(rocDialog.textContent, /score|gender/, 'the ROC dialog arrives pre-filled from the model')
+
+  // A picture can be bound to one output table at draw time. The dialog lists
+  // the tables already in the output and sends the chosen id, which is what the
+  // Word/Excel exporter uses instead of guessing from titles.
+  const rocCancel = [...rocDialog.querySelectorAll('.ap-tool')].find((button) => button.textContent === '取消')
+  await act(async () => {
+    rocCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const graphicsButton = [...container.querySelectorAll('.ap-menu-button')].find((button) => button.textContent === '图形')
+  assert.ok(graphicsButton, 'the menu bar has a graphics menu')
+  await act(async () => {
+    graphicsButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const histogramItem = [...container.querySelectorAll('.ap-menu-pop button')].find((button) => button.textContent === '直方图…')
+  assert.ok(histogramItem, 'the graphics menu offers a histogram')
+  await act(async () => {
+    histogramItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const chartDialog = [...container.querySelectorAll('.ap-modal')].filter((node) => String(node.className).includes('ap-modal')).at(-1)
+  assert.ok(chartDialog, 'the histogram dialog opens')
+  assert.match(chartDialog.textContent, /导出时图表归属/, 'the dialog asks which table the picture belongs to')
+  const ownerSelect = [...chartDialog.querySelectorAll('select')]
+    .find((node) => [...node.options].some((option) => option.value === 'run-1-0'))
+  assert.ok(ownerSelect, 'the tables in the output are offered by id')
+  assert.ok([...ownerSelect.options].some((option) => option.textContent === 'ANOVA'), 'the option is labelled with the table title')
+  const scoreBox = [...chartDialog.querySelectorAll('.ap-dlg-var')].find((node) => node.textContent.trim().startsWith('score'))?.querySelector('input')
+  assert.ok(scoreBox, 'the variable list offers score')
+  await act(async () => {
+    scoreBox.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set.call(ownerSelect, 'run-1-0')
+    ownerSelect.dispatchEvent(new window.Event('change', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const chartOk = [...chartDialog.querySelectorAll('.ap-tool')].find((button) => button.textContent === '确定')
+  await act(async () => {
+    chartOk.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  assert.equal(globalThis.__lastChartBody?.options?.tableId, 'run-1-0', 'the chosen table id travels with the chart request')
+
+  // The choice is remembered: drawing a second picture for the same table
+  // should not ask the same question again.
+  assert.equal(window.localStorage.getItem('ap.chartTarget'), 'run-1-0', 'the chosen table id is remembered')
+  await act(async () => {
+    graphicsButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const histogramAgain = [...container.querySelectorAll('.ap-menu-pop button')].find((button) => button.textContent === '直方图…')
+  await act(async () => {
+    histogramAgain.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const secondDialog = [...container.querySelectorAll('.ap-modal')].filter((node) => String(node.className).includes('ap-modal')).at(-1)
+  const rememberedSelect = [...secondDialog.querySelectorAll('select')]
+    .find((node) => [...node.options].some((option) => option.value === 'run-1-0'))
+  assert.equal(rememberedSelect?.value, 'run-1-0', 'the remembered table is preselected')
+  const secondCancel = [...secondDialog.querySelectorAll('.ap-tool')].find((button) => button.textContent === '取消')
+  await act(async () => {
+    secondCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+
+  // The Excel writer can be asked for plain numbers; the dialog has to expose
+  // that, and the flag has to reach the route.
+  const fileButton = [...container.querySelectorAll('.ap-menu-button')].find((button) => button.textContent === '文件')
+  await act(async () => {
+    fileButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const excelItem = [...container.querySelectorAll('.ap-menu-pop button')].find((button) => button.textContent === '导出输出为 Excel（.xlsx）…')
+  assert.ok(excelItem, 'the file menu offers an Excel export')
+  await act(async () => {
+    excelItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const exportDialog = [...container.querySelectorAll('.ap-modal')].filter((node) => String(node.className).includes('ap-modal')).at(-1)
+  assert.match(exportDialog.textContent, /写入 Excel 公式/, 'the export dialog offers the formula switch')
+  const formulaBox = [...exportDialog.querySelectorAll('input[type=checkbox]')]
+    .find((box) => box.parentElement?.textContent?.includes('写入 Excel 公式'))
+  assert.equal(formulaBox?.checked, true, 'formulas are on by default')
+  // The raw-data sheet is opt-in, so a report of sensitive cases never grows an
+  // extra copy of the data unless the exporter asked for it.
+  assert.match(exportDialog.textContent, /附带原始数据页/, 'the export dialog offers the raw data sheet')
+  const dataBox = [...exportDialog.querySelectorAll('input[type=checkbox]')]
+    .find((box) => box.parentElement?.textContent?.includes('附带原始数据页'))
+  assert.equal(dataBox?.checked, false, 'the data sheet starts off')
+  const exportCancel = [...exportDialog.querySelectorAll('.ap-tool')].find((button) => button.textContent === '取消')
+  await act(async () => {
+    exportCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+
+  // A single table can go straight to a file, which is the SPSS "export the
+  // selected output" habit without a scope dropdown first.
+  const singleButton = [...container.querySelectorAll('.ap-item .ap-tool')].find((button) => button.textContent === '单独导出…')
+  assert.ok(singleButton, 'every table offers a one-table export')
+  const chartItem = [...container.querySelectorAll('.ap-item')]
+    .find((node) => node.getAttribute('data-item-id') === 'chart-1-0')
+  assert.ok(chartItem, 'the mock output has a chart entry')
+  const chartExport = [...chartItem.querySelectorAll('.ap-tool')]
+    .find((button) => button.textContent === '单独导出…')
+  assert.ok(chartExport, 'a chart offers the same single-entry export as a table')
+  let singleBody = null
+  await act(async () => {
+    singleButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const singleDialog = [...container.querySelectorAll('.ap-modal')].filter((node) => String(node.className).includes('ap-modal')).at(-1)
+    const singleInputValue = singleDialog.querySelector('input')?.value ?? ''
+  assert.match(singleInputValue, /\.xlsx$/, 'the path is prefilled with an .xlsx name')
+  const singleInput = singleDialog.querySelector('input')
+  assert.match(singleDialog.textContent, /只导出/, 'the dialog says which table it will write')
+
+  const singleOk = [...singleDialog.querySelectorAll('.ap-tool')].find((button) => button.textContent === '选择路径')
+  await act(async () => {
+    singleOk.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  singleBody = globalThis.__lastOfficeBody
+  assert.ok(Array.isArray(singleBody?.items) && singleBody.items.length === 1, 'only that table travels with the request')
+
+  // Partial correlation is computed by the plugin (PSPP has no PARTIAL CORR),
+  // so its menu entry must open a dialog rather than a "not supported" notice.
+  const analysisButton = [...container.querySelectorAll('.ap-menu-button')].find((button) => button.textContent === '分析')
+  await act(async () => {
+    analysisButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const partialEntry = [...container.querySelectorAll('.ap-menu-pop button')].find((button) => button.textContent.startsWith('偏相关'))
+  assert.ok(partialEntry, 'the analysis menu offers a partial correlation entry')
+  assert.ok(!partialEntry.disabled, 'it is enabled whenever a dataset is open')
+  await act(async () => {
+    partialEntry.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const partialDialog = [...container.querySelectorAll('.ap-modal')].find((node) => /偏相关/.test(node.textContent))
+  assert.ok(partialDialog, 'clicking it opens the partial correlation dialog')
+  assert.match(partialDialog.textContent, /分析变量/, 'the dialog names the analysis variables box')
+  assert.match(partialDialog.textContent, /控制变量/, 'the dialog names the control box')
+  // With fewer than two numeric variables the run button stays disabled, which
+  // is the guard the dialog is built around (the request itself is covered by
+  // test/routes.mjs, which has a dataset with two numeric variables).
+  const partialChips = [...partialDialog.querySelectorAll('.ap-dlg-left .ap-chip')]
+  assert.ok(partialChips.length >= 1, 'the numeric variables are offered as chips')
+  const partialOk = [...partialDialog.querySelectorAll('.ap-modal-foot .ap-tool')].find((button) => button.textContent === '确定')
+  assert.ok(partialOk, 'the dialog has an OK button')
+  assert.equal(partialOk.disabled, partialChips.length < 2, 'two variables are needed before it can run')
+  const partialCancel = [...partialDialog.querySelectorAll('.ap-modal-foot .ap-tool')].find((button) => button.textContent === '取消')
+  await act(async () => {
+    partialCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+
+  // Transposing silently throws away every string column in PSPP, so the panel
+  // has to stop and ask before it sends the request at all.
+  const dataButton = [...container.querySelectorAll('.ap-menu-button')].find((button) => button.textContent === '数据')
+  await act(async () => {
+    dataButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const flipEntry = [...container.querySelectorAll('.ap-menu-pop button')].find((button) => button.textContent === '转置')
+  assert.ok(flipEntry, 'the data menu offers transpose')
+  await act(async () => {
+    flipEntry.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const flipDialog = [...container.querySelectorAll('.ap-modal')].find((node) => /转置数据/.test(node.textContent))
+  assert.ok(flipDialog, 'a dataset with string columns opens the transpose confirmation')
+  assert.match(flipDialog.textContent, /note/, 'the dialog names the string columns it would lose')
+  const flipOk = [...flipDialog.querySelectorAll('.ap-modal-foot .ap-tool')].find((button) => button.textContent === '仍然转置')
+  assert.ok(flipOk && flipOk.disabled === true, 'transposing stays blocked until the loss is acknowledged')
+  const flipBox = [...flipDialog.querySelectorAll('input[type=checkbox]')][0]
+  await act(async () => {
+    flipBox.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const flipOkAfter = [...flipDialog.querySelectorAll('.ap-modal-foot .ap-tool')].find((button) => button.textContent === '仍然转置')
+  assert.equal(flipOkAfter.disabled, false, 'acknowledging the loss enables the button')
+  const flipCancel = [...flipDialog.querySelectorAll('.ap-modal-foot .ap-tool')].find((button) => button.textContent === '取消')
+  await act(async () => {
+    flipCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+
+  // Session settings are invisible in the grid, so they get permanent chips:
+  // a SPLIT or WEIGHT left behind changes every number without any other sign.
+  assert.match(text(), /拆分：gender/, 'an active SPLIT FILE is shown in the status bar')
+  assert.match(text(), /加权：freq/, 'an active WEIGHT is shown in the status bar')
+  const chipClose = [...container.querySelectorAll('.ap-chip')]
+    .find((chip) => chip.textContent.includes('拆分：gender'))
+    ?.querySelector('.ap-chip-x')
+  assert.ok(chipClose, 'the split chip offers a way to turn it off')
+  await act(async () => {
+    chipClose.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const lastRun = globalThis.__lastRunBody
+  assert.ok(lastRun && /SPLIT FILE OFF/.test(lastRun.syntax || ''), 'clicking the chip clears the split with SPLIT FILE OFF')
+  await act(async () => { sheetRoot.unmount() })
+}

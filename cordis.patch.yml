@@ -1,0 +1,11 @@
+# dsh-analytics bundle patch
+#
+# One Host row. The Host half owns the bundled PSPP engine, the per-session
+# workspace, the HTTP API under /analytics and the analytics tools.
+# The Client half registers the SPSS-style tab through dsh-better-sidebar.
+- insert:
+    # `include:<id>` addresses this row. It was `analytics-pspp` before the
+    # rename; bundle patches are read when the profile loads, so a new id only
+    # takes effect after a dsh restart.
+    - id: analytics
+      name: 'dsh-analytics'
