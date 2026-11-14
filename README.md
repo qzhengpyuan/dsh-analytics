@@ -179,6 +179,10 @@ npx dsh-plugin-toolkit@latest dev . --host http://127.0.0.1:3080
 
 它把 `client.js` 拷到运行中的 profile 并靠 `/plugins/events` 的 `rebuilt` 帧确认真的重载了（改完刷新页面即可，不用重启 dsh）。
 
+### CI 的一个坑
+
+`test.yml` 带 `paths-ignore`，而 GitHub 对**没有父提交的 push**（重写历史后第一次推）算不出 diff，于是这条工作流不会自动跑。改完历史的那一版要么手动触发（`gh workflow run test.yml --ref master`），要么随便推一个有实际改动的提交。`build-engine.yml` 不吃路径过滤，所以 `engine-v*` 标签被移动时会真的重跑一次引擎构建。
+
 安装、依赖矩阵、打 tgz（自带引擎版 / 通用版）、卸载与引擎重建见 [docs/install.md](docs/install.md)。
 
 ## 许可
