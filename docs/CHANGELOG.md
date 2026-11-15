@@ -1,3 +1,8 @@
+## 0.26.2
+
+- **从 `work.sav` 恢复的会话不再丢 `openedAt`**：数据集指纹里的「什么时候读的这份文件」以前只活在内存里，宿主重启后 `provenance.openedAt` 变成 `null` —— 表还能说出源文件、例数、会话，却说不出是什么时候的那一份。现在 `openedAt` 写进 `dataset.json`，`restore()` 读回（`lib/workspace.js` 的 `rememberDataset()` 与恢复壳子），旧工作区读不到就仍是 `null`，不会伪造时间。
+- `test/smoke.mjs` 的恢复用例补一条断言：新 `Workspace` 的 `dataset.openedAt` 必须与原来那次相同。
+
 ## 0.26.1 打包分发
 
 - **Release `v0.26.1` 挂了 `dsh-analytics-0.26.1.tgz`（34.3 MB）**：自带 `engine/linux-x64` 与 `engine/win32-x64`，装完即可用，不需要系统装 PSPP 也不需要编译。引擎沿用 `engine-v1`，本版本没动引擎，所以没有重建（重建一次要 240 分钟 CI 额度、74 分钟墙钟）。

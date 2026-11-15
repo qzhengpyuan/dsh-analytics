@@ -129,7 +129,14 @@ await again.init()
 // host restart and the suite still exited 0.
 assert.equal(again.dataset?.rows?.length, 4, 'a new Workspace restores the rows from work.sav')
 assert.equal(again.dataset?.sourcePath, workspace.dataset.sourcePath, 'the restored workspace keeps its source path')
-console.log('restored dataset:', again.dataset.rows.length, again.dataset.sourcePath)
+// openedAt is what "this table came from the file I opened at 18:40" means; a
+// restored workspace used to report null here while still naming the file.
+assert.equal(
+  again.dataset?.openedAt,
+  workspace.dataset.openedAt,
+  'the restored workspace keeps the moment its file was read',
+)
+console.log('restored dataset:', again.dataset.rows.length, again.dataset.sourcePath, again.dataset.openedAt)
 
 // A dropped file is only a copy: its workspace must come back empty instead of
 // silently opening a file the user did not ask for.
