@@ -581,7 +581,7 @@ npm run bundle-engine   # 从系统 PSPP 重新打包 engine/<本机平台>/
 node scripts/bundle-engine.mjs --from-prefix out --platform linux-x64   # 从容器里编好的 prefix 导入
 ```
 
-- 纯函数测试 269 项（`build` 80、`office` 46、`tables` 27、`regression` 21、`order` 15、`raster` 13、`mrsets` 15、`poll` 11、`stage` 9、`xlsx` 7、`dta` 7、`engine` 7、`ods` 6、`messages` 6），覆盖每个对话框的语法构造、八种图表模型、公式映射、错误分支与引擎定位（平台目录优先、扁平回退、动态库变量分平台）。
+- 纯函数与路由测试 272 项（`build` 80、`office` 46、`tables` 27、`regression` 21、`order` 15、`mrsets` 15、`raster` 13、`poll` 13、`stage` 9、`xlsx` 7、`dta` 7、`engine` 7、`ods` 6、`messages` 6），覆盖每个对话框的语法构造、八种图表模型、公式映射、错误分支与引擎定位（平台目录优先、扁平回退、动态库变量分平台）。
 - smoke：真实引擎跑一遍打开 → 分析 → 保存。
 - routes：42 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收、新增的 `api/heartbeat`）。
 

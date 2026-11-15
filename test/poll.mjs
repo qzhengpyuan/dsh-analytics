@@ -127,7 +127,7 @@ const call = async (method, url, body) => {
   return { code: res.code, text: res.text, json: () => JSON.parse(res.text) }
 }
 
-check('api/heartbeat answers with only the signal', async () => {
+await check('api/heartbeat answers with only the signal', async () => {
   const created = await call('POST', '/analytics/api/new', {
     sessionId: 'http-poll',
     cwd: root,
@@ -148,7 +148,7 @@ check('api/heartbeat answers with only the signal', async () => {
   assert.equal(typeof full.json().state.signal, 'object')
 })
 
-check('a client mutation makes the next heartbeat differ', async () => {
+await check('a client mutation makes the next heartbeat differ', async () => {
   const before = (await call('GET', '/analytics/api/heartbeat?sessionId=http-poll')).json().signal
   const edited = await call('POST', '/analytics/api/case', { sessionId: 'http-poll', values: { age: 40 } })
   assert.equal(edited.code, 200)
@@ -157,7 +157,7 @@ check('a client mutation makes the next heartbeat differ', async () => {
   assert.equal(after.dataset.caseCount, 1)
 })
 
-check('the import notes travel to the panel', async () => {
+await check('the import notes travel to the panel', async () => {
   const registry2 = new WorkspaceRegistry({ root: join(root, 'http2'), config: {}, engine })
   const handler2 = createHandler({ registry: registry2, connection: { requestRejection: () => undefined }, config: {} })
   const get2 = async (url) => {
@@ -194,6 +194,25 @@ check('the import notes travel to the panel', async () => {
   const notes = state.json().state.importNotes
   assert.ok(Array.isArray(notes) && notes.length === 2, `expected two rename notes, got ${JSON.stringify(notes)}`)
   assert.ok(notes.every((note) => /原表头保留为标签/.test(note)))
+})
+
+await check('a run response carries the same stamps the state does', async () => {
+  // api/run used to hand back the items it built *before* appendItems stamped
+  // them, so the panel had a provenance line and the tool response did not.
+  const ran = await call('POST', '/analytics/api/run', { sessionId: 'http-poll', syntax: 'FREQUENCIES /VARIABLES=age.' })
+  assert.equal(ran.code, 200)
+  const items = ran.json().result.items
+  assert.ok(items.length > 0)
+  for (const item of items) {
+    assert.equal(item.provenance.sessionId, 'http-poll')
+    assert.equal(item.provenance.caseCount, 1)
+  }
+})
+
+await check('a chart item is stamped too', async () => {
+  const chart = await call('POST', '/analytics/api/chart', { sessionId: 'http-poll', kind: 'bar', variable: 'age' })
+  assert.equal(chart.code, 200)
+  assert.equal(chart.json().result.item.provenance.sessionId, 'http-poll')
 })
 
 await Promise.all(pending)
