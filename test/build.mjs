@@ -5,7 +5,7 @@ import { buildAnalysis, buildTransform, buildChart, analysisExtras, itemsForAgen
 import { computeBar, computeHistogram, computeScatter, computeBox, computeLine, computePie, computeDualLine, renderSvg, buildChartModel, tCritical95, studentTwoSidedP, welchTest, significanceLabel } from '../lib/charts.js'
 import { decodeText, guessDelimiter, importDelimited, parseMissingValues, writeSav } from '../lib/dataset.js'
 import { stringifyCsv } from '../lib/csv.js'
-import { describeFsError } from '../lib/fserr.js'
+import { describeFsError, describeEngineError } from '../lib/fserr.js'
 import { sanitizeTableHtml } from '../lib/html.js'
 import { rasterizeSvg } from '../lib/raster.js'
 
@@ -718,6 +718,27 @@ await check('filesystem errors are explained in words a user can act on', async 
   assert.match(describeFsError(make('EEXIST', '/tmp/x'), '/tmp/x'), /已经存在/)
   // The raw Node message must not leak when we know nothing about the code.
   assert.equal(describeFsError(new Error('strange failure')), 'strange failure')
+})
+
+await check('engine failures name the user file, never the internal run.sps', async () => {
+  const winLock = [
+    "cannot read locked.sav: error: An error occurred while opening `C:/Temp/locked.sav': Permission denied.",
+    "C:\\Temp\\acc\\runs\\1\\run.sps:2: error: Stopping syntax file processing here to avoid a cascade of dependent command failures.",
+  ].join('\n')
+  const said = describeEngineError(winLock, 'locked.sav')
+  assert.match(said, /文件正被其他程序占用/)
+  assert.doesNotMatch(said, /run\.sps/)
+  assert.doesNotMatch(said, /Permission denied/)
+  assert.match(said, /locked\.sav/)
+  // A genuine syntax/corruption failure still shows the engine's own words.
+  const corrupt = describeEngineError('error: cannot read file: not an SPSS system file', 'broken.sav')
+  assert.match(corrupt, /打不开 broken\.sav/)
+  assert.match(corrupt, /not an SPSS system file/)
+  // Nothing useful in stderr: say so instead of printing a bare path.
+  assert.match(describeEngineError('  \n ', 'x.sav'), /引擎没有给出原因/)
+  // Windows reports a locked file as EACCES; the sentence must mention it.
+  const locked = Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
+  assert.match(describeFsError(locked, 'C:\\data\\a.sav'), /正被其他程序占用/)
 })
 
 await check('a header-only file imports as zero cases', async () => {

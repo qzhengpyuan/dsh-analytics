@@ -1,3 +1,13 @@
+## 0.24.9
+
+Windows 端验收（独立机器、独立复验员）在功能项全 PASS 之后报了两条「文案错、路径漏」的问题，都在文件被别的程序占用时触发：
+
+- **打不开被占用的数据文件时，把引擎原文和内部路径甩给用户**：`.sav` 正被 Excel 或另一个会话打开时，`open()` 报的是 `cannot read a.sav: error: An error occurred while opening …: Permission denied. | C:\…\runs\1\run.sps:2: error: Stopping syntax file processing…`——里面既有引擎英文原文，又有插件自己临时目录里的 `run.sps`。现在统一走 `describeEngineError()`：识别到 `Permission denied` 就说「打不开 a.sav：文件正被其他程序占用（Excel/Word/另一个 DSH 会话），或者没有读权限。关掉占用它的程序再试」，并把这些行整条丢弃（`runs\<n>\run.sps`、`Stopping syntax file processing`）。读字典、读数据、保存、导出四条引擎调用路径都换成了同一套说法。
+- **保存到被占用的文件被误判成权限问题**：Windows 把「文件被独占」报成 `EPERM`/`EACCES`，原来一律翻成「目录是只读的，或者属于另一个用户」，于是用户去查权限而真正的原因是文件开着。现在这句话补上第三种可能并点名场景：「目录是只读的、属于另一个用户，或者文件正被其他程序占用（Windows 上被 Excel/Word 打开会报这个错）。关掉占用它的程序再试」；另外单独认 `EBUSY`。
+- **底层错误不再以英文前缀出现**：`DISPLAY DICTIONARY failed:`、`reading cases failed:`、`saving dataset failed:`、`export failed:` 换成中文的一句话，并带上用户自己的文件名而不是暂存目录。
+
+测试：`test/build.mjs` 新增一条用例，钉住「引擎 stderr 里的 Permission denied 被翻成占用文案」「`run.sps` 与 `Stopping syntax` 不出现」「真正的内容错误仍保留引擎原话」「stderr 为空时说明引擎没给原因」。
+
 ## 0.24.8
 
 字符串变量的 THRU 区间：PSPP 2.1.3 直接拒绝 `MISSING VALUES code ('AA' THRU 'ZZ')`（`Syntax error expecting string`），所以这种声明根本写不进 `.sav`。此前的做法是序列化成空字符串——保存「成功」，区间不见了。
