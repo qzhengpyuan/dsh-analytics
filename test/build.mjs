@@ -838,8 +838,10 @@ await check('apply() registers both route prefixes once webServer arrives', asyn
   // route silently 404'd. Nothing else in the suite imports the host entry.
   const { apply } = await import('../index.js')
   const registered = []
+  const provided = {}
   const ctx = {
     effect: (fn) => { fn() },
+    provide: (name, value) => { provided[name] = value },
     tools: { register: () => () => {} },
     inject: (deps, cb) => cb({
       get: (name) => {
@@ -853,6 +855,10 @@ await check('apply() registers both route prefixes once webServer arrives', asyn
   }
   apply(ctx, { dataDir: '/tmp/dsh-analytics-apply-test' })
   assert.deepEqual(registered.sort(), ['/analytics', '/analytics-pspp'])
+  // The preset-scoped tools plugin resolves the dataset through this service; if
+  // the Host half stopped publishing it, dsh-analytics/tools could only fail.
+  assert.ok(provided.analytics && provided.analytics.registry, 'host half must publish the analytics service')
+  assert.equal(provided.analytics.config.registerTools, undefined)
 })
 
 // Quartiles use the (n-1)p interpolation, which is what PSPP's own

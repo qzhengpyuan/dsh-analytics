@@ -35,8 +35,12 @@ function workspaceRoot(dshHome) {
   }
 }
 
-/** The Host half needs the tool registry; the web carrier is optional. */
-export const inject = ['tools']
+/**
+ * The Host half publishes the workspace registry and serves the panel; it does
+ * not need the tool registry any more, because the `pspp_*` tools live in the
+ * preset-scoped half (`dsh-analytics/tools`).
+ */
+export const inject = []
 
 export function apply(ctx, config = {}) {
   const settings = config && typeof config === 'object' ? config : {}
@@ -53,14 +57,35 @@ export function apply(ctx, config = {}) {
     cwdResolver: () => process.cwd(),
   })
 
-  ctx.effect(() => {
-    const disposers = createTools({ registry, config: settings }).map((definition) => ctx.tools.register(definition))
-    return () => {
-      for (const dispose of disposers) {
-        try { dispose() } catch { /* already disposed */ }
-      }
-    }
+  /**
+   * The tools are mounted by a separate, preset-scoped plugin (`dsh-analytics/tools`)
+   * so that a session which never asked for statistics does not pay for 23 tool
+   * definitions. The registry has to come from here anyway: the panel and the
+   * conversation must edit the same dataset, and two registries would give them
+   * two datasets that look identical.
+   */
+  ctx.provide('analytics', {
+    registry,
+    engine,
+    config: { ...settings, pluginVersion: pluginInfo().version },
+    version: pluginInfo().version,
   })
+
+  // Escape hatch for installations that predate the preset (or that mount the
+  // package without bundle patches): `registerTools: true` keeps the old
+  // behaviour of mounting the tools in every session.
+  if (settings.registerTools === true) {
+    ctx.inject(['tools'], (scoped) => {
+      scoped.effect(() => {
+        const disposers = createTools({ registry, config: settings }).map((definition) => scoped.tools.register(definition))
+        return () => {
+          for (const dispose of disposers) {
+            try { dispose() } catch { /* already disposed */ }
+          }
+        }
+      })
+    })
+  }
 
   // The web carrier may come up after this plugin: wait for the service instead
   // of silently skipping the routes when `ctx.get('webServer')` is still empty.

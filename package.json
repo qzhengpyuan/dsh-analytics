@@ -8,11 +8,13 @@
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
+    "./tools": "./tools-entry.js",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
   "files": [
     "index.js",
+    "tools-entry.js",
     "client.js",
     "lib",
     "locale",
@@ -55,7 +57,7 @@
   "icon": "./icon.svg",
   "scripts": {
     "bundle-engine": "node scripts/bundle-engine.mjs",
-    "test": "node test/build.mjs && node test/order.mjs && node test/raster.mjs && node test/office.mjs && node test/xlsx.mjs && node test/ods.mjs && node test/dta.mjs && node test/engine.mjs && node test/stage.mjs && node test/messages.mjs && node test/mrsets.mjs && node test/tables.mjs && node test/regression.mjs && node test/client.mjs && node test/smoke.mjs && node test/routes.mjs && node test/poll.mjs && node test/pdf-notes.mjs",
+    "test": "node test/build.mjs && node test/order.mjs && node test/raster.mjs && node test/office.mjs && node test/xlsx.mjs && node test/ods.mjs && node test/dta.mjs && node test/engine.mjs && node test/stage.mjs && node test/messages.mjs && node test/mrsets.mjs && node test/tables.mjs && node test/regression.mjs && node test/client.mjs && node test/smoke.mjs && node test/routes.mjs && node test/poll.mjs && node test/preset.mjs && node test/pdf-notes.mjs",
     "pack": "node scripts/pack.mjs --with-engine",
     "engine:fetch": "node scripts/fetch-engine.mjs",
     "pack:portable": "node scripts/pack.mjs",

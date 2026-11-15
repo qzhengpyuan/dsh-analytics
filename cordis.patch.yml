@@ -1,11 +1,63 @@
 # dsh-analytics bundle patch
 #
-# One Host row. The Host half owns the bundled PSPP engine, the per-session
-# workspace, the HTTP API under /analytics and the analytics tools.
-# The Client half registers the SPSS-style tab through dsh-better-sidebar.
+# Two rows, and the split matters:
+#   analytics        Host half. Owns the bundled PSPP engine, the per-session
+#                    workspace registry, the HTTP API under /analytics, and it
+#                    publishes that registry as the `analytics` service. The
+#                    Client half registers the SPSS-style tab through
+#                    dsh-better-sidebar, so the panel is available everywhere.
+#   preset-analytics Agent preset「数据分析」. Its plugin list carries the
+#                    preset-scoped mount `dsh-analytics/tools`, which registers
+#                    the `pspp_*` tools. A session that does not select this
+#                    preset never sees them, which is the whole point: 23 tool
+#                    definitions are not free context in a session about CSS.
+#
+# `include:<id>` addresses these rows. Ids were `analytics-pspp` before the
+# rename; bundle patches are read when the profile loads, so a changed id or a
+# newly added preset row only appears after dsh reloads the profile.
 - insert:
-    # `include:<id>` addresses this row. It was `analytics-pspp` before the
-    # rename; bundle patches are read when the profile loads, so a new id only
-    # takes effect after a dsh restart.
     - id: analytics
       name: 'dsh-analytics'
+      config:
+        # false = the pspp_* tools are mounted only by preset-analytics below.
+        # true restores the pre-0.26 behaviour (tools in every session).
+        registerTools: false
+
+    - id: preset-analytics
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: analytics
+        name: 数据分析
+        description: SPSS 风格统计分析：pspp_* 工具 + 侧栏数据面板，不占用其它会话的上下文
+        order: 8
+        plugins:
+          - id: analytics-persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              includeRuntimeContext: true
+              prefix: |
+                You are a statistics analyst. GNU PSPP is the engine behind the
+                `pspp_*` tools, and the user sees and edits the same dataset in the
+                「统计分析」sidebar panel.
+
+                Workflow:
+                1. `pspp_status` says whether a dataset is open; `pspp_open` or
+                   `pspp_new` is how one appears. Never analyse from memory of an
+                   earlier file.
+                2. `pspp_variables` and `pspp_data` before choosing a test: the
+                   measurement level and the missing codes decide which statistics
+                   are legitimate.
+                3. `pspp_analyze` for standard procedures, `pspp_run` for raw
+                   syntax, `pspp_transform` for data changes (persist:true only
+                   when the user asked for the dataset itself to change),
+                   `pspp_chart` for figures.
+                4. Every table carries `provenance` (source file, case count,
+                   session). When you report a number, say where it came from —
+                   "42 例，来自 /path/x.sav". If a table has no provenance, say the
+                   source is unknown instead of inventing one.
+                5. Quote numbers exactly as PSPP prints them; do not re-round in
+                   prose, and mention when a p value is Bonferroni-adjusted.
+                6. When PSPP 2.1.3 does not implement a procedure, say so and name
+                   the closest supported analysis; never silently substitute one.
+          - id: analytics-tools
+            name: 'dsh-analytics/tools'
