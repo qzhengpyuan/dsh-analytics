@@ -34,7 +34,7 @@ dsh plugin --profile <profile> add file:$PWD/dsh-analytics-<版本>.tgz
 # 4. 重载：设置 → 插件 → dsh-analytics 关一次再开（host 半重载；面板里已打开的数据集会清空）
 ```
 
-校验：`sha256sum dsh-analytics-0.26.1.tgz` 应为 `9bd96bf8dad449d1d73fe848334b6016d5f4b44c1cb5e2a71a4e90f76d0ca043`。
+校验：`sha256sum dsh-analytics-0.26.2.tgz` 应为 `64d7c47a12d7a77ecf452e5533d45ef6bba9565183514d3eb3b775d44a9349ae`（每个版本的校验和写在它的 Release 说明里）。
 
 这个 .tgz 已经在临时目录里 `pnpm add file:…` 验过：宿主半 `import('dsh-analytics')` 与预设半 `import('dsh-analytics/tools')` 都能解析，`engine/linux-x64/bin/pspp --version` 打印 `pspp (GNU PSPP) 2.1.3`。客户端半是浏览器模块（`window.__ModuleLoader__`），在 Node 里 import 会报 `window is not defined`，属正常。
 
