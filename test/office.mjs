@@ -709,4 +709,16 @@ await check('the xlsx export can turn the formulas off', () => {
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 assert.equal(pkg.dependencies, undefined, 'the plugin still ships with no runtime dependencies')
 
+// Word is strict about the order inside w:tc: cell properties come first and
+// the content follows. A tcBorders element after </w:p> is invalid there, and
+// Word drops the rule instead of complaining.
+check('docx cell properties stay inside tcPr', () => {
+  const xml = tableXml([['变量', '值'], ['score', '-10.000 **']])
+  assert.ok(!/\/w:p><w:tcBorders>/.test(xml), 'no border element after the paragraph')
+  const cells = (xml.match(/<w:tc>/g) ?? []).length
+  const borderSets = (xml.match(/<w:tcBorders>/g) ?? []).length
+  assert.equal(borderSets, cells, 'every cell carries exactly one border set')
+  assert.ok(/<w:tcPr><w:tcBorders>[^]*?<\/w:tcBorders><\/w:tcPr><w:p>/.test(xml), 'tcPr precedes the paragraph')
+})
+
 console.log(`\n${checks} checks passed${process.exitCode ? ' (with failures)' : ''}`)

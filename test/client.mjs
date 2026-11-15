@@ -573,3 +573,44 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.ok(lastRun && /SPLIT FILE OFF/.test(lastRun.syntax || ''), 'clicking the chip clears the split with SPLIT FILE OFF')
   await act(async () => { sheetRoot.unmount() })
 }
+
+// Closing a dataset with unsaved edits must ask first: api/close used to be
+// called straight away and the only copy of those edits was work.sav.
+{
+  const calls = []
+  const dirtyCtx = makeContext()
+  const dirtyRoot = createRoot(container)
+  globalThis.__sheetPayload.state.dataset.dirty = true
+  window.fetch = async (url) => {
+    calls.push(String(url))
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(globalThis.__sheetPayload ?? {}),
+    }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    dirtyRoot.render(React.createElement(registered.tabs[0].component, { ...props, ctx: dirtyCtx }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const fileButton = [...container.querySelectorAll('.ap-menu-button')].find((node) => node.textContent === '文件')
+  assert.ok(fileButton, 'the menu bar has a 文件 menu')
+  await act(async () => {
+    fileButton.click()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  })
+  const closeItem = [...container.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent === '关闭数据集')
+  assert.ok(closeItem, 'the file menu offers 关闭数据集')
+  await act(async () => {
+    closeItem.click()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const modal = container.querySelector('.ap-modal')
+  assert.ok(modal, 'closing a dirty dataset opens a confirmation')
+  assert.ok(modal.textContent.includes('未保存'), 'the confirmation says the edits are unsaved')
+  assert.equal(calls.filter((url) => url.includes('api/close')).length, 0, 'nothing is closed before the user answers')
+  await act(async () => { dirtyRoot.unmount() })
+  globalThis.__sheetPayload.state.dataset.dirty = false
+}
+

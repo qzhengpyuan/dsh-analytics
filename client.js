@@ -18,16 +18,33 @@ window.__ModuleLoader__.load({
     // paths and the file dialogs resolve against the session, not the server.
     let ACTIVE_CWD
 
+    // A hung request used to freeze the panel for good: the poll skipped while
+    // busy and never ran again. Every call gets a deadline instead.
+    const API_TIMEOUT_MS = 180000
+
     async function api(path, body) {
       const payload = body !== undefined && ACTIVE_CWD && body.cwd === undefined
         ? { ...body, cwd: ACTIVE_CWD }
         : body
-      const response = await fetch(apiUrl(path), {
-        method: body === undefined ? 'GET' : 'POST',
-        headers: body === undefined ? undefined : { 'content-type': 'application/json' },
-        credentials: 'same-origin',
-        body: body === undefined ? undefined : JSON.stringify(payload),
-      })
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
+      let response
+      try {
+        response = await fetch(apiUrl(path), {
+          method: body === undefined ? 'GET' : 'POST',
+          headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+          credentials: 'same-origin',
+          signal: controller.signal,
+          body: body === undefined ? undefined : JSON.stringify(payload),
+        })
+      } catch (error) {
+        if (error?.name === 'AbortError') {
+          throw new Error(`请求超时（${Math.round(API_TIMEOUT_MS / 1000)} 秒没有回复）：宿主可能正忙，稍后再试`)
+        }
+        throw error
+      } finally {
+        clearTimeout(timer)
+      }
       const text = await response.text()
       let value
       try {
@@ -1012,6 +1029,20 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
     // PSPP's FLIP keeps numeric columns only: a string column comes back as
     // missing values. A silent loss of whole columns is worse than a refusal,
     // so the dialog states what will be lost and needs an explicit tick.
+    /**
+     * One question with a default answer, used before a close that would throw
+     * unsaved edits away. Closing used to call api/close straight away and the
+     * only copy of the edits lived in work.sav, with no way back to it.
+     */
+    function ConfirmDialog({ title, message, okText = '确定', onOk, onClose }) {
+      return h(Modal, {
+        title,
+        okText,
+        onCancel: onClose,
+        onOk,
+      }, h('div', { className: 'ap-hint' }, message))
+    }
+
     function FlipDialog({ strings, onRun, onClose }) {
       const [sure, setSure] = useState(false)
       return h(Modal, {
@@ -4181,10 +4212,17 @@ let ITEM_CSV_PENDING = null
         loadRows(0, 500).then((page) => { setRows(page.rows); setTotal(page.total) }).catch((error) => notify(error.message))
       }, [st?.dataset?.sourcePath, st?.dataset?.caseCount, loadRows])
 
+      // Two fast scrolls used to append the same page twice.
+      const loadMoreBusy = useRef(false)
       const loadMore = useCallback(async () => {
-        if (rows.length >= total) return
-        const page = await loadRows(rows.length, 500)
-        setRows((current) => [...current, ...page.rows])
+        if (loadMoreBusy.current || rows.length >= total) return
+        loadMoreBusy.current = true
+        try {
+          const page = await loadRows(rows.length, 500)
+          setRows((current) => (current.length >= page.total ? current : [...current, ...page.rows]))
+        } finally {
+          loadMoreBusy.current = false
+        }
       }, [rows.length, total, loadRows])
 
       // Jumping to a record loads that page and selects it, so the grid can
@@ -4389,6 +4427,13 @@ let ITEM_CSV_PENDING = null
       useEffect(() => {
         const onKey = (event) => {
           if (!(event.ctrlKey || event.metaKey)) return
+          // A panel that is not the visible tab must not eat the harness's own
+          // Ctrl+F, and a cell editor keeps its native text undo: this handler
+          // used to hijack both.
+          const root = rootRef.current
+          if (!root || root.offsetParent === null) return
+          const target = event.target
+          if (target instanceof HTMLElement && (target.isContentEditable || target.contentEditable === 'true')) return
           const key = String(event.key).toLowerCase()
           if (key === 'f') {
             event.preventDefault()
@@ -4666,12 +4711,15 @@ let ITEM_CSV_PENDING = null
 
       const switchDoc = useCallback((id) => {
         if (id === sessionId) return
+        // Remember whether the tab we are leaving has unsaved edits, so closing
+        // it later can ask instead of dropping them silently.
+        setDocs((list) => list.map((doc) => (doc.id === sessionId ? { ...doc, dirty: st?.dataset?.dirty === true } : doc)))
         setDocId(id)
         setSelected({ row: 0, column: 0 })
         setView('data')
-      }, [sessionId])
+      }, [sessionId, st?.dataset?.dirty])
 
-      const closeDoc = useCallback(async (id) => {
+      const closeDocNow = useCallback(async (id) => {
         try {
           await api('api/close', { sessionId: id })
         } catch {
@@ -4691,6 +4739,28 @@ let ITEM_CSV_PENDING = null
           return rest
         })
       }, [sessionId])
+
+      // Closing throws the edits away: the copy in work.sav is the only one and
+      // the panel has no way back to it, so ask first.
+      const [pendingClose, setPendingClose] = useState(null)
+      const closeSession = useCallback(async () => {
+        const value = await api('api/close', { sessionId })
+        setSt(value.state)
+        setRows([])
+        setTotal(0)
+        setSelected(null)
+      }, [sessionId])
+      const closeDoc = useCallback((id, dirty) => {
+        const unsaved = dirty ?? (id === sessionId ? st?.dataset?.dirty === true : false)
+        if (unsaved) {
+          setPendingClose({ id, current: id === sessionId })
+          setDialog({ kind: 'close' })
+          return
+        }
+        if (id === sessionId) closeSession()
+        else closeDocNow(id)
+      }, [sessionId, st?.dataset?.dirty, closeSession, closeDocNow])
+
 
       const saveAs = useCallback(async () => {
         const path = st?.dataset?.sourcePath
@@ -4825,13 +4895,7 @@ let ITEM_CSV_PENDING = null
             { label: '导出输出为 SPSS 输出（.spv）…', action: () => setBrowser({ mode: 'exportdoc', format: 'spv' }) },
             { label: '导出输出为 Word（.docx）…', action: () => setBrowser({ mode: 'office', format: 'docx', scope: 'session' }) },
             { label: '导出输出为 Excel（.xlsx）…', action: () => setBrowser({ mode: 'office', format: 'xlsx', scope: 'session' }) },
-            { label: '关闭数据集', action: async () => {
-              const value = await api('api/close', { sessionId })
-              setSt(value.state)
-              setRows([])
-              setTotal(0)
-              setSelected(null)
-            } },
+            { label: '关闭数据集', action: () => closeDoc(sessionId) },
             { label: '导出输出为 HTML…', action: () => exportOutput() },
             { label: '导出表格为 CSV…', action: () => exportOutputCsv() },
           ],
@@ -5253,7 +5317,7 @@ let ITEM_CSV_PENDING = null
             h('button', {
               className: 'ap-doctab-close',
               title: '关闭这个数据集',
-              onClick: () => closeDoc(doc.id),
+              onClick: () => closeDoc(doc.id, doc.dirty === true),
             }, '×'))))
           : null,
         h('div', { className: 'ap-tabstrip' },
@@ -5688,6 +5752,21 @@ let ITEM_CSV_PENDING = null
             variables,
             onRun: (payload) => runPublication(payload),
             onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'close'
+          ? h(ConfirmDialog, {
+            title: '关闭数据集',
+            message: `${st?.dataset?.name ?? '当前数据'} 有未保存的改动。关闭后这些改动只剩下工作文件里的一份副本，面板里没有入口再打开它。要先保存吗？`,
+            okText: '仍然关闭',
+            onOk: () => {
+              const target = pendingClose ?? { id: sessionId, current: true }
+              setPendingClose(null)
+              setDialog(null)
+              if (target.current) closeSession()
+              else closeDocNow(target.id)
+            },
+            onClose: () => { setPendingClose(null); setDialog(null) },
           })
           : null,
         dialog?.kind === 'flip'

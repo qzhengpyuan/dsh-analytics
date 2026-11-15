@@ -65,4 +65,20 @@ check('a file that is not a zip is rejected with a readable message', () => {
   assert.throws(() => readXlsx(Buffer.from('not a workbook')), /不是一个有效的 \.xlsx/)
 })
 
+// Some writers quote attributes with single quotes, and the spec allows a cell
+// to omit r= entirely (it then follows the previous cell). Both used to break
+// the reader: the first was invisible to the regex, the second put every value
+// of the row into column A.
+const sheetLoose = `<?xml version="1.0"?><worksheet><sheetData>`
+  + `<row r='1'><c r='A1' t='inlineStr'><is><t>甲</t></is></c><c t='inlineStr'><is><t>乙</t></is></c><c t='inlineStr'><is><t>丙</t></is></c></row>`
+  + `</sheetData></worksheet>`
+const loose = readXlsx(zip([
+  { name: 'xl/workbook.xml', text: workbookXml },
+  { name: 'xl/_rels/workbook.xml.rels', text: relsXml },
+  { name: 'xl/worksheets/sheet1.xml', text: sheetLoose },
+]))
+check('single-quoted attributes and cells without r= still land in the right column', () => {
+  assert.deepEqual(loose.sheets[0].rows[0], ['甲', '乙', '丙'])
+})
+
 console.log(`\n${checks} checks passed${process.exitCode ? ' (with failures)' : ''}`)

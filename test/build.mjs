@@ -8,15 +8,23 @@ import { stringifyCsv } from '../lib/csv.js'
 import { describeFsError } from '../lib/fserr.js'
 
 let checks = 0
-const check = async (name, fn) => {
-  try {
-    await fn()
-    checks += 1
-    console.log(`ok   ${name}`)
-  } catch (error) {
-    console.error(`FAIL ${name}: ${error.message}`)
-    process.exitCode = 1
-  }
+// The callers below do not await, so every run is collected and the summary
+// waits for all of them: without that the tail printed "N checks passed"
+// before the last few had even started.
+const pending = []
+const check = (name, fn) => {
+  const run = (async () => {
+    try {
+      await fn()
+      checks += 1
+      console.log(`ok   ${name}`)
+    } catch (error) {
+      console.error(`FAIL ${name}: ${error.message}`)
+      process.exitCode = 1
+    }
+  })()
+  pending.push(run)
+  return run
 }
 
 // ---- syntax builders -------------------------------------------------------
@@ -809,4 +817,18 @@ await check('apply() registers both route prefixes once webServer arrives', asyn
   assert.deepEqual(registered.sort(), ['/analytics', '/analytics-pspp'])
 })
 
+// Quartiles use the (n-1)p interpolation, which is what PSPP's own
+// PERCENTILES does: for 1..8 it prints 2.8 / 4.5 / 6.3, i.e. 2.75 / 4.5 / 6.25.
+// A report claimed PSPP gives 3 / 5 / 6; the engine says otherwise, so this
+// pins the behaviour we do share with it.
+check('box quartiles follow the same interpolation as PSPP', () => {
+  const rows = [1, 2, 3, 4, 5, 6, 7, 8].map((value) => [value])
+  const model = computeBox({ variables: [{ name: 'x', type: 'numeric', measure: 'scale' }], rows }, { variable: 'x' })
+  const [group] = model.groups
+  assert.equal(group.q1, 2.75)
+  assert.equal(group.median, 4.5)
+  assert.equal(group.q3, 6.25)
+})
+
+await Promise.all(pending)
 console.log(`\n${checks} checks passed${process.exitCode ? ' (with failures)' : ''}`)

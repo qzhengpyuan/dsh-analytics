@@ -8,15 +8,21 @@ import { Workspace } from '../lib/workspace.js'
 
 let passed = 0
 let failed = 0
+// Callers do not await, so the runs are collected and the summary waits.
+const pending = []
 const check = (name, fn) => {
-  try {
-    fn()
-    passed += 1
-    console.log(`ok  ${name}`)
-  } catch (error) {
-    failed += 1
-    console.log(`not ok  ${name}\n    ${error.message}`)
-  }
+  const run = (async () => {
+    try {
+      await fn()
+      passed += 1
+      console.log(`ok  ${name}`)
+    } catch (error) {
+      failed += 1
+      console.log(`not ok  ${name}\n    ${error.message}`)
+    }
+  })()
+  pending.push(run)
+  return run
 }
 
 const make = () => {
@@ -126,5 +132,32 @@ check('a rename is refused when the name is taken or illegal', () => {
   assert.deepEqual(workspace.dataset.variables.map((variable) => variable.name), ['ID', 'Before', 'After', 'Diff'])
 })
 
+check('edits are refused while the engine owns the data', () => {
+  // A persist run ends by replacing every row from work.sav; an edit that
+  // landed mid-run used to return 200 and then disappear.
+  const workspace = make()
+  workspace.busyDepth = 1
+  assert.throws(() => workspace.setCell(0, 'ID', 9), /正在运行分析/)
+  assert.throws(() => workspace.setCells([{ row: 0, variable: 'ID', value: 9 }]), /正在运行分析/)
+  assert.throws(() => workspace.undo(), /正在运行分析/)
+  assert.throws(() => workspace.sortCases([{ variable: 'ID', order: 'A' }]), /正在运行分析/)
+  workspace.busyDepth = 0
+  const written = workspace.setCell(0, 'ID', 9)
+  assert.equal(String(written.value), '9')
+  assert.equal(written.variable, 'ID')
+  assert.equal(String(workspace.dataset.rows[0][0]), '9')
+})
+
+check('a truncated dataset refuses to write itself back', () => {
+  // Only the first maxRows cases are in memory; flushing work.sav from them
+  // would replace the file with that prefix. writeSav never runs here, so the
+  // check is the rejection itself.
+  const workspace = make()
+  workspace.dataset.truncated = true
+  workspace.dataset.dirty = true
+  return assert.rejects(workspace.workSav(), /会把后面的个案丢掉/)
+})
+
+await Promise.all(pending)
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exitCode = failed ? 1 : 0
