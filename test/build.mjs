@@ -925,6 +925,20 @@ check('a THRU range survives being written and read back', async () => {
   assert.deepEqual(parseMissingValues('1; 2; 3', 'numeric'), [1, 2, 3])
 })
 
+check('a string THRU range is refused instead of dropped', async () => {
+  // PSPP rejects `MISSING VALUES s ('AA' THRU 'ZZ')` ("expecting string"), so
+  // there is no way to write it. Writing nothing dropped the declaration
+  // silently; refusing names the variable and what to do instead.
+  const scripts = []
+  const run = async (syntax) => { scripts.push(syntax); return { code: 0, runId: 1, outputHtml: '', stderr: '' } }
+  const dataset = {
+    variables: [{ name: 'code', type: 'string', width: 8, alignment: 'left', missing: [{ lo: 'AA', hi: 'ZZ', text: true }] }],
+    rows: [['AA'], ['MM']],
+  }
+  await assert.rejects(writeSav(run, dataset, '/tmp/range-string.sav'), /字符串变量 code 的缺失值里有区间/)
+  assert.equal(scripts.length, 0, 'nothing is written before the refusal')
+})
+
 await Promise.all(pending)
 
 console.log(`\n${checks} checks passed${process.exitCode ? ' (with failures)' : ''}`)

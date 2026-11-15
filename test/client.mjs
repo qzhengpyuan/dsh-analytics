@@ -239,6 +239,11 @@ assert.deepEqual(missingHelpers.parseMissingInput(rangeText, 'numeric'), [{ lo: 
 assert.deepEqual(missingHelpers.parseMissingInput('90 THRU 99, 999', 'numeric'), [{ lo: 90, hi: 99 }, 999])
 assert.deepEqual(missingHelpers.parseMissingInput('1 2 3', 'numeric'), [1, 2, 3])
 assert.deepEqual(missingHelpers.parseMissingInput("'a' 'b'", 'string'), ['a', 'b'])
+// A string range keeps its shape: splitting it into two codes rewrote the
+// field on blur.
+const stringRange = [{ lo: 'AA', hi: 'ZZ', text: true }]
+assert.equal(missingHelpers.missingToText(stringRange), 'AA THRU ZZ')
+assert.deepEqual(missingHelpers.parseMissingInput('AA THRU ZZ', 'string'), [{ lo: 'AA', hi: 'ZZ', text: true }])
 console.log('ok  missing-value field shows and parses THRU ranges')
 
 console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip hidden, handoff closes its tab, label import, completion, outline summary')

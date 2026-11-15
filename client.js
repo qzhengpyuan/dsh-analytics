@@ -597,8 +597,10 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
         const low = clean(lowText)
         const high = clean(highText)
         if (low !== null && high !== null) {
+          // Keep the range as a range for strings too: splitting it into two
+          // codes made the field rewrite `AA THRU ZZ` as `AA ZZ` on blur.
           if (typeof low === 'number' && typeof high === 'number') out.push({ lo: Math.min(low, high), hi: Math.max(low, high) })
-          else out.push(low, high)
+          else out.push({ lo: String(low), hi: String(high), text: true })
         }
         return ' '
       })
