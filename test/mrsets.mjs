@@ -251,5 +251,19 @@ check('the total row is the sum of the rows above it', () => {
   assert.equal(total[3], '167%')
 })
 
+
+check('crosstab refuses a group code inside a MISSING VALUES range', () => {
+  const vars = [
+    { name: 'g', type: 'numeric', label: '组', valueLabels: { '1': '甲', '2': '乙', '8': '丙' }, missing: [{ lo: 7, hi: 9 }] },
+    { name: 'a', type: 'numeric', label: 'A', valueLabels: { '1': '是' }, missing: [] },
+  ]
+  const data = [[1, 1], [2, 0], [8, 1], [7, 1]]
+  const set = normalizeSet({ kind: 'mcgroup', name: '$m', label: 'M', variables: ['a'] }, vars)
+  const matrix = crosstab(set, 'g', vars, data)
+  assert.deepEqual(matrix[0], ['', '甲', '乙', '总计'], '8 is inside 7 THRU 9, so 丙 is not a group')
+  const row = matrix.find((entry) => entry[0] === 'A')
+  assert.deepEqual(row, ['A', '1', '0', '1'], 'one valid answer, not two')
+})
+
 console.log(`\n${checks} checks passed`)
 if (process.exitCode) console.error(`${checks} checks with failures`)
