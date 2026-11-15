@@ -1,3 +1,7 @@
+## 0.24.6
+
+清洗器的最后一个绕过：**数字实体可以不带分号**。HTML 在属性值里允许 `&#58`、`&#x3a` 后直接跟字母，Chromium 照样解成冒号，于是 `javascript&#58alert(1)`、`javascript&#58 alert(1)`、`javascript&#x3a alert(1)` 都能穿过允许列表（解码后没出现字面冒号，被当成相对路径）。`decodeEntities()` 现在对数字实体接受可选分号；命名实体仍要求分号（浏览器也只认可这一小撮历史实体可省略）。
+
 ## 0.24.5
 
 第四轮复验又找出同一族里的最后一处：`lib/mrsets.js` 的 `crosstab()` 还在用自己的 `groupMissing()`，只认数组与标量，`MISSING VALUES g (7 THRU 9)` 里的 8 照样成一个组（表头多一列「丙」、总计 3 而不是 2）。现在改成共用 `isUserMissing()`，并加用例钉住。

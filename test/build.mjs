@@ -885,6 +885,11 @@ check('the table sanitiser decodes entities before looking at a scheme', () => {
   for (const href of ['https://example.com/a', '/mnt/E/x.csv', '#top', './a.html', '../b', '?q=1', 'mailto:a@b.c']) {
     assert.match(sanitizeTableHtml(`<table><tr><td><a href="${href}">x</a></td></tr></table>`), /href/, href)
   }
+  // A numeric reference does not need its semicolon in an attribute value:
+  // Chromium decodes all three of these to javascript:.
+  for (const href of ['javascript&#58 alert(1)', 'javascript&#58alert(1)', 'javascript&#x3a alert(1)']) {
+    assert.doesNotMatch(sanitizeTableHtml(`<table><tr><td><a href="${href}">x</a></td></tr></table>`), /href/i, href)
+  }
   // An unquoted handler after a self-closing slash used to survive too.
   assert.doesNotMatch(sanitizeTableHtml('<table><tr><td><span/onclick=1>x</span></td></tr></table>'), /onclick/i)
 })
