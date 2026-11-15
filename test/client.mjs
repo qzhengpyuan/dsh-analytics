@@ -704,3 +704,55 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   await act(async () => { stateRoot.unmount() })
   console.log('ok  provenance chip and import-notes list')
 }
+
+// The poll: heartbeat first, full state only when the signature moved. This is
+// the contract the panel's "the agent changed something" behaviour rests on, so
+// it is asserted against a stub instead of by hand in a browser.
+{
+  const pollHost = window.document.createElement('div')
+  window.document.body.appendChild(pollHost)
+  const pollRoot = createRoot(pollHost)
+  const calls = []
+  let signalChanged = false
+  const baseSignal = { id: 'session-test', items: 1, dataset: { caseCount: 5, vars: 'abc' } }
+  const state = {
+    id: 'session-test',
+    version: '0.25.0',
+    engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+    dataset: { sourcePath: '/tmp/a.sav', name: 'a.sav', caseCount: 5, variables: [] },
+    items: [{ id: 'run-1-0', kind: 'table', title: '年龄', table: { caption: '年龄', matrix: [['', 'N'], ['年龄', '5']] }, runId: 1 }],
+    importNotes: [],
+    log: [],
+    mrSets: [],
+    splitBy: [],
+    history: { undo: 0, redo: 0 },
+    signal: baseSignal,
+  }
+  window.fetch = async (url) => {
+    calls.push(String(url))
+    if (String(url).includes('api/heartbeat')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ ok: true, signal: signalChanged ? { ...baseSignal, items: 2 } : baseSignal }),
+      }
+    }
+    return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state }) }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    pollRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 120))
+  })
+  const stateCalls = () => calls.filter((url) => url.includes('api/state')).length
+  const beatCalls = () => calls.filter((url) => url.includes('api/heartbeat')).length
+  assert.equal(stateCalls(), 1, 'the mount reads the full state once')
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 3400)) })
+  assert.ok(beatCalls() >= 1, 'the open panel polls the heartbeat')
+  assert.equal(stateCalls(), 1, 'an unchanged signature does not pull the full state again')
+  signalChanged = true
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 3400)) })
+  assert.ok(stateCalls() >= 2, 'a changed signature pulls the full state')
+  await act(async () => { pollRoot.unmount() })
+  console.log('ok  poll asks the heartbeat first and only pulls state on change')
+}
