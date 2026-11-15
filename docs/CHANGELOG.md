@@ -1,3 +1,11 @@
+## 0.24.7
+
+同一族的最后两处，都是「THRU 区间」在用户手里悄悄消失：
+
+- **保存 .sav 时 `MISSING VALUES age (90 THRU 99).` 变成空声明**：`lib/dataset.js` 的 `literal()` 只认同标量，区间被序列化成空字符串，写出来是 `MISSING VALUES age ().`。PSPP 接受这一行、读回来是「没有缺失码」，全程不报错。现在区间写成 `90 THRU 99`（字符串变量写成 `'a' THRU 'b'`）。
+- **读回字典时区间又被丢掉**：PSPP 的 `DISPLAY DICTIONARY` 用**分号**分隔多个缺失码（`90 THRU 99; 999`），而 `parseMissingValues()` 只按逗号切分，于是高界变成 `99; 999`、`Number()` 得 NaN，整条声明被丢弃。现在逗号与分号都认。
+- **变量视图的「缺失」输入框会把区间清空**：`defaultValue` 用 `variable.missing.join(' ')`，区间显示成 `[object Object]`；失焦时 `Number("[object Object]")` 为 NaN 被过滤，提交 `missing: []`——点进去再离开就把区间删了。现在显示为 `90 THRU 99 999`、解析认 `THRU`/逗号/空格，且值没变就不提交。
+
 ## 0.24.6
 
 清洗器的最后一个绕过：**数字实体可以不带分号**。HTML 在属性值里允许 `&#58`、`&#x3a` 后直接跟字母，Chromium 照样解成冒号，于是 `javascript&#58alert(1)`、`javascript&#58 alert(1)`、`javascript&#x3a alert(1)` 都能穿过允许列表（解码后没出现字面冒号，被当成相对路径）。`decodeEntities()` 现在对数字实体接受可选分号；命名实体仍要求分号（浏览器也只认可这一小撮历史实体可省略）。

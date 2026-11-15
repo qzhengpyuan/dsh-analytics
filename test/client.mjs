@@ -220,6 +220,27 @@ assert.equal(descriptives, 'N=60 · 均值=59.3450 · SD=9.07276', `summary of a
 assert.equal(hooks.summarizeTable({ matrix: [['a', 'b'], ['1', '2']] }), '', 'a table without known headers gets no summary')
 assert.equal(hooks.summarizeTable(undefined), '', 'a missing table gets no summary')
 
+
+/** The variable view formats and parses missing codes in the bundle itself. */
+const clientSource = readFileSync(join(root, 'client.js'), 'utf8')
+const missingStart = clientSource.indexOf('    function missingToText')
+const missingEnd = clientSource.indexOf('    function parseValueLabelLines')
+assert.ok(missingStart > 0 && missingEnd > missingStart, 'the missing-value helpers are in the bundle')
+const missingHelpers = new Function(
+  clientSource.slice(missingStart, missingEnd) + '; return { missingToText, parseMissingInput }',
+)()
+
+// A THRU range used to show as [object Object] and blur without a keystroke
+// cleared it (`Number("[object Object]")` is NaN, filtered out).
+assert.equal(missingHelpers.missingToText([{ lo: 90, hi: 99 }, 999]), '90 THRU 99 999')
+assert.equal(missingHelpers.missingToText([]), '')
+const rangeText = missingHelpers.missingToText([{ lo: 90, hi: 99 }])
+assert.deepEqual(missingHelpers.parseMissingInput(rangeText, 'numeric'), [{ lo: 90, hi: 99 }])
+assert.deepEqual(missingHelpers.parseMissingInput('90 THRU 99, 999', 'numeric'), [{ lo: 90, hi: 99 }, 999])
+assert.deepEqual(missingHelpers.parseMissingInput('1 2 3', 'numeric'), [1, 2, 3])
+assert.deepEqual(missingHelpers.parseMissingInput("'a' 'b'", 'string'), ['a', 'b'])
+console.log('ok  missing-value field shows and parses THRU ranges')
+
 console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip hidden, handoff closes its tab, label import, completion, outline summary')
 
 // Right-clicking a cell in the data sheet opens the cell menu; the cell's

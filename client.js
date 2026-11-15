@@ -557,6 +557,58 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
      * things a user pastes here are SPSS syntax and a spreadsheet range, and
      * they disagree about whether the label comes first.
      */
+    /**
+     * A missing-value code is a number, a string, or a `{ lo, hi }` range.
+     * `String({lo,hi})` is "[object Object]", and Number("[object Object]") is
+     * NaN — the variable view showed that text and then cleared every range
+     * the moment the field lost focus.
+     */
+    function missingToText(missing) {
+      if (!Array.isArray(missing)) return ''
+      return missing.map((entry) => {
+        if (entry !== null && typeof entry === 'object') {
+          const low = Array.isArray(entry) ? entry[0] : entry.lo
+          const high = Array.isArray(entry) ? entry[1] : entry.hi
+          if (low === undefined && high === undefined) return ''
+          return `${low ?? ''} THRU ${high ?? ''}`.trim()
+        }
+        return String(entry ?? '')
+      }).filter((text) => text !== '').join(' ')
+    }
+
+    /** Read the same syntax the field shows: `90 THRU 99`, `1, 2`, `'a'`. */
+    function parseMissingInput(text, type) {
+      const source = String(text ?? '').trim()
+      if (source === '') return []
+      const clean = (token) => {
+        let value = String(token ?? '').trim()
+        if (value === '') return null
+        if ((value.startsWith("'") && value.endsWith("'")) || (value.startsWith('"') && value.endsWith('"'))) {
+          value = value.slice(1, -1).trim()
+        }
+        if (type === 'string') return value === '' ? null : value
+        const number = Number(value)
+        return Number.isFinite(number) ? number : null
+      }
+      const out = []
+      const atom = "'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|[^\\s,]+"
+      const rangePattern = new RegExp(`(${atom})\\s+THRU\\s+(${atom})`, 'gi')
+      const rest = source.replace(rangePattern, (match, lowText, highText) => {
+        const low = clean(lowText)
+        const high = clean(highText)
+        if (low !== null && high !== null) {
+          if (typeof low === 'number' && typeof high === 'number') out.push({ lo: Math.min(low, high), hi: Math.max(low, high) })
+          else out.push(low, high)
+        }
+        return ' '
+      })
+      for (const token of rest.split(/[\s,]+/)) {
+        const value = clean(token)
+        if (value !== null) out.push(value)
+      }
+      return out
+    }
+
     function parseValueLabelLines(text) {
       const labels = {}
       const problems = []
@@ -3319,14 +3371,17 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
               h('td', { title: JSON.stringify(variable.missing ?? []) },
                 h('input', {
                   type: 'text',
-                  defaultValue: Array.isArray(variable.missing) ? variable.missing.join(' ') : '',
-                  placeholder: '空格分隔',
+                  defaultValue: missingToText(variable.missing),
+                  placeholder: '空格分隔，区间写 90 THRU 99',
+                  title: '用空格或逗号分隔；区间写成 90 THRU 99',
                   style: { width: '100%' },
                   onBlur: (event) => {
-                    const tokens = String(event.target.value).trim().split(/\s+/).filter(Boolean)
-                    const missing = variable.type === 'string'
-                      ? tokens.map((token) => token.replace(/^'|'$/g, ''))
-                      : tokens.map((token) => Number(token)).filter((value) => Number.isFinite(value))
+                    const missing = parseMissingInput(event.target.value, variable.type)
+                    // Blur without a change must not rewrite the variable: a
+                    // range that came back as "[object Object]" was cleared by
+                    // simply clicking into the field and leaving it.
+                    const before = JSON.stringify(variable.missing ?? [])
+                    if (JSON.stringify(missing) === before) return
                     onUpdate?.(variable.name, { missing })
                   },
                 })),

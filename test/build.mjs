@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { buildAnalysis, buildTransform, buildChart, analysisExtras, itemsForAgent } from '../lib/tools.js'
 import { computeBar, computeHistogram, computeScatter, computeBox, computeLine, computePie, computeDualLine, renderSvg, buildChartModel, tCritical95, studentTwoSidedP, welchTest, significanceLabel } from '../lib/charts.js'
-import { decodeText, guessDelimiter, importDelimited } from '../lib/dataset.js'
+import { decodeText, guessDelimiter, importDelimited, parseMissingValues, writeSav } from '../lib/dataset.js'
 import { stringifyCsv } from '../lib/csv.js'
 import { describeFsError } from '../lib/fserr.js'
 import { sanitizeTableHtml } from '../lib/html.js'
@@ -904,6 +904,25 @@ check('raster draws an ellipse, not an empty canvas', () => {
   assert.equal(at(60, 25), '147,196,125', 'the vertical extent is filled')
   assert.equal(at(5, 5), '255,255,255', 'the corner stays background')
   assert.equal(at(10, 40), '255,255,255', 'outside the ellipse stays background')
+})
+
+
+check('a THRU range survives being written and read back', async () => {
+  // `literal()` only understood scalars, so a range serialised to an empty
+  // string: the file got `MISSING VALUES age ().`, PSPP accepted it as an empty
+  // declaration, and the reopened data had no missing codes at all.
+  const scripts = []
+  const run = async (syntax) => { scripts.push(syntax); return { code: 0, runId: 1, outputHtml: '', stderr: '' } }
+  const dataset = {
+    variables: [{ name: 'age', type: 'numeric', width: 8, decimals: 0, alignment: 'right', missing: [{ lo: 90, hi: 99 }, 999] }],
+    rows: [[80], [95], [999]],
+  }
+  await writeSav(run, dataset, '/tmp/range-test.sav')
+  const declaration = scripts.join('\n').split('\n').find((line) => line.startsWith('MISSING VALUES'))
+  assert.equal(declaration, 'MISSING VALUES age (90 THRU 99, 999).')
+  // The dictionary hands the same declaration back with `;` separators.
+  assert.deepEqual(parseMissingValues('90 THRU 99; 999', 'numeric'), [{ lo: 90, hi: 99 }, 999])
+  assert.deepEqual(parseMissingValues('1; 2; 3', 'numeric'), [1, 2, 3])
 })
 
 await Promise.all(pending)
