@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 
@@ -249,6 +249,23 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   if (skipped.includes('idle-c')) throw new Error('evictIdle must honour skip')
   if (registry.get('idle-c').dataset.rows.length !== 1) throw new Error('skip must leave the rows alone')
   console.log('ensure and evictIdle skip the session being served')
+}
+
+// Saving into a folder the user has not created yet is a normal thing to type
+// ("D:\新文件夹\a.sav"). The chart and Office exporters always created the
+// missing parents; save/exportCsv/convert did not, and the ENOENT came back as
+// "the path is wrong" — a Windows-side self-check hit it on its first day.
+{
+  const nest = join(root, 'nodir', 'deep')
+  await rm(join(root, 'nodir'), { recursive: true, force: true })
+  const fresh = new Workspace({ id: 'nodir', engine, root, config: { timeoutMs: 60000 } })
+  await fresh.init()
+  await fresh.createDataset({ variables: [{ name: 'x', type: 'numeric' }], rows: [[1], [2]] })
+  const saved = await fresh.save(join(nest, 'a.sav'))
+  if (!(await stat(saved.path)).size) throw new Error('save must write into the folder it just created')
+  const csv = await fresh.exportCsv(join(root, 'nodir', 'csv', 'b.csv'))
+  if (!(await stat(csv.path)).size) throw new Error('exportCsv must create its parent folder')
+  console.log('save and export create the folders they need')
 }
 
 await rm(root, { recursive: true, force: true })
