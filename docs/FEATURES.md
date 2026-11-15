@@ -1,6 +1,6 @@
 # dsh-analytics 功能说明
 
-> 版本 0.25.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 版本 0.25.1 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
 > 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
 > **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 23 个 agent 工具，让模型能在对话里直接分析、转换、画图。
 
@@ -365,7 +365,7 @@ CSV 导入规则：自动识别表头；列名里非法字符替换成 `_`、数
 
 面板开着的时候每 3 秒拉一次心跳：`GET api/heartbeat` 只回签名（`id`、版本、引擎来源、工作目录、数据集的来源路径/文件别名/例数/变量数/变量字典摘要/脏标记/打开时间、输出条目数与最后一条 id、日志尾、导入说明条数、两类多选题状态、拆分/加权/选择开关、最近错误、撤销栈状态），不含任何矩阵，几百字节。签名真的变了才去拉完整 `api/state`（那里才有 `items` 与每张表的矩阵）。完整状态自己带着这几百字节的签名（`state.signal`），所以面板拉完状态就知道下一次该拿什么比对，不会多读一轮。
 
-每张表、每张图在生成时被盖上 `provenance`：`sessionId`（哪个工作区）、`sourcePath` / `name`（哪份数据，浏览器拖入的副本记为无路径）、`caseCount`、`varCount`（算这张表时有多少个案/变量）、`openedAt`（这份数据什么时候被打开）。输出标题栏显示成 `a.sav · 60 例 · 5 变量` 的小标签，悬停给出路径、打开时间与会话 id。用途是「这张表的数字来自哪份数据」可回答：面板会话与对话会话是两个工作区，同名文件可以同时存在两份。
+每张表、每张图在生成时被盖上 `provenance`：`sessionId`（哪个工作区）、`sourcePath` / `name`（哪份数据，浏览器拖入的副本记为无路径）、`caseCount`、`varCount`（算这张表时有多少个案/变量）、`openedAt`（这份数据什么时候被打开）。输出标题栏显示成 `a.sav · 60 例 · 5 变量` 的小标签，悬停给出路径、打开时间与会话 id；同一份戳也随 `pspp_run`/`pspp_analyze`/`pspp_chart` 的结果回到模型侧（`itemsForAgent()` 转发 `provenance`）。用途是「这张表的数字来自哪份数据」可回答：面板会话与对话会话是两个工作区，同名文件可以同时存在两份。
 
 导入时被改名的列，除了 4 秒的提示，还在状态栏留下常驻的「导入说明 N」入口（`state.importNotes`，打开列出每一列改名的原因与原名所在的变量标签）。
 
@@ -581,7 +581,7 @@ npm run bundle-engine   # 从系统 PSPP 重新打包 engine/<本机平台>/
 node scripts/bundle-engine.mjs --from-prefix out --platform linux-x64   # 从容器里编好的 prefix 导入
 ```
 
-- 测试：`npm test` 依次跑 19 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/poll），全绿时共 262 条 ok 断言 —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台）。
+- 测试：`npm test` 依次跑 19 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/poll），全绿时共 263 条 ok 断言 —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台）。
 - smoke：真实引擎跑一遍打开 → 分析 → 保存。
 - routes：42 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收、新增的 `api/heartbeat`）。
 

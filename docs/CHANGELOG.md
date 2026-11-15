@@ -1,3 +1,9 @@
+## 0.25.1
+
+Windows 端独立复验报回来的一条：**provenance 只在面板里有，工具的返回里没有**。`api/state` 的每个条目都带 `provenance`（面板标题栏据此显示 `a.sav · 60 例 · 5 变量`），但 `lib/tools.js` 的 `itemsForAgent()` 只挑 `kind/id/title/rows`（外加 `roc`/`pairwise`/`notes`）转发，`pspp_run`、`pspp_run_file`、`pspp_analyze`、`pspp_chart` 的结果里没有这个字段——模型过几轮再被问「这张表是哪份数据的」就没有依据了。现在表格与图表都把 `provenance` 一并回传；没有戳的条目也不会凭空造一个。
+
+测试：`test/build.mjs` 新增一条用例（表格与图表的 `provenance` 逐字段相等、无戳条目不带该字段）。
+
 ## 0.25.0
 
 三件都来自 Windows 端复验员的独立评判，按他的排序做：先说「数字是不是来自你正在看的那份数据」，再说表格本身能不能一眼认出来源。

@@ -566,6 +566,21 @@ check('a table too long for the agent is truncated, not dumped', () => {
   assert.equal(small.truncated, undefined, 'a short table is not annotated')
 })
 
+check('the agent gets the same data provenance the panel does', () => {
+  // A table shown in the panel says which dataset it came from; the tool result
+  // is all a model still has a dozen turns later, so the stamp has to survive
+  // itemsForAgent too.
+  const provenance = { sessionId: 's1', sourcePath: '/tmp/a.sav', name: 'a.sav', caseCount: 60, varCount: 5, openedAt: 1794740000000 }
+  const [table, image] = itemsForAgent({ artifactPath: () => '/tmp/chart.svg' }, [
+    { kind: 'table', id: 't', title: 't', table: { matrix: [['', 'N'], ['score', '60']] }, provenance },
+    { kind: 'image', id: 'g', title: 'g', runId: 1, name: 'chart.svg', artifactUrl: '/u', provenance },
+  ])
+  assert.deepEqual(table.provenance, provenance)
+  assert.deepEqual(image.provenance, provenance)
+  const [plain] = itemsForAgent({}, [{ kind: 'table', id: 'p', title: 'p', table: { matrix: [] } }])
+  assert.equal('provenance' in plain, false, 'an item without a stamp does not invent one')
+})
+
 check('autorecode and Jonckheere build the expected syntax', () => {
   assert.equal(buildTransform('autorecode', { variable: 'gender', target: 'g_num' }), 'AUTORECODE VARIABLES=gender /INTO g_num.\nEXECUTE.')
   assert.equal(
