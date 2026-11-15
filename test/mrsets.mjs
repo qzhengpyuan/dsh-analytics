@@ -232,5 +232,24 @@ check('a MISSING VALUES range does not count as an answer', () => {
   assert.equal(total[3], '100%', 'every counted case answered')
 })
 
+
+check('the total row is the sum of the rows above it', () => {
+  // Dividing respondents by cases printed 67% under rows that add up to 133%.
+  const vars = [
+    { name: 'a', type: 'numeric', label: 'A', valueLabels: { '1': '是' }, missing: [] },
+    { name: 'b', type: 'numeric', label: 'B', valueLabels: { '1': '是' }, missing: [] },
+    { name: 'c', type: 'numeric', label: 'C', valueLabels: { '1': '是' }, missing: [] },
+  ]
+  const data = [[1, 1, 0], [1, 0, 1], [0, 1, 1], [1, 1, 1], [0, 0, 1], [0, 0, 0]]
+  const result = tabulate(normalizeSet({ kind: 'mcgroup', name: '$m', label: 'M', variables: ['a', 'b', 'c'] }, vars), vars, data)
+  const matrix = frequencyMatrix(result)
+  const total = matrix.at(-1)
+  const counted = matrix.slice(1, -1).reduce((sum, row) => sum + Number(row[1]), 0)
+  assert.equal(total[1], String(counted), 'the total is what the rows add up to')
+  assert.equal(total[1], '10')
+  // 10 responses over 6 cases; respondents/cases would have printed 83%.
+  assert.equal(total[3], '167%')
+})
+
 console.log(`\n${checks} checks passed`)
 if (process.exitCode) console.error(`${checks} checks with failures`)

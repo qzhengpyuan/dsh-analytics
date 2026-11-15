@@ -7,6 +7,7 @@ import { decodeText, guessDelimiter, importDelimited } from '../lib/dataset.js'
 import { stringifyCsv } from '../lib/csv.js'
 import { describeFsError } from '../lib/fserr.js'
 import { sanitizeTableHtml } from '../lib/html.js'
+import { rasterizeSvg } from '../lib/raster.js'
 
 let checks = 0
 // The callers below do not await, so every run is collected and the summary
@@ -832,11 +833,27 @@ check('box quartiles use Tukey hinges, like SPSS and EXAMINE', () => {
   assert.equal(group.q1, 2.5)
   assert.equal(group.median, 4.5)
   assert.equal(group.q3, 6.5)
-  const odd = [1, 2, 3, 4, 5].map((value) => [value])
-  const oddModel = computeBox({ variables: [{ name: 'x', type: 'numeric', measure: 'scale' }], rows: odd }, { variable: 'x' })
-  // Five cases: halves exclude the median, so the hinges are 1.5 and 4.5.
-  assert.equal(oddModel.groups[0].q1, 1.5)
-  assert.equal(oddModel.groups[0].q3, 4.5)
+  // Odd counts: the median belongs to BOTH halves. Checked against the bundled
+  // engine's EXAMINE /PLOT=BOXPLOT, which prints 2.00/3.00/4.00 for 1..5 and
+  // 2.50/4.00/5.50 for 1..7.
+  const box = (count) => computeBox({
+    variables: [{ name: 'x', type: 'numeric', measure: 'scale' }],
+    rows: Array.from({ length: count }, (_, index) => [index + 1]),
+  }, { variable: 'x' }).groups[0]
+  assert.deepEqual([box(5).q1, box(5).median, box(5).q3], [2, 3, 4])
+  assert.deepEqual([box(7).q1, box(7).median, box(7).q3], [2.5, 4, 5.5])
+  assert.deepEqual([box(9).q1, box(9).median, box(9).q3], [3, 5, 7])
+})
+
+check('the chart-side t test agrees with the table-side one', () => {
+  // The relative zero-variance tolerance landed in lib/tables.js first and was
+  // not carried over: the chart reported t=1.41/p=.29 for identical constants
+  // and "no difference" for two different ones.
+  assert.deepEqual(welchTest([0.1, 0.1, 0.1], [0.1, 0.1]), { t: 0, df: 3, p: 1 })
+  assert.equal(welchTest([5, 5, 5], [9, 9, 9]), null)
+  assert.equal(welchTest([1e6, 1e6, 1e6], [2e6, 2e6, 2e6]), null)
+  const normal = welchTest([1, 2, 3, 4], [10, 11, 12, 13])
+  assert.ok(normal.p < 0.001, `a real difference is still tested: p=${normal.p}`)
 })
 
 await Promise.all(pending)
@@ -859,8 +876,29 @@ check('the table sanitiser decodes entities before looking at a scheme', () => {
     assert.doesNotMatch(cleaned, /javascript|&#58|&#99/i, href)
     assert.doesNotMatch(cleaned, /href/i, href)
   }
+  // HTML5 named entities, not just numeric ones: a browser decodes
+  // `javascript&colon;` and `java&Tab;script:` into the same scheme.
+  for (const href of ['javascript&colon;alert(1)', 'java&Tab;script:alert(1)', 'java&NewLine;script:alert(1)']) {
+    assert.doesNotMatch(sanitizeTableHtml(`<table><tr><td><a href="${href}">x</a></td></tr></table>`), /href/i, href)
+  }
+  // The allow-list must not eat the links a table legitimately holds.
+  for (const href of ['https://example.com/a', '/mnt/E/x.csv', '#top', './a.html', '../b', '?q=1', 'mailto:a@b.c']) {
+    assert.match(sanitizeTableHtml(`<table><tr><td><a href="${href}">x</a></td></tr></table>`), /href/, href)
+  }
   // An unquoted handler after a self-closing slash used to survive too.
   assert.doesNotMatch(sanitizeTableHtml('<table><tr><td><span/onclick=1>x</span></td></tr></table>'), /onclick/i)
+})
+
+check('raster draws an ellipse, not an empty canvas', () => {
+  const { rgba, width, height } = rasterizeSvg(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80"><ellipse cx="60" cy="40" rx="40" ry="20" fill="#93c47d"/></svg>',
+    1,
+  )
+  const at = (x, y) => { const i = (y * width + x) * 4; return [rgba[i], rgba[i + 1], rgba[i + 2]].join(',') }
+  assert.equal(at(60, 40), '147,196,125', 'the centre is filled')
+  assert.equal(at(60, 25), '147,196,125', 'the vertical extent is filled')
+  assert.equal(at(5, 5), '255,255,255', 'the corner stays background')
+  assert.equal(at(10, 40), '255,255,255', 'outside the ellipse stays background')
 })
 
 await Promise.all(pending)
