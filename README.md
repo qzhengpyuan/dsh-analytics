@@ -11,6 +11,20 @@ PSPP 作为 DeepSeek Harness 插件自带引擎的统计分析工作台：**不�
 - 一个带 `dsh-better-sidebar` 的 profile：侧栏页签靠它的 `registerTab` 注册，`peerDependencies` 里是可选依赖
 - 引擎：插件自带预编译 PSPP，**不需要**系统装 PSPP；本机平台没有 `engine/<platform>-<arch>/` 时按 `npm run engine:fetch` 从 `engine-v*` Release 拉，或回退到系统 `pspp`
 
+## 安装
+
+从 Release 装成 bundle（自带 `engine/linux-x64` 与 `engine/win32-x64`，约 34 MB）：
+
+```bash
+curl -L -O https://github.com/qzhengpyuan/dsh-analytics/releases/download/v0.26.1/dsh-analytics-0.26.1.tgz
+dsh plugin --profile <profile> add file:$PWD/dsh-analytics-0.26.1.tgz   # 1) 装包
+# 2) 把 "dsh-analytics" 加进 ~/.dsh/profiles/<profile>/package.json 的 dsh.profile.bundles
+#    （或用 plugin_manager install_bundle 指向同一个 .tgz）
+# 3) 设置 → 插件 → dsh-analytics 关一次再开
+```
+
+`linux-x64` 与 `win32-x64` 是实测平台；`linux-arm64`、`darwin-arm64`、`darwin-x64` 的引擎在 `engine-v1` 里有 CI 产物，但**没有真机验证**。细节与检查清单见 [docs/install.md](docs/install.md)。
+
 ## 它由两半组成
 
 | 半边 | 文件 | 职责 |
@@ -113,7 +127,10 @@ PSPP 2.1.3 的语法差异：`REGRESSION /STATISTICS=TOL`（含 `ALL`）会报�
     safer: false
     evictIdle: true      # 关掉后会话数据集常驻内存
     maxIdleMs: 1800000   # 空闲多久释放（毫秒）
+    registerTools: false # true = 回到 0.26 之前的做法：每个会话都挂 23 个 pspp_* 工具
 ```
+
+`registerTools: false`（默认）时工具只由预设半 `dsh-analytics/tools` 提供，也就是只出现在选了「数据分析」预设的会话里。它会被记进启动日志：`[dsh-analytics] <版本> routes ready (registerTools=false)`。
 
 ## 性能与规模（实测，2026-11-14，测试机：Fedora 44 x86-64 / 32 GB 内存）
 

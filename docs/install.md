@@ -9,12 +9,34 @@
 | DeepSeek Harness | 0.2.x（core 0.2.1-rc 起验证） | 是 | 提供 Loader / 插件运行时 / Web GUI |
 | `dsh-better-sidebar` | ^0.28.0 | 侧栏必装 | 只提供 `registerTab`；不装时面板页签不出现，`pspp_*` 工具仍可用 |
 | Node.js | ≥ 20（实测 24.x） | 是 | host 半只用内置模块；client 半 `require('react')` 由 DSH 提供 |
-| 平台 | Linux x64/arm64 · macOS arm64/x64 · Windows x64 | 是 | 仓库里只带 `engine/linux-x64/`；其余平台用 `npm run engine:fetch` 从 Release 拉 `engine-<platform>.tgz`，或按「引擎重建」自己编 |
+| 平台 | Linux x64 · Windows x64（实测）；Linux arm64 · macOS arm64/x64（未验证构建） | 是 | Release 的 .tgz 带 `engine/linux-x64/` 与 `engine/win32-x64/`；其余平台用 `npm run engine:fetch` 从 `engine-v1` 拉 `engine-<platform>.tgz`，或按「引擎重建」自己编 |
 | glibc | ≥ 2.28 | 是 | 引擎在 AlmaLinux 8（glibc 2.28）上编译，见「引擎重建」 |
 | 磁盘 | 约 26 MB | 是 | `engine/linux-x64/` 23 MB + 代码与文档（portable 包 3 MB，装完再取引擎） |
 | 系统 PSPP | — | **否** | 插件优先用包内 `engine/<平台>-<架构>/bin/pspp` |
 
 npm 依赖：**无运行时 npm 依赖**。peer 只有 `@deepseek-ai/cordis` 与 `dsh-better-sidebar`（后者标 optional）。
+
+## 安装（从 Release 的 .tgz 装）
+
+每个版本都挂了 `dsh-analytics-<版本>.tgz`（自带 `engine/linux-x64` 与 `engine/win32-x64`，约 34 MB）：
+
+```bash
+# 1. 下载
+curl -L -O https://github.com/qzhengpyuan/dsh-analytics/releases/download/v0.26.1/dsh-analytics-0.26.1.tgz
+
+# 2. 装进目标 profile（<profile> = web / desktop …）
+dsh plugin --profile <profile> add file:$PWD/dsh-analytics-0.26.1.tgz
+
+# 3. 让 profile 把这个包当成 bundle，它的 cordis.patch.yml 才会被读入：
+#    编辑 ~/.dsh/profiles/<profile>/package.json，把 "dsh-analytics" 加进 dsh.profile.bundles
+#    或者用 plugin_manager install_bundle 指向同一个 .tgz
+
+# 4. 重载：设置 → 插件 → dsh-analytics 关一次再开（host 半重载；面板里已打开的数据集会清空）
+```
+
+这个 .tgz 已经在临时目录里 `pnpm add file:…` 验过：宿主半 `import('dsh-analytics')` 与预设半 `import('dsh-analytics/tools')` 都能解析，`engine/linux-x64/bin/pspp --version` 打印 `pspp (GNU PSPP) 2.1.3`。客户端半是浏览器模块（`window.__ModuleLoader__`），在 Node 里 import 会报 `window is not defined`，属正常。
+
+**平台承诺**：`linux-x64` 与 `win32-x64` 是实测过的（本仓库全部测试 + Windows 10 独立复验）；`linux-arm64`、`darwin-arm64`、`darwin-x64` 的引擎在 `engine-v1` 里有产物（CI 构建成功），但**没有真机验证**，按「未验证构建」理解。
 
 ## 安装（目录直装，已验证）
 

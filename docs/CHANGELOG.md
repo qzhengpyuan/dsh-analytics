@@ -1,3 +1,10 @@
+## 0.26.1 打包分发
+
+- **Release `v0.26.1` 挂了 `dsh-analytics-0.26.1.tgz`（34.3 MB）**：自带 `engine/linux-x64` 与 `engine/win32-x64`，装完即可用，不需要系统装 PSPP 也不需要编译。引擎沿用 `engine-v1`，本版本没动引擎，所以没有重建（重建一次要 240 分钟 CI 额度、74 分钟墙钟）。
+- **产物验证**：解包后 `pnpm add file:…` 装进临时目录，宿主半 `import('dsh-analytics')`、预设半 `import('dsh-analytics/tools')` 均解析成功，`engine/linux-x64/bin/pspp --version` 打印 `pspp (GNU PSPP) 2.1.3`；客户端半是浏览器模块（`window.__ModuleLoader__`），Node 里 import 报 `window is not defined` 属预期。`dsh --profile web --dump-config` 里能看到本包贡献的 `analytics` 与 `preset-analytics` 两行，说明 bundle 装配正确。
+- **平台承诺写死**：`linux-x64`、`win32-x64` 实测；`linux-arm64`、`darwin-arm64`、`darwin-x64` 只用 CI 产物验证过，标为「未验证构建」。
+- **文档**：`README.md` 与 `docs/install.md` 增加「从 Release 的 .tgz 装」的步骤与检查清单，`README.md` 的配置节补 `registerTools` 说明。
+
 ## 0.26.1
 
 预设自检（真的在「数据分析」预设的会话里跑工具）顺手抓到一个真 bug：**保存到还不存在的文件夹会失败**。
