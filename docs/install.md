@@ -21,11 +21,11 @@ npm 依赖：**无运行时 npm 依赖**。peer 只有 `@deepseek-ai/cordis` 与
 每个版本都挂了 `dsh-analytics-<版本>.tgz`（自带 `engine/linux-x64` 与 `engine/win32-x64`，约 34 MB）：
 
 ```bash
-# 1. 下载
-curl -L -O https://github.com/qzhengpyuan/dsh-analytics/releases/download/v0.26.1/dsh-analytics-0.26.1.tgz
+# 1. 下载：到 releases/latest 页拿 dsh-analytics-<版本>.tgz（下文以 0.26.2 为例）
+curl -L -O https://github.com/qzhengpyuan/dsh-analytics/releases/download/v0.26.2/dsh-analytics-0.26.2.tgz
 
 # 2. 装进目标 profile（<profile> = web / desktop …）
-dsh plugin --profile <profile> add file:$PWD/dsh-analytics-0.26.1.tgz
+dsh plugin --profile <profile> add file:$PWD/dsh-analytics-<版本>.tgz
 
 # 3. 让 profile 把这个包当成 bundle，它的 cordis.patch.yml 才会被读入：
 #    编辑 ~/.dsh/profiles/<profile>/package.json，把 "dsh-analytics" 加进 dsh.profile.bundles

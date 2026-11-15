@@ -16,8 +16,8 @@ PSPP 作为 DeepSeek Harness 插件自带引擎的统计分析工作台：**不�
 从 Release 装成 bundle（自带 `engine/linux-x64` 与 `engine/win32-x64`，约 34 MB）：
 
 ```bash
-curl -L -O https://github.com/qzhengpyuan/dsh-analytics/releases/download/v0.26.1/dsh-analytics-0.26.1.tgz
-dsh plugin --profile <profile> add file:$PWD/dsh-analytics-0.26.1.tgz   # 1) 装包
+# 到 https://github.com/qzhengpyuan/dsh-analytics/releases/latest 拿 dsh-analytics-<版本>.tgz
+dsh plugin --profile <profile> add file:$PWD/dsh-analytics-<版本>.tgz   # 1) 装包
 # 2) 把 "dsh-analytics" 加进 ~/.dsh/profiles/<profile>/package.json 的 dsh.profile.bundles
 #    （或用 plugin_manager install_bundle 指向同一个 .tgz）
 # 3) 设置 → 插件 → dsh-analytics 关一次再开
