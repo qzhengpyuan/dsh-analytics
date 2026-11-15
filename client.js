@@ -60,7 +60,20 @@ window.__ModuleLoader__.load({
     // two tabs from picking the same suffix.
     let DOC_SEQ = 1
 
-    const CSS = `.ap-root {
+    const CSS = `.ap-prov {
+  font-size: 11px;
+  color: var(--ap-text-3);
+  background: var(--ap-surface-2);
+  border-radius: 9px;
+  padding: 1px 8px;
+  margin-left: 6px;
+  white-space: nowrap;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: help;
+}
+.ap-root {
   /* Every colour below resolves through the harness design tokens and falls
      back to the old SPSS-like literals, so a skin or the dark theme applies to
      this panel without any theme-specific code here. Tokens live on <body>
@@ -3643,6 +3656,28 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
                 onChange: () => onTogglePick?.(item.id),
               })
               : null
+            // Which data produced these numbers. The panel and the agent share
+            // one workspace per session, but a session can hold several
+            // documents and two sessions can open two files with the same name,
+            // so a table on screen has no other way of saying where it came
+            // from. Without it a screenshot of a table cannot be traced back.
+            const provenance = (() => {
+              const from = item.provenance
+              if (!from) return null
+              const name = from.name ?? (from.sourcePath ? basenameOf(from.sourcePath) : null)
+              const opened = from.openedAt ? new Date(from.openedAt).toLocaleString('zh-CN', { hour12: false }) : null
+              const label = name
+                ? `${name} · ${from.caseCount} 例 · ${from.varCount} 变量`
+                : `未命名数据 · ${from.caseCount} 例 · ${from.varCount} 变量`
+              const detail = [
+                name ? `数据文件：${name}` : '这份数据没有对应的磁盘文件（在面板里新建或刚拖入的副本）',
+                from.sourcePath ? `来源路径：${from.sourcePath}` : null,
+                `计算时 ${from.caseCount} 个个案、${from.varCount} 个变量`,
+                opened ? `打开于 ${opened}` : null,
+                `会话：${from.sessionId}`,
+              ].filter(Boolean).join('\n')
+              return h('span', { className: 'ap-prov', title: detail }, label)
+            })()
             const head = (title, extra = []) => h('div', { className: 'ap-item-head' },
               pick,
               h('button', {
@@ -3652,6 +3687,7 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
               }, shut ? '▸' : '▾'),
               h('h3', null, title),
               h('span', { className: 'ap-grow' }),
+              provenance,
               ...extra,
               remove)
             if (item.kind === 'table') {
@@ -3994,6 +4030,12 @@ let ITEM_CSV_PENDING = null
       if (sessionCwd) ACTIVE_CWD = sessionCwd
       const stateUrl = useCallback((id) => `api/state?sessionId=${encodeURIComponent(id)}`
         + (sessionCwd ? `&cwd=${encodeURIComponent(sessionCwd)}` : ''), [sessionCwd])
+      // The poll asks for this instead: the full state carries every output
+      // matrix (a 3000-case frequency table is ~300 KB), which at one poll a
+      // second was pure traffic. The signature is a few hundred bytes and says
+      // whether anything moved at all.
+      const signalUrl = useCallback((id) => `api/heartbeat?sessionId=${encodeURIComponent(id)}`
+        + (sessionCwd ? `&cwd=${encodeURIComponent(sessionCwd)}` : ''), [sessionCwd])
       // SPSS's editor can show either the stored value or its label.
       const [showLabels, setShowLabels] = useState(() => {
         try { return localStorage.getItem('ap.showLabels') !== '0' } catch { return true }
@@ -4210,34 +4252,32 @@ let ITEM_CSV_PENDING = null
         const tick = async () => {
           if (stopped || document.visibilityState === 'hidden' || busyRef.current) return
           try {
+            // Stage one: a few hundred bytes saying whether anything moved.
+            // The full state carries every output matrix, so pulling it every
+            // tick made an idle panel with a big table ship hundreds of KB a
+            // second for nothing.
+            const probe = await api(signalUrl(sessionId))
+            if (stopped) return
+            const next = probe.signal ?? null
+            const current = stateRef.current
+            const previous = current?.signal ?? null
+            if (previous && next && JSON.stringify(previous) === JSON.stringify(next)) return
+            drainRef.current()
+            // Stage two: something did move, so read the whole thing.
             const value = await api(stateUrl(sessionId))
             if (stopped) return
-            const current = stateRef.current
-            drainRef.current()
-            if (!current) { setSt(value.state); return }
-            // The variables themselves are part of the signature: a label or
-            // alignment change keeps the shape identical but must still reach
-            // the sheet, otherwise the panel shows the previous formatting.
-            const shape = (state) => {
-              if (!state?.dataset) return 'none'
-              const variables = state.dataset.variables
-                .map((variable) => `${variable.name}|${variable.alignment}|${variable.format}|${variable.type}|${variable.label ?? ''}`)
-                .join(';')
-              const session = [state.splitBy?.join(' ') ?? '', state.weightBy ?? '', state.filterBy ?? '', state.selectIf ?? ''].join('|')
-              return `${state.dataset.caseCount}:${variables}:${state.dataset.dirty === true}:${session}`
-            }
-            const sameShape = shape(current) === shape(value.state)
-            const sameItems = (current.items ?? []).length === (value.state.items ?? []).length
-            // An error-only run changes neither the data nor the number of
-            // output items, so without this the panel kept saying 就绪 while the
-            // engine had refused every command.
-            const sameError = (current.lastError?.raw ?? '') === (value.state.lastError?.raw ?? '')
-            if (sameShape && sameItems && sameError) return
+            const before = current
             setSt(value.state)
-            if ((value.state.items ?? []).length > (current.items ?? []).length && viewRef.current !== 'output') {
+            if ((value.state.items ?? []).length > (before?.items ?? []).length && viewRef.current !== 'output') {
               notify('PSPP 有新输出（切换到「输出」查看）')
             }
-            if (!sameShape) {
+            // The data sheet only has to reload when the data itself moved:
+            // a new variable, a different case count or another file.
+            const dataMoved = (before?.dataset?.caseCount ?? -1) !== (value.state.dataset?.caseCount ?? -1)
+              || (before?.dataset?.sourcePath ?? null) !== (value.state.dataset?.sourcePath ?? null)
+              || (before?.dataset?.variables ?? []).length !== (value.state.dataset?.variables ?? []).length
+              || (next?.dataset?.vars ?? null) !== (previous?.dataset?.vars ?? null)
+            if (dataMoved) {
               const page = await loadRows(0, 500)
               if (stopped) return
               setRows(page.rows)
@@ -4249,7 +4289,7 @@ let ITEM_CSV_PENDING = null
         }
         const timer = window.setInterval(tick, 3000)
         return () => { stopped = true; window.clearInterval(timer) }
-      }, [visible, sessionId, loadRows, stateUrl, notify])
+      }, [visible, sessionId, loadRows, stateUrl, signalUrl, notify])
 
 
       useEffect(() => {
@@ -4584,7 +4624,7 @@ let ITEM_CSV_PENDING = null
         // name, and its original heading is only in the variable label.
         const renamed = value?.result?.notes ?? []
         if (renamed.length > 0) {
-          notify(`${renamed.length} 列的表头不符合 PSPP 变量名规则，已改名（原表头保留为标签）：${renamed[0]}${renamed.length > 1 ? ` 等 ${renamed.length} 条` : ''}`)
+          notify(`${renamed.length} 列的表头不符合 PSPP 变量名规则，已改名（原表头保留为标签）：${renamed[0]}${renamed.length > 1 ? ` 等 ${renamed.length} 条，细节见状态栏「导入说明」` : ''}`)
         }
         return 'data'
       }, [docId, setSyntax, notify])
@@ -5563,10 +5603,34 @@ let ITEM_CSV_PENDING = null
             st?.lastError
               ? `最近错误：${st.lastError.message}${st.lastError.hint ? ` — ${st.lastError.hint}` : ''}`
               : '就绪'),
+          // A toast is gone in four seconds; the list of renamed columns is
+          // what the user goes looking for later, when a column is not where
+          // the spreadsheet said it was.
+          (st?.importNotes ?? []).length > 0
+            ? h('button', {
+              className: 'ap-tool',
+              title: '导入时哪些列名被改过、原名保存在哪里',
+              onClick: () => setDialog({ kind: 'importNotes', notes: st.importNotes }),
+            }, `导入说明 ${st.importNotes.length}`)
+            : null,
           st?.version
             ? h('span', { className: 'ap-status-version', title: `插件版本 ${st.version}（改后端代码后停用再启用本插件即可生效，但要重新打开数据文件）` }, `v${st.version}`)
             : null),
         toast ? h('div', { className: 'ap-toast' }, toast) : null,
+        dialog?.kind === 'importNotes'
+          ? h(Modal, {
+            title: '导入说明：列名为什么改了',
+            wide: true,
+            hideCancel: true,
+            okText: '知道了',
+            onOk: () => setDialog(null),
+            onCancel: () => setDialog(null),
+          },
+          h('div', { className: 'ap-hint', style: { marginBottom: 8, lineHeight: 1.6 } },
+            'PSPP 的变量名只能用 ASCII 字母、数字和下划线，最多 64 个字符，且不能重名。下面这些列的表头不符合规则，已经改名；原表头保留为变量标签（「变量视图 → 标签」列，输出表通常按标签显示），数据本身没有丢。'),
+          h('ul', { style: { margin: 0, paddingLeft: 18, lineHeight: 1.7 } },
+            ...dialog.notes.map((note, index) => h('li', { key: index }, note))))
+          : null,
         dialog?.kind === 'analysis'
           ? h(AnalysisDialog, {
             spec: dialog.spec,
