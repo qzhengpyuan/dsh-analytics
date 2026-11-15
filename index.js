@@ -93,7 +93,7 @@ export function apply(ctx, config = {}) {
     const webServer = scoped.get('webServer')
     const connection = scoped.get('connection')
     const handler = createHandler({ registry, connection, config: settings })
-    console.log(`[dsh-analytics] ${pluginInfo().version} routes ready`)
+    console.log(`[dsh-analytics] ${pluginInfo().version} routes ready (registerTools=${settings.registerTools === true})`)
     // Register the current prefix plus the pre-rename one.
     scoped.effect(() => {
       const disposers = ['/analytics', '/analytics-pspp'].map((path) => webServer.register({

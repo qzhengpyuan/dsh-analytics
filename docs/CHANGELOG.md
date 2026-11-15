@@ -1,3 +1,14 @@
+## 0.26.0
+
+Windows 端复验员提的结构性问题之一：**23 个 `pspp_*` 工具在装了插件的每个会话里都在**。它的原话是启动与 bundle 几乎零代价、真正的代价在请求上下文，而我这边正好是最贵的一种——每条工具定义都要进每一次请求，哪怕这个会话在聊 CSS。它的建议是「收进预设」，用户的诉求也是这个：**只有选中「数据分析」预设的会话才加载**。
+
+- **宿主半不再注册工具**：`index.js` 只用 `ctx.provide('analytics', {registry, engine, config, version})` 把工作区注册成服务；工具注册保留在 `settings.registerTools === true` 后面当逃生门（老装法、或没装 bundle patch 的安装仍能用）。
+- **新增预设半 `tools-entry.js`**（包内导出 `./tools`）：`inject = ['tools', 'analytics']`，`ctx.get('analytics')` 拿宿主半的 registry，惰性 `import('./lib/tools.js')` 后逐条 `ctx.tools.register`，卸载时逐个注销。缺宿主半时**抛错**而不是注册 0 个工具——静默的「工具没了」比报错难查。分两半的关键理由是数据：两半各建一个 registry，面板和对话就会各看一份长得一样的数据。
+- **bundle patch 声明预设**：`preset-analytics`（`@deepseek-ai/dsh-agent-preset`，显示名「数据分析」，order 8），`plugins` = 一段 persona（写明「先 `pspp_status` / 先看变量字典与缺失码 / 报数字要带 provenance / PSPP 没实现的过程要明说」）+ `{id: analytics-tools, name: 'dsh-analytics/tools'}`。同时给 `analytics` 行加 `config: {registerTools: false}`。
+- **实测**：本机 reload 后 `include:preset-analytics` 出现在 Loader 里（`cordis_inspect_query Config`，status `schema`），**不需要重启 dsh**；`analytics` 行的 `registerTools: false` 也随 bundle patch 热生效（日志 `[dsh-analytics] 0.26.0 routes ready (registerTools=false)`）；本会话（standard 预设）的 `Tool.listTools` 里 `pspp_` 出现 0 次——泄漏确实断了。
+- **测试**：新增 `test/preset.mjs`（5 项：inject 列表、23 个工具挂在同一个 registry、缺宿主半抛错、卸载后清零、bundle patch 仍带预设与挂载行）；`test/build.mjs` 的 fake ctx 补 `provide()` 并断言宿主半确实发布了 `analytics` 服务。
+- **文档**：README「Agent 工具」与 `docs/install.md` 的检查清单改成「选『数据分析』预设才出现 23 个工具」，`docs/FEATURES.md` 第 9 节补作用域说明。
+
 ## 0.25.1
 
 Windows 端独立复验报回来的一条：**provenance 只在面板里有，工具的返回里没有**。`api/state` 的每个条目都带 `provenance`（面板标题栏据此显示 `a.sav · 60 例 · 5 变量`），但 `lib/tools.js` 的 `itemsForAgent()` 只挑 `kind/id/title/rows`（外加 `roc`/`pairwise`/`notes`）转发，`pspp_run`、`pspp_run_file`、`pspp_analyze`、`pspp_chart` 的结果里没有这个字段——模型过几轮再被问「这张表是哪份数据的」就没有依据了。现在表格与图表都把 `provenance` 一并回传；没有戳的条目也不会凭空造一个。

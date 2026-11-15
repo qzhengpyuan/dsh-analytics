@@ -1,8 +1,8 @@
 # dsh-analytics 功能说明
 
-> 版本 0.25.1 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 版本 0.26.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
 > 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
-> **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 23 个 agent 工具，让模型能在对话里直接分析、转换、画图。
+> **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 23 个 agent 工具，让模型能在对话里直接分析、转换、画图。这些工具不再是「装了插件就有」，而是挂在插件自带的「数据分析」Agent 预设里（见 §9）。
 
 ---
 
@@ -265,7 +265,9 @@ SVG 尺寸 560×360，字体 Noto Sans CJK SC，中文标签正常。图表文�
 
 ---
 
-## 9. 对话里怎么用（23 个 agent 工具）
+## 9. 对话里怎么用（23 个 agent 工具，由「数据分析」预设挂载）
+
+**作用域**：工具注册在预设半 `dsh-analytics/tools` 里，插件自带的 bundle patch 声明了 Agent 预设 `preset-analytics`（显示名「数据分析」，`plugins` = 一段 persona + 这个工具插件）。只有选中该预设的会话才看得到 23 个工具；用别的预设的会话一条也看不到。宿主半 `index.js` 用 `ctx.provide('analytics', {registry, engine, config, version})` 把工作区注册成服务，预设半 `ctx.get('analytics')` 取同一个 registry —— 两半如果各建一个 registry，面板和对话就会各看一份长得一样的数据。缺宿主半时预设半直接抛「dsh-analytics 的工具需要宿主半（dsh-analytics）先加载」，而不是静默注册 0 个工具。
 
 模型在对话中通过以下工具操作**同一个工作区**，用户不用打开面板也能完成分析；面板每 3 秒轮询一次 `api/heartbeat`（只回几百字节的签名），签名变了才拉完整状态，agent 的改动会在面板里出现并弹「PSPP 有新输出」。
 
@@ -581,7 +583,7 @@ npm run bundle-engine   # 从系统 PSPP 重新打包 engine/<本机平台>/
 node scripts/bundle-engine.mjs --from-prefix out --platform linux-x64   # 从容器里编好的 prefix 导入
 ```
 
-- 测试：`npm test` 依次跑 19 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/poll），全绿时共 263 条 ok 断言 —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台）。
+- 测试：`npm test` 依次跑 19 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/poll、预设挂载），全绿时共 268 条 ok 断言 —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」。
 - smoke：真实引擎跑一遍打开 → 分析 → 保存。
 - routes：42 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收、新增的 `api/heartbeat`）。
 

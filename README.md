@@ -15,7 +15,8 @@ PSPP 作为 DeepSeek Harness 插件自带引擎的统计分析工作台：**不�
 
 | 半边 | 文件 | 职责 |
 | --- | --- | --- |
-| Host | `index.js`、`lib/*.js` | 自带引擎的进程管理、每会话工作区、数据读写、输出解析、`/analytics` HTTP API、23 个 agent 工具 |
+| Host | `index.js`、`lib/*.js` | 自带引擎的进程管理、每会话工作区、数据读写、输出解析、`/analytics` HTTP API，并把工作区注册成 `analytics` 服务 |
+| 预设半 | `tools-entry.js` | 23 个 `pspp_*` 工具，只挂在「数据分析」Agent 预设里，别的会话拿不到 |
 | Client | `client.js` | 通过 `ctx.betterSidebar.registerTab()` 注册侧栏页签；所有请求走同一套 API |
 
 Host 与 UI 共用**同一组 `Workspace` 方法**，所以"用户在对话框点确定"和"模型在对话里调 `pspp_analyze`"执行的是同一条代码路径，状态不会分叉。
@@ -91,6 +92,8 @@ Host 与 UI 共用**同一组 `Workspace` 方法**，所以"用户在对话框�
 PSPP 2.1.3 的语法差异：`REGRESSION /STATISTICS=TOL`（含 `ALL`）会报「没有找到有效数据」并 rc=1，所以回归只发 `R COEFF ANOVA CI`；`RELIABILITY /STATISTICS` 尚未实现，可靠性对话框只发 `/SCALE('all') ALL /MODEL=ALPHA`。
 
 ## Agent 工具
+
+23 个，**由插件自带的「数据分析」Agent 预设挂载**（`preset-analytics` → `dsh-analytics/tools`）：新建会话时选「数据分析」，这些工具才出现在那个会话里；用别的预设的会话看不到它们，省下的正是这 23 条工具定义每次请求都要占的上下文。宿主半在 `index.js` 里把工作区注册成 `analytics` 服务，预设半据此拿同一个数据集，所以面板和对话永远改的是同一份数据。想让老装法（每个会话都带工具）继续工作，把 `cordis.patch.yml` 里 `analytics` 行的 `registerTools` 改成 `true`。
 
 23 个：`pspp_status` `pspp_open` `pspp_new` `pspp_add_variable` `pspp_append_cases` `pspp_variables` `pspp_data` `pspp_run` `pspp_run_file` `pspp_convert` `pspp_analyze` `pspp_transform` `pspp_chart` `pspp_publication_table` `pspp_pairwise` `pspp_partial` `pspp_edit_chart` `pspp_save` `pspp_merge` `pspp_export_document` `pspp_export_office` `pspp_export_chart` `pspp_export`
 
