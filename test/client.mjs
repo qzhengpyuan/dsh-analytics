@@ -640,3 +640,67 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   globalThis.__sheetPayload.state.dataset.dirty = false
 }
 
+
+// Provenance chip and the import-rename list: the panel has to say which data a
+// table came from, and keep the rename notes after the toast is gone.
+{
+  const stateHost = window.document.createElement('div')
+  window.document.body.appendChild(stateHost)
+  const stateRoot = createRoot(stateHost)
+  const payload = {
+    ok: true,
+    state: {
+      id: 'session-test',
+      version: '0.25.0',
+      engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+      dataset: {
+        sourcePath: '/tmp/a.sav',
+        name: 'a.sav',
+        caseCount: 5,
+        variables: [{ name: 'age', label: '年龄', type: 'numeric', format: 'F8.0', alignment: 'right', measure: 'scale', width: 8, decimals: 0, missing: [], valueLabels: {} }],
+      },
+      items: [{
+        id: 'run-1-0',
+        kind: 'table',
+        title: '年龄',
+        table: { caption: '年龄', matrix: [['', 'N'], ['年龄', '5']] },
+        runId: 1,
+        provenance: { sessionId: 'session-test', sourcePath: '/tmp/a.sav', name: 'a.sav', caseCount: 5, varCount: 1, openedAt: 1794740000000, at: 1794740000001 },
+      }],
+      importNotes: ['第 1 列的表头「年龄」没有可用的 ASCII 字符，变量名改为「V1」，原表头保留为标签'],
+      log: [],
+      mrSets: [],
+      splitBy: [],
+      history: { undo: 0, redo: 0 },
+    },
+    signal: { id: 'session-test', items: 1, dataset: { caseCount: 5, vars: 'abc' } },
+  }
+  window.fetch = async () => ({ ok: true, status: 200, text: async () => JSON.stringify(payload) })
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    stateRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+  })
+  // Output items live in the 输出 view; the panel opens on 数据视图.
+  const outTab = [...stateHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
+  assert.ok(outTab, 'the panel has an 输出 tab')
+  await act(async () => {
+    outTab.click()
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const prov = stateHost.querySelector('.ap-prov')
+  assert.ok(prov, 'a table carries a provenance chip')
+  assert.match(prov.textContent, /a\.sav · 5 例 · 1 变量/, 'the chip names the file and the case count')
+  assert.match(prov.getAttribute('title'), /来源路径：\/tmp\/a\.sav/, 'the tooltip has the full path')
+  const badge = [...stateHost.querySelectorAll('.ap-status button')].find((node) => /导入说明/.test(node.textContent))
+  assert.ok(badge, 'the status bar keeps an import-notes entry')
+  assert.match(badge.textContent, /导入说明 1/)
+  await act(async () => {
+    badge.click()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const noteModal = stateHost.querySelector('.ap-modal')
+  assert.ok(noteModal && /原表头保留为标签/.test(noteModal.textContent), 'the dialog lists why each column was renamed')
+  await act(async () => { stateRoot.unmount() })
+  console.log('ok  provenance chip and import-notes list')
+}
