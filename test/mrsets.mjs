@@ -206,5 +206,31 @@ await (async () => {
 })()
 
 // process.exitCode is set inside check(); a stale value must not leak in.
+
+check('a MISSING VALUES range does not count as an answer', () => {
+  // The dictionary hands a THRU range over as { lo, hi }; the old check only
+  // understood numbers, so a 9 declared missing counted as a real category and
+  // pushed percent-of-cases above 100.
+  const ranged = [
+    { name: 'q2', type: 'numeric', label: '评分', valueLabels: { '1': '低', '2': '中', '3': '高' }, missing: [{ lo: 7, hi: 9 }] },
+  ]
+  const coded = [
+    [1],
+    [2],
+    [9],
+    [7],
+    [3],
+  ]
+  const set = normalizeSet({ kind: 'mcgroup', name: '$q2', label: '评分', variables: ['q2'] }, ranged)
+  const result = tabulate(set, ranged, coded)
+  const matrix = frequencyMatrix(result)
+  const total = matrix.at(-1)
+  // 1, 2 and 3 are answers; 7 and 9 are in the declared missing range.
+  assert.equal(total[1], '3', 'only three responses')
+  assert.equal(result.rows, 5)
+  assert.equal(result.cases, 3, 'two cases carry nothing but missing codes')
+  assert.equal(total[3], '100%', 'every counted case answered')
+})
+
 console.log(`\n${checks} checks passed`)
 if (process.exitCode) console.error(`${checks} checks with failures`)

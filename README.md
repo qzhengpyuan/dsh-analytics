@@ -48,7 +48,7 @@ Host 与 UI 共用**同一组 `Workspace` 方法**，所以"用户在对话框�
 
 ## HTTP API（前缀 `/analytics`）
 
-`api/state` `api/active` `api/open` `api/new` `api/rows` `api/output` `api/history` `api/run` `api/save` `api/saveSyntax` `api/export` `api/exportDoc` `api/exportOffice` `api/exportReport` `api/merge` `api/cell` `api/case` `api/paste` `api/variable` `api/sort` `api/flip` `api/find` `api/replace` `api/clear` `api/close` `api/convert` `api/sheets` `api/upload` `api/dir` `api/readFile` `api/writeText` `api/valuelabels` `api/mrset` `api/chart` `api/pairwise` `api/partial` `api/publication` `api/artifact`
+`api/state` `api/active` `api/open` `api/new` `api/rows` `api/output` `api/history` `api/run` `api/save` `api/saveSyntax` `api/export` `api/exportDoc` `api/exportOffice` `api/exportReport` `api/merge` `api/cell` `api/case` `api/paste` `api/variable` `api/sort` `api/flip` `api/find` `api/replace` `api/clear` `api/close` `api/convert` `api/sheets` `api/upload` `api/dir` `api/readFile` `api/writeText` `api/valuelabels` `api/mrset` `api/chart` `api/pairwise` `api/partial` `api/publication` `api/artifact` `api/chart/update` `api/chart/export` `api/report`
 所有请求经 `ctx.connection.requestRejection()` 做宿主同源的 Host/Origin 与浏览器认证检查。
 
 ## 数据编辑与联动

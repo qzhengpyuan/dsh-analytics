@@ -6,6 +6,7 @@ import { computeBar, computeHistogram, computeScatter, computeBox, computeLine, 
 import { decodeText, guessDelimiter, importDelimited } from '../lib/dataset.js'
 import { stringifyCsv } from '../lib/csv.js'
 import { describeFsError } from '../lib/fserr.js'
+import { sanitizeTableHtml } from '../lib/html.js'
 
 let checks = 0
 // The callers below do not await, so every run is collected and the summary
@@ -821,14 +822,47 @@ await check('apply() registers both route prefixes once webServer arrives', asyn
 // PERCENTILES does: for 1..8 it prints 2.8 / 4.5 / 6.3, i.e. 2.75 / 4.5 / 6.25.
 // A report claimed PSPP gives 3 / 5 / 6; the engine says otherwise, so this
 // pins the behaviour we do share with it.
-check('box quartiles follow the same interpolation as PSPP', () => {
+check('box quartiles use Tukey hinges, like SPSS and EXAMINE', () => {
+  // FREQUENCIES /PERCENTILES on 1..8 prints 2.75 / 4.5 / 6.25 (verified against
+  // the bundled engine), but a box plot in SPSS and EXAMINE's boxplot summary
+  // use Tukey's hinges: 2.5 / 4.5 / 6.5. The box has to match the box.
   const rows = [1, 2, 3, 4, 5, 6, 7, 8].map((value) => [value])
   const model = computeBox({ variables: [{ name: 'x', type: 'numeric', measure: 'scale' }], rows }, { variable: 'x' })
   const [group] = model.groups
-  assert.equal(group.q1, 2.75)
+  assert.equal(group.q1, 2.5)
   assert.equal(group.median, 4.5)
-  assert.equal(group.q3, 6.25)
+  assert.equal(group.q3, 6.5)
+  const odd = [1, 2, 3, 4, 5].map((value) => [value])
+  const oddModel = computeBox({ variables: [{ name: 'x', type: 'numeric', measure: 'scale' }], rows: odd }, { variable: 'x' })
+  // Five cases: halves exclude the median, so the hinges are 1.5 and 4.5.
+  assert.equal(oddModel.groups[0].q1, 1.5)
+  assert.equal(oddModel.groups[0].q3, 4.5)
 })
 
 await Promise.all(pending)
+
+check('a chart ignores the missing-value codes the table already drops', () => {
+  const dataset = {
+    variables: [{ name: 'x', type: 'numeric', measure: 'scale', missing: [999] }],
+    rows: [[1], [2], [999], [3]],
+  }
+  const model = computeBar(dataset, { variable: 'x' })
+  // 999 kept would have drawn a mean of 251; the table printed 2.
+  assert.equal(model.categories[0].value, 2)
+  assert.equal(model.categories[0].count, 3)
+})
+
+check('the table sanitiser decodes entities before looking at a scheme', () => {
+  // A browser parses all four of these as javascript:; a raw-text check did not.
+  for (const href of ['javascript&#58;alert(1)', 'javas&#99;ript:alert(1)', 'java&#9;script:alert(1)']) {
+    const cleaned = sanitizeTableHtml(`<table><tr><td><a href="${href}">x</a></td></tr></table>`)
+    assert.doesNotMatch(cleaned, /javascript|&#58|&#99/i, href)
+    assert.doesNotMatch(cleaned, /href/i, href)
+  }
+  // An unquoted handler after a self-closing slash used to survive too.
+  assert.doesNotMatch(sanitizeTableHtml('<table><tr><td><span/onclick=1>x</span></td></tr></table>'), /onclick/i)
+})
+
+await Promise.all(pending)
+
 console.log(`\n${checks} checks passed${process.exitCode ? ' (with failures)' : ''}`)

@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict'
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
@@ -123,7 +124,12 @@ console.log('csv exported')
 // re-opening the seed path (which for a dropped file is only a copy).
 const again = new Workspace({ id: 'smoke', engine, root, config: { timeoutMs: 60000 } })
 await again.init()
-console.log('restored dataset:', again.dataset?.rows?.length, again.dataset?.sourcePath === workspace.dataset.sourcePath)
+// This used to only print: a broken restore() (a shell passed to
+// reloadFromWork, which called workSav and threw) left the panel empty after a
+// host restart and the suite still exited 0.
+assert.equal(again.dataset?.rows?.length, 4, 'a new Workspace restores the rows from work.sav')
+assert.equal(again.dataset?.sourcePath, workspace.dataset.sourcePath, 'the restored workspace keeps its source path')
+console.log('restored dataset:', again.dataset.rows.length, again.dataset.sourcePath)
 
 // A dropped file is only a copy: its workspace must come back empty instead of
 // silently opening a file the user did not ask for.

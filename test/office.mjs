@@ -712,7 +712,7 @@ assert.equal(pkg.dependencies, undefined, 'the plugin still ships with no runtim
 // Word is strict about the order inside w:tc: cell properties come first and
 // the content follows. A tcBorders element after </w:p> is invalid there, and
 // Word drops the rule instead of complaining.
-check('docx cell properties stay inside tcPr', () => {
+await check('docx cell properties stay inside tcPr', () => {
   const xml = tableXml([['变量', '值'], ['score', '-10.000 **']])
   assert.ok(!/\/w:p><w:tcBorders>/.test(xml), 'no border element after the paragraph')
   const cells = (xml.match(/<w:tc>/g) ?? []).length

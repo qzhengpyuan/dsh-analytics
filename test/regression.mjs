@@ -313,5 +313,28 @@ check('an ordinary table is not flagged', () => {
   assert.equal(items[0].notes, undefined)
 })
 
+
+check('collinearity drops the user\'s missing-value codes', () => {
+  const variables = [
+    { name: 'y', type: 'numeric' },
+    { name: 'a', type: 'numeric', missing: [999] },
+    { name: 'b', type: 'numeric' },
+  ]
+  // a is 1..8 plus a 999 in the ninth case; b is a's mirror plus noise. With the
+  // 999 kept, the tolerance of the honest pair moved from 0.911 to 0.728.
+  const rows = []
+  for (let index = 0; index < 8; index += 1) {
+    rows.push([index + 1, index + 1, 8 - index])
+  }
+  const clean = rows.slice()
+  rows.push([999, 999, 999])
+  const withCode = collinearityTable({ variables, rows }, { dependent: 'y', independents: ['a', 'b'] })
+  const without = collinearityTable({ variables, rows: clean }, { dependent: 'y', independents: ['a', 'b'] })
+  assert.ok(withCode, 'a table is produced')
+  // The 999 case must be dropped, so both grids are identical; keeping it used
+  // to move the tolerance from 0.911 to 0.728.
+  assert.deepEqual(withCode.matrix, without.matrix)
+})
+
 console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)
 if (failures.length > 0) process.exitCode = 1

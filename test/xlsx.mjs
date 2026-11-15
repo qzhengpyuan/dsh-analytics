@@ -81,4 +81,19 @@ check('single-quoted attributes and cells without r= still land in the right col
   assert.deepEqual(loose.sheets[0].rows[0], ['甲', '乙', '丙'])
 })
 
+
+// The guard reads the decompressed size from the local header. It used to read
+// the compressed one, so a 71 KB workbook that inflates to 70 MB sailed through
+// and filled memory.
+let capped = null
+try {
+  readXlsx(zip([{ name: 'xl/workbook.xml', text: 'A'.repeat(65 * 1024 * 1024) }]))
+} catch (error) {
+  capped = error
+}
+assert.ok(capped, 'the oversized workbook is refused')
+assert.match(capped.message, /超过上限 64 MB/)
+checks += 1
+console.log('ok   a workbook that decompresses past the cap is refused, not read')
+
 console.log(`\n${checks} checks passed${process.exitCode ? ' (with failures)' : ''}`)

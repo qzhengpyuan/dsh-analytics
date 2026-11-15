@@ -158,6 +158,33 @@ check('a truncated dataset refuses to write itself back', () => {
   return assert.rejects(workspace.workSav(), /会把后面的个案丢掉/)
 })
 
+check('a running analysis blocks release and clearOutput', async () => {
+  // Releasing mid-run used to start a second pspp that overwrote work.sav with
+  // a shorter file (120001 cases became 30768), and clearing the output tree
+  // pulled runs/3 out from under the running process.
+  const workspace = make()
+  workspace.busyDepth = 1
+  assert.equal(await workspace.release(), false, 'release refuses while busy')
+  assert.equal(workspace.dataset.evicted, undefined, 'the dataset stays in memory')
+  await assert.rejects(workspace.clearOutput(), /正在运行分析/)
+  workspace.busyDepth = 0
+  assert.equal(await workspace.release(), true, 'release works when idle')
+  assert.equal(workspace.dataset.evicted, true)
+  assert.equal(workspace.dataset.rows.length, 0)
+})
+
+check('force reaches the working-file flush', async () => {
+  // save(force) told the caller to pass force and then the flush refused with
+  // the same guard, so the way out did not exist.
+  const workspace = make()
+  workspace.dataset.truncated = true
+  workspace.dataset.dirty = true
+  await assert.rejects(workspace.workSav(), /会把后面的个案丢掉/)
+  // With force the truncation guard steps aside; what fails next is the engine
+  // call, which is exactly what the escape hatch promises to reach.
+  await assert.rejects(workspace.workSav({ force: true }), (error) => !/会把后面的个案丢掉/.test(error.message))
+})
+
 await Promise.all(pending)
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exitCode = failed ? 1 : 0

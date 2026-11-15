@@ -1,6 +1,6 @@
 # dsh-analytics 功能说明
 
-> 版本 0.24.1 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 版本 0.24.2 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
 > 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
 > **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 23 个 agent 工具，让模型能在对话里直接分析、转换、画图。
 
@@ -571,9 +571,9 @@ npm run bundle-engine   # 从系统 PSPP 重新打包 engine/<本机平台>/
 node scripts/bundle-engine.mjs --from-prefix out --platform linux-x64   # 从容器里编好的 prefix 导入
 ```
 
-- 纯函数测试 227 项（`build` 71、`office` 43、`tables` 22、`regression` 15、`raster` 13、`mrsets` 12、`order` 11、`stage` 9、`dta` 7、`engine` 7、`ods` 6、`messages` 6、`xlsx` 5），覆盖每个对话框的语法构造、七种图表模型、公式映射、错误分支与引擎定位（平台目录优先、扁平回退、动态库变量分平台）。
+- 纯函数测试 237 项（`build` 75、`office` 46、`tables` 27、`regression` 21、`order` 15、`raster` 13、`mrsets` 13、`stage` 9、`xlsx` 7、`dta` 7、`engine` 7、`ods` 6、`messages` 6），覆盖每个对话框的语法构造、七种图表模型、公式映射、错误分支与引擎定位（平台目录优先、扁平回退、动态库变量分平台）。
 - smoke：真实引擎跑一遍打开 → 分析 → 保存。
-- routes：39 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收）。
+- routes：41 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收）。
 
 目录：
 
@@ -584,7 +584,7 @@ lib/engine.js     # 引擎定位与调用
 lib/workspace.js  # 工作区：数据集、运行、保存、合并、导出、数据编辑
 lib/dataset.js    # 字典与 CSV 的读写
 lib/html.js       # PSPP HTML 输出 → 表格矩阵
-lib/charts.js     # 六种图表模型与 SVG 渲染
+lib/charts.js     # 七种图表模型与 SVG 渲染
 lib/routes.js     # HTTP 路由
 lib/tools.js      # 23 个 agent 工具
 test/             # build.mjs / engine.mjs / smoke.mjs / routes.mjs
