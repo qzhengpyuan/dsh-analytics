@@ -34,6 +34,8 @@ dsh plugin --profile <profile> add file:$PWD/dsh-analytics-0.26.1.tgz
 # 4. 重载：设置 → 插件 → dsh-analytics 关一次再开（host 半重载；面板里已打开的数据集会清空）
 ```
 
+校验：`sha256sum dsh-analytics-0.26.1.tgz` 应为 `9bd96bf8dad449d1d73fe848334b6016d5f4b44c1cb5e2a71a4e90f76d0ca043`。
+
 这个 .tgz 已经在临时目录里 `pnpm add file:…` 验过：宿主半 `import('dsh-analytics')` 与预设半 `import('dsh-analytics/tools')` 都能解析，`engine/linux-x64/bin/pspp --version` 打印 `pspp (GNU PSPP) 2.1.3`。客户端半是浏览器模块（`window.__ModuleLoader__`），在 Node 里 import 会报 `window is not defined`，属正常。
 
 **平台承诺**：`linux-x64` 与 `win32-x64` 是实测过的（本仓库全部测试 + Windows 10 独立复验）；`linux-arm64`、`darwin-arm64`、`darwin-x64` 的引擎在 `engine-v1` 里有产物（CI 构建成功），但**没有真机验证**，按「未验证构建」理解。
