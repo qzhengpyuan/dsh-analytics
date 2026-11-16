@@ -5526,7 +5526,7 @@ let ITEM_CSV_PENDING = null
               const size = typeof from.sourceSize === 'number'
                 ? (from.sourceSize < 1024 ? `${from.sourceSize} B` : `${(from.sourceSize / 1024).toFixed(1)} KB`)
                 : null
-              parts.push(`<p class="ap-export-source">${escapeForExport(`来源：${which} · ${from.caseCount} 例${size ? ` · ${size}` : ''}${when ? ` · 打开于 ${when}` : ''}`)}</p>`)
+              parts.push(`<p class="ap-export-source">${escapeForExport(tr(`来源：${which} · ${from.caseCount} 例${size ? ` · ${size}` : ''}${when ? ` · 打开于 ${when}` : ''}`))}</p>`)
             }
             // The caveats (separation, skipped variables) are part of the table:
             // an HTML copy without them reads as if nothing was wrong.
@@ -5559,7 +5559,7 @@ let ITEM_CSV_PENDING = null
               ? `新建数据集${from.name ? `（${from.name}，未保存）` : '（未保存）'}`
               : (from.sourcePath ?? from.name ?? '未命名数据')
             const size = band(from.sourceSize)
-            return `${escapeForExport(which)} · ${from.caseCount} 例 · ${from.varCount} 变量${size ? ` · ${size}` : ''}${when ? ` · 打开于 ${escapeForExport(when)}` : ''}`
+            return tr(`${escapeForExport(which)} · ${from.caseCount} 例 · ${from.varCount} 变量${size ? ` · ${size}` : ''}${when ? ` · 打开于 ${escapeForExport(when)}` : ''}`)
           })
           parts.push(`<hr><p class="ap-export-note"><b>${tr('数据来源：')}</b><br>` + lines.map((line) => tr(line)).join('<br>') + '</p>')
           parts.push(`<p class="ap-export-note">${tr('（由 dsh-analytics 生成，引擎 GNU PSPP；改动数据后请重新运行分析。）')}</p>`)
