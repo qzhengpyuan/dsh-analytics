@@ -898,6 +898,55 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   console.log('ok  a big table draws 200 rows and offers the rest')
 }
 
+// The other half of the big-table cap: PSPP hands us the table as HTML, and it
+// cannot be sliced by structure. Counting <tr starts and closing the table keeps
+// the header, the colgroup and the widths, which is what makes it readable.
+{
+  const rows = []
+  for (let index = 1; index <= 300; index += 1) rows.push(`<tr><td>取值${index}</td><td>${index}</td></tr>`)
+  const html = `<table class="x"><colgroup><col style="width:120px"></colgroup>`
+    + '<thead><tr><th>值</th><th>N</th></tr></thead><tbody>'
+    + rows.join('')
+    + '</tbody></table>'
+  const cut = hooks.truncateTableHtml(html, 200)
+  assert.equal(cut.total, 300, 'the note counts body rows, not the header')
+  assert.equal(cut.shown, 200, 'the panel draws 200 of them')
+  assert.equal((cut.html.match(/<tr\b/gi) ?? []).length, 201, 'header plus 200 body rows survive the cut')
+  assert.ok(cut.html.trimEnd().endsWith('</table>'), 'the table is closed so the browser can parse it')
+  assert.ok(cut.html.includes('<colgroup><col style="width:120px"></colgroup>'), 'the column widths are kept')
+  assert.ok(cut.html.includes('<th>值</th>'), 'so is the header')
+  assert.equal(cut.html.includes('取值201'), false, 'nothing past the limit leaks through')
+  const whole = hooks.truncateTableHtml(html, 0)
+  assert.equal(whole.total, 300, 'a zero limit means no cut')
+  assert.equal((whole.html.match(/<tr\b/gi) ?? []).length, 301, 'the whole table comes back')
+  const small = hooks.truncateTableHtml('<table><tr><th>a</th></tr><tr><td>1</td></tr></table>', 200)
+  assert.equal(small.shown, 1, 'a small table is left alone')
+  assert.equal(small.html.includes('</table>'), true)
+
+  // PSPP's real shape: the header sits in <tbody> as the first row of <th>s.
+  const psppRows = []
+  for (let index = 1; index <= 301; index += 1) psppRows.push(`<tr><td>${index}</td><td>${index}</td></tr>`)
+  const psppHtml = '<table> <caption>x</caption> <tbody> <tr> <th></th> <th></th> <th>Frequency</th> </tr>'
+    + psppRows.join('') + ' </tbody> </table>'
+  const psppCut = hooks.truncateTableHtml(psppHtml, 200)
+  assert.equal(psppCut.total, 301, 'the header row is not counted as a body row')
+  assert.equal((psppCut.html.match(/<tr\b/gi) ?? []).length, 201, 'the header row survives with 200 body rows')
+  assert.ok(psppCut.html.includes('<caption>x</caption>'), 'the caption is above the cut and stays')
+
+  // A table with no header row at all must not lose a data row.
+  const bare = '<table><tbody>' + psppRows.join('') + '</tbody></table>'
+  const bareCut = hooks.truncateTableHtml(bare, 200)
+  assert.equal(bareCut.total, 301, 'no header means every row is a body row')
+  assert.equal((bareCut.html.match(/<tr\b/gi) ?? []).length, 200, 'exactly the limit is drawn')
+
+  // Two leading header rows (a crosstab's column groups) both stay.
+  const twoHeads = '<table><tbody><tr><th>x</th><th>a</th><th>b</th></tr><tr><th></th><th>N</th><th>N</th></tr>'
+    + psppRows.join('') + '</tbody></table>'
+  const twoCut = hooks.truncateTableHtml(twoHeads, 200)
+  assert.equal(twoCut.total, 301, 'both header rows are excluded from the count')
+  assert.equal((twoCut.html.match(/<tr\b/gi) ?? []).length, 202, 'and both are drawn')
+}
+
 // SPSS's menu bar works without the mouse. Two Windows users hit this trying to
 // drive the panel from a screenshot: there was no keyboard path into the menus
 // at all, so a miscalculated click meant nothing happened.

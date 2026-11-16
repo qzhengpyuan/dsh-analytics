@@ -613,21 +613,22 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
      */
     function truncateTableHtml(html, limit = PREVIEW_ROWS) {
       const text = String(html ?? '')
-      const starts = (text.match(/<tr\b/gi) ?? []).length
-      // The first <tr> is the header row; the count people care about is body rows.
-      const total = Math.max(0, starts - 1)
-      if (limit <= 0 || total <= limit) return { html: text, total, shown: total }
-      const pattern = /<tr\b/gi
-      let seen = 0
-      let cut = text.length
+      // PSPP writes the header row inside <tbody> as a row of <th> cells, and a
+      // data row may carry <th> too (a row label such as "Valid"). So the header
+      // is "the leading rows that hold no <td at all", not simply the first row:
+      // crosstabs have two of them, and a table with none must not lose a row.
+      const rowPattern = /<tr\b[\s\S]*?<\/tr>/gi
+      const rows = []
       let match
-      while ((match = pattern.exec(text)) !== null) {
-        if (seen === limit + 1) {
-          cut = match.index
-          break
-        }
-        seen += 1
+      while ((match = rowPattern.exec(text)) !== null) rows.push({ at: match.index, html: match[0] })
+      let headerRows = 0
+      for (const row of rows) {
+        if (/<td/i.test(row.html)) break
+        headerRows += 1
       }
+      const total = Math.max(0, rows.length - headerRows)
+      if (limit <= 0 || total <= limit) return { html: text, total, shown: total }
+      const cut = rows[headerRows + limit]?.at ?? text.length
       return { html: `${text.slice(0, cut)}</table>`, total, shown: limit }
     }
 
@@ -759,6 +760,8 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       globalThis.__AP_TEST_HOOKS__.parseValueLabelLines = parseValueLabelLines
       globalThis.__AP_TEST_HOOKS__.summarizeTable = summarizeTable
       globalThis.__AP_TEST_HOOKS__.matrixHtml = matrixHtml
+      globalThis.__AP_TEST_HOOKS__.truncateTableHtml = truncateTableHtml
+      globalThis.__AP_TEST_HOOKS__.PREVIEW_ROWS = PREVIEW_ROWS
     }
 
     /**
