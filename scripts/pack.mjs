@@ -29,6 +29,16 @@ if (withEngine) {
   }
 }
 
+// 0.26.3 shipped a tarball whose bundle patch carried `registerTools: true`,
+// which mounts the pspp_* tools in every session instead of only the
+// 「数据分析」 preset. Nothing in the unit tests can catch that, because they
+// read the working tree, so the pack step checks the bytes it is about to ship.
+const shipped = readFileSync(join(root, 'cordis.patch.yml'), 'utf8')
+if (!/registerTools:\s*false/.test(shipped) || /registerTools:\s*true/.test(shipped)) {
+  console.error('cordis.patch.yml must mount the pspp_* tools from the preset only: expected `registerTools: false`')
+  process.exit(1)
+}
+
 const staging = mkdtempSync(join(tmpdir(), 'analytics-pack-'))
 try {
   for (const entry of files) {
@@ -51,7 +61,16 @@ try {
   const tgz = join(root, name)
   renameSync(join(root, output), tgz)
   const size = statSync(tgz).size
+  // Same check on the packaged artefact: the staging copy is what npm packs,
+  // but assert on the tarball itself so a stale staging file cannot slip past.
+  const packed = execFileSync('tar', ['-xzOf', tgz, 'package/cordis.patch.yml'], { encoding: 'utf8' })
+  if (!/registerTools:\s*false/.test(packed) || /registerTools:\s*true/.test(packed)) {
+    console.error(`${name} carries a bundle patch that mounts the tools in every session: refusing to call it done`)
+    process.exit(1)
+  }
+  const sha = execFileSync('sha256sum', [tgz], { encoding: 'utf8' }).trim().split(/\s+/)[0]
   console.log(`${name}  ${(size / 1024 / 1024).toFixed(1)} MB${withEngine ? ` (engine: ${platformDir})` : ' (portable: needs npm run engine:fetch)'}`)
+  console.log(`sha256  ${sha}`)
 } finally {
   rmSync(staging, { recursive: true, force: true })
 }

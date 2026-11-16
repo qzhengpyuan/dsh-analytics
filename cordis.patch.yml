@@ -21,7 +21,7 @@
       config:
         # false = the pspp_* tools are mounted only by preset-analytics below.
         # true restores the pre-0.26 behaviour (tools in every session).
-        registerTools: true
+        registerTools: false
 
     - id: preset-analytics
       name: '@deepseek-ai/dsh-agent-preset'
