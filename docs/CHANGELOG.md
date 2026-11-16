@@ -1,3 +1,12 @@
+## 0.32.4
+
+Win10 复验 0.32.3 的三项 PASS（版本号跨 SMB 能刷新、切语言 55/27 ms、多数据集四项独立），只剩 `test/paths.mjs` 两条 Windows 环境下的写法问题：
+
+- `a path outside every root is refused with the folder to whitelist` 用正则匹配 `/etc/passwd`，而 Windows 把前导斜杠解析成当前盘符（`X:\etc\passwd`）⇒ 改成断言消息里含 `resolve('/etc/passwd')`。
+- `a symlink into a credential directory is caught` 原本链接进本机真实 `~/.ssh`，那台机器没有这个目录，`checkPath` 自然不报错 ⇒ 改为在临时目录造一个假 home（带 `.ssh`）再链接，既跨平台又不会在别人机器上碰真凭据目录。
+
+全量 330 条断言 / 22 套件。
+
 ## 0.32.3
 
 Win10 复验 0.32.1 时报告「三轮热重载后宿主仍报 0.32.0」，根因在版本号的缓存口径：

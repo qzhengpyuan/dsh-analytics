@@ -61,7 +61,9 @@ async function main() {
   await check('a path outside every root is refused with the folder to whitelist', () => {
     assert.throws(() => checkPath('/etc/passwd', { home, cwd }), (error) => {
       assert.match(error.message, /不在允许的目录里/)
-      assert.match(error.message, /\/etc\/passwd/)
+      // Windows resolves a leading slash onto the current drive, so compare against
+      // the resolved path instead of a POSIX literal.
+      assert.ok(error.message.includes(resolve('/etc/passwd')), `the message names the path (${error.message})`)
       assert.match(error.message, /设置/, 'the message says where to fix it')
       return true
     })
@@ -75,16 +77,22 @@ async function main() {
   })
 
   await check('a symlink into a credential directory is caught', () => {
+    // A throwaway home with a real .ssh: linking into the machine's own ~/.ssh
+    // made this fail on hosts that have no such directory (and would have been a
+    // side effect on any host at all).
+    const fakeHome = mkdtempSync(join(tmpdir(), 'aps-home-'))
     const link = join(cwd, 'innocent')
     try {
-      symlinkSync(join(home, '.ssh'), link)
-    } catch {
-      return // no symlink permission on this platform: nothing to prove
-    }
-    try {
-      assert.throws(() => checkPath(join(link, 'id_rsa'), { home, cwd }), /不读写这个目录/)
+      mkdirSync(join(fakeHome, '.ssh'), { recursive: true })
+      try {
+        symlinkSync(join(fakeHome, '.ssh'), link)
+      } catch {
+        return // no symlink permission on this platform: nothing to prove
+      }
+      assert.throws(() => checkPath(join(link, 'id_rsa'), { home: fakeHome, cwd }), /不读写这个目录/)
     } finally {
       rmSync(link, { force: true })
+      rmSync(fakeHome, { recursive: true, force: true })
     }
   })
 
