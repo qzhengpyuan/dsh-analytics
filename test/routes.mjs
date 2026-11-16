@@ -5,13 +5,16 @@ import { join } from 'node:path'
 import { WorkspaceRegistry } from '../lib/workspace.js'
 import { resolveEngine } from '../lib/engine.js'
 import { createHandler } from '../lib/routes.js'
+import { SettingsStore } from '../lib/settings.js'
 
 const home = await mkdtemp(join(tmpdir(), 'ap-routes-'))
-const registry = new WorkspaceRegistry({ root: join(home, 'analytics'), config: {}, engine: resolveEngine({}) })
+const settingsStore = new SettingsStore(join(home, 'analytics'), { registerTools: false })
+const registry = new WorkspaceRegistry({ root: join(home, 'analytics'), config: {}, engine: resolveEngine({}), settingsStore })
 const handler = createHandler({
   registry,
   connection: { requestRejection: () => undefined },
   config: {},
+  settings: settingsStore,
 })
 
 class Res {
@@ -543,6 +546,21 @@ r = await call('POST', `${base}/api/readFile`, { sessionId: sid, path: join(home
 console.log('readFile refuses a binary extension', r.code, r.code === 400)
 r = await call('POST', `${base}/api/readFile`, { sessionId: sid, path: home })
 console.log('readFile refuses a directory', r.code, r.code === 400 && /普通文件/.test(String(r.json().error)))
+
+// Settings: a file the panel can read and write, with `registerTools` marked as
+// the one knob that stays in the profile patch.
+r = await call('GET', `${base}/api/settings`)
+let settingsBody = r.json()
+console.log('settings default', r.code, settingsBody.settings.maxRows === 200000, settingsBody.deploymentOnly.registerTools.value === false, settingsBody.exists === false)
+r = await call('POST', `${base}/api/settings`, { patch: { maxRows: 5000, tableStyle: 'grid' } })
+settingsBody = r.json()
+console.log('settings saved', r.code, settingsBody.settings.maxRows === 5000, settingsBody.settings.tableStyle === 'grid')
+const reread = JSON.parse(await readFile(join(home, 'analytics', 'settings.json'), 'utf8'))
+console.log('settings on disk', reread.maxRows === 5000)
+r = await call('POST', `${base}/api/settings`, { patch: { maxRows: 10 } })
+console.log('settings refuses a bad value', r.code, /maxRows 必须在/.test(String(r.json().error)))
+r = await call('POST', `${base}/api/settings`, { patch: { tableStyle: 'fancy' } })
+console.log('settings refuses an unknown style', r.code === 400)
 
 r = await call('POST', `${base}/api/close`, { sessionId: sid })
 console.log('closed ->', r.code, r.json().state.dataset)

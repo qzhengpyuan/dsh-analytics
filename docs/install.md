@@ -16,7 +16,7 @@
 
 npm 依赖：**无运行时 npm 依赖**。peer 只有 `@deepseek-ai/cordis` 与 `dsh-better-sidebar`（后者标 optional）。
 
-## 安装（从 Release 的 .tgz 装）
+## 安装（从 Release 的 .tgz 手工装）
 
 每个版本都挂了 `dsh-analytics-<版本>.tgz`（自带 `engine/linux-x64` 与 `engine/win32-x64`，约 34 MB）：
 
@@ -39,6 +39,26 @@ dsh plugin --profile <profile> add file:$PWD/dsh-analytics-<版本>.tgz
 这个 .tgz 已经在临时目录里 `pnpm add file:…` 验过：宿主半 `import('dsh-analytics')` 与预设半 `import('dsh-analytics/tools')` 都能解析，`engine/linux-x64/bin/pspp --version` 打印 `pspp (GNU PSPP) 2.1.3`。客户端半是浏览器模块（`window.__ModuleLoader__`），在 Node 里 import 会报 `window is not defined`，属正常。
 
 **平台承诺**：`linux-x64` 与 `win32-x64` 是实测过的（本仓库全部测试 + Windows 10 独立复验）；`linux-arm64`、`darwin-arm64`、`darwin-x64` 的引擎在 `engine-v1` 里有产物（CI 构建成功），但**没有真机验证**，按「未验证构建」理解。
+
+## 安装（一条命令，0.27.0 起）
+
+Release 现在同时挂 `dsh-analytics-<版本>.tgz` 与 `SHA256SUMS`。仓库里的安装脚本把「下载 → 校验 → 装包 → 登记 bundle」串起来：
+
+```bash
+git clone https://github.com/qzhengpyuan/dsh-analytics.git && cd dsh-analytics
+node scripts/install.mjs                 # 干跑：下载、比对 SHA256SUMS、打印下面两步
+node scripts/install.mjs --apply         # 真的装进默认 profile（web）
+node scripts/install.mjs --apply desktop # 指定 profile
+node scripts/install.mjs --offline /path/to/dsh-analytics-<版本>.tgz   # 不联网
+```
+
+要点：
+
+- **token**：仓库是私有的，脚本按 `GITHUB_TOKEN` / `GH_TOKEN` → `~/.dsh/.credentials.yaml` 的 `refs.GITHUB_TOKEN` 顺序找；两处都没有就报「仓库是私有的，需要 GITHUB_TOKEN」而不是 404。
+- **代理**：Node 的 `fetch` 默认不读代理变量，走代理要 `NODE_USE_ENV_PROXY=1 https_proxy=… node scripts/install.mjs`。
+- **按最新发布取版本号**：脚本读 `releases/latest` 的 tag，不写死版本；`SHA256SUMS` 里有这个资产就比对，没有就打印校验和并提示「未能自动比对」（0.27.0 起的发布都有）。
+- **改 profile 前先备份**：往 `~/.dsh/profiles/<profile>/package.json` 的 `dsh.profile.bundles` 里加 `dsh-analytics` 之前，会先写一份 `package.json.before-dsh-analytics`。
+- 装完仍要**停→启一次插件**（设置 → 插件 → dsh-analytics）让宿主半换到新代码；面板里已打开的数据集会清空。
 
 ## 安装（目录直装，已验证）
 

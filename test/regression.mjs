@@ -1,7 +1,7 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
 import { collinearityTable } from '../lib/regression.js'
-import { annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, degradeStatistics, describeFailure } from '../lib/workspace.js'
+import { annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateReliabilityIcc, degradeStatistics, describeFailure } from '../lib/workspace.js'
 
 let checks = 0
 const failures = []
@@ -311,6 +311,266 @@ check('an ordinary table is not flagged', () => {
   const items = [{ kind: 'table', id: 'small', title: 'ANOVA', table: { matrix: [['a', 'b'], ['1', '2']] } }]
   annotateOversizedTables(items)
   assert.equal(items[0].notes, undefined)
+})
+
+
+/* ------------------------------------------------------------------ *
+ * 交叉表表注与 ICC：矩阵取自真实引擎输出，表注文案要能被读者直接照做。 *
+ * ------------------------------------------------------------------ */
+
+const chiSquareTable = (rows, caption = 'Chi-Square Tests') => ({
+  kind: 'table',
+  id: 'chi',
+  title: caption,
+  table: { caption, matrix: rows },
+})
+
+// 2×2、CHISQ 只请求卡方（没有 PHI，所以没有 Symmetric Measures 表）。
+const items2x2 = () => [
+  {
+    kind: 'table',
+    id: 'xtab',
+    title: 'a × b',
+    table: {
+      caption: 'a × b',
+      matrix: [
+        ['', '', '', 'b', '', 'Total'],
+        ['', '', '', '1.00', '2.00', ''],
+        ['a', '1.00', 'Count', '8', '1', '9'],
+        ['', '2.00', 'Count', '3', '8', '11'],
+        ['Total', '', 'Count', '11', '9', '20'],
+      ],
+    },
+  },
+  chiSquareTable([
+    ['', 'Value', 'df', 'Asymptotic Sig. (2-tailed)'],
+    ['Pearson Chi-Square', '7.59', '1', '.006'],
+    ["Fisher's Exact Test", '', '', '.010'],
+    ['N of Valid Cases', '20', '', ''],
+  ]),
+]
+
+check("a crosstab without engine Cramer's V gets the row and the note", () => {
+  const items = items2x2()
+  annotateCrosstabs(items)
+  const matrix = items[1].table.matrix
+  assert.equal(matrix.at(-1)[0], "Cramér's V")
+  // V = sqrt(7.59 / (20 × 1)) = 0.616，2×2 里和 φ 同值，表里按同列两位小数打 0.62。
+  assert.equal(matrix.at(-1)[1], '0.62')
+  const note = items[1].notes.find((text) => text.includes("Cramér's V"))
+  assert.match(note, /0\.616/)
+  assert.match(note, /φ/)
+  // 2×2 且三个格子期望频数 < 5，必须点名 Fisher 那一行，而不是只说「近似不可靠」。
+  const small = items[1].notes.find((text) => text.includes('期望频数'))
+  assert.match(small, /Fisher's Exact Test/)
+  assert.match(small, /Exact Sig\./)
+})
+
+check("the engine's own Cramer's V is not duplicated", () => {
+  const items = items2x2()
+  items.push({
+    kind: 'table',
+    id: 'sym',
+    title: 'Symmetric Measures',
+    table: {
+      caption: 'Symmetric Measures',
+      matrix: [
+        ['', '', 'Value'],
+        ['Nominal by Nominal', 'Phi', '.62'],
+        ['', "Cramer's V", '.62'],
+        ['N of Valid Cases', '', '20'],
+      ],
+    },
+  })
+  const before = items[1].table.matrix.length
+  annotateCrosstabs(items)
+  assert.equal(items[1].table.matrix.length, before, 'no second V row when the engine printed one')
+  assert.match(items[1].notes.find((text) => text.includes("Cramér's V")), /Symmetric Measures/)
+})
+
+check('a rectangular table says why Kappa is missing instead of showing a number', () => {
+  const items = [
+    {
+      kind: 'table',
+      id: 'xtab',
+      title: 'a × b',
+      table: {
+        caption: 'a × b',
+        matrix: [
+          ['', '', '', 'b', '', '', 'Total'],
+          ['', '', '', '1.00', '2.00', '3.00', ''],
+          ['a', '1.00', 'Count', '4', '2', '1', '7'],
+          ['', '2.00', 'Count', '2', '4', '1', '7'],
+          ['Total', '', 'Count', '6', '6', '2', '14'],
+        ],
+      },
+    },
+    chiSquareTable([
+      ['', 'Value', 'df', 'Asymptotic Sig. (2-tailed)'],
+      ['Pearson Chi-Square', '2.50', '2', '.287'],
+      ['N of Valid Cases', '14', '', ''],
+    ]),
+    {
+      kind: 'table',
+      id: 'sym',
+      title: 'Symmetric Measures',
+      table: { caption: 'Symmetric Measures', matrix: [['', '', 'Value'], ['N of Valid Cases', '', '14']] },
+    },
+  ]
+  annotateCrosstabs(items)
+  const note = items[2].notes.find((text) => text.includes('Kappa'))
+  assert.match(note, /2×3/)
+  assert.match(note, /方表/)
+  // 2×3 没有 Fisher 可换，但仍然要说清楚卡方近似不可靠。
+  assert.match(items[1].notes.find((text) => text.includes('期望频数')), /没有确切检验/)
+})
+
+check('a 2×2 Kappa row is explained but not recomputed', () => {
+  const items = items2x2()
+  items.push({
+    kind: 'table',
+    id: 'sym',
+    title: 'Symmetric Measures',
+    table: {
+      caption: 'Symmetric Measures',
+      matrix: [['', '', 'Value', 'Asymp. Std. Error', 'Approx. T'], ['Measure of Agreement', 'Kappa', '.60', '.18', '2.76']],
+    },
+  })
+  annotateCrosstabs(items)
+  const note = items[2].notes.find((text) => text.includes('Kappa'))
+  assert.match(note, /0\.600/)
+  assert.match(note, /方表/)
+})
+
+check('a row/column count that cannot explain the df suppresses the V row', () => {
+  const items = [
+    {
+      kind: 'table',
+      id: 'xtab',
+      title: 'a × b',
+      table: {
+        caption: 'a × b',
+        matrix: [
+          ['', '', '', 'b', '', '', 'Total'],
+          ['', '', '', '1.00', '2.00', '3.00', ''],
+          ['a', '1.00', 'Count', '4', '2', '1', '7'],
+          ['', '2.00', 'Count', '2', '4', '1', '7'],
+          ['', '3.00', 'Count', '1', '1', '2', '4'],
+          ['Total', '', 'Count', '7', '7', '4', '18'],
+        ],
+      },
+    },
+    // df = 1 只对应 2×c 的表，与 3×3 的计数矛盾（层变量或合并类别时可能出现）。
+    chiSquareTable([
+      ['', 'Value', 'df', 'Asymptotic Sig. (2-tailed)'],
+      ['Pearson Chi-Square', '2.50', '1', '.114'],
+      ['N of Valid Cases', '18', '', ''],
+    ]),
+  ]
+  const before = items[1].table.matrix.length
+  annotateCrosstabs(items)
+  assert.equal(items[1].table.matrix.length, before)
+  assert.match(items[1].notes.find((text) => text.includes('df')), /没有写 Cramér's V/)
+})
+
+check('a layered crosstab is explained instead of guessed at', () => {
+  const items = [
+    {
+      kind: 'table',
+      id: 'xtab',
+      title: 'grp × sex × site',
+      table: {
+        caption: 'grp × sex × site',
+        matrix: [
+          ['', '', '', '', '', 'sex', '', 'Total'],
+          ['', '', '', '', '', '1.00', '2.00', ''],
+          ['site', '1.00', 'grp', '1.00', 'Count', '2', '1', '3'],
+          ['', '', '', '2.00', 'Count', '1', '2', '3'],
+          ['', '', 'Total', '', 'Count', '3', '3', '6'],
+        ],
+      },
+    },
+    chiSquareTable([
+      ['', '', '', 'Value', 'df', 'Asymptotic Sig. (2-tailed)', 'Exact Sig. (2-tailed)', 'Exact Sig. (1-tailed)'],
+      ['site', '1.00', "Fisher's Exact Test", '', '', '', '1.000', '.500'],
+      ['', '', 'N of Valid Cases', '6', '', '', '', ''],
+    ]),
+  ]
+  const before = items[1].table.matrix.length
+  annotateCrosstabs(items)
+  // 不猜行列数：交叉表上加一句说明，卡方表不动、也不追加 V 行。
+  assert.match(items[0].notes.find((text) => text.includes('层变量')), /没有算 Cramér's V/)
+  assert.equal(items[1].table.matrix.length, before)
+  assert.equal(items[1].notes, undefined)
+})
+
+/* ------------------------------------------------------------------ *
+ * ICC 表：追加位置、算法来源三个前提（语法只跑信度、N 与引擎一致）。 *
+ * ------------------------------------------------------------------ */
+
+const iccDataset = () => ({
+  variables: ['j1', 'j2', 'j3', 'j4'].map((name) => ({ name, type: 'numeric' })),
+  rows: [[9, 2, 5, 8], [6, 1, 3, 2], [8, 4, 6, 8], [7, 1, 2, 6], [10, 5, 6, 9], [6, 2, 4, 7]],
+})
+
+const reliabilityItems = (valid = '6') => [
+  {
+    kind: 'table',
+    id: 'summary',
+    title: 'Case Processing Summary',
+    table: {
+      caption: 'Case Processing Summary',
+      matrix: [['Cases', 'N', 'Percent'], ['Valid', valid, '100.0%'], ['Excluded', '0', '.0%'], ['Total', '6', '100.0%']],
+    },
+  },
+  {
+    kind: 'table',
+    id: 'stats',
+    title: 'Reliability Statistics',
+    table: { caption: 'Reliability Statistics', matrix: [["Cronbach's Alpha", 'N of Items'], ['.91', '4']] },
+  },
+]
+
+check('ICC is appended after the reliability tables', () => {
+  const items = reliabilityItems()
+  annotateReliabilityIcc(items, iccDataset(), "RELIABILITY /VARIABLES=j1 j2 j3 j4 /SCALE('all') ALL /MODEL=ALPHA.", 7)
+  assert.equal(items.length, 3)
+  const icc = items[2]
+  assert.equal(icc.kind, 'table')
+  assert.equal(icc.title, '组内相关系数 ICC（插件计算）')
+  assert.equal(icc.runId, 7)
+  assert.equal(icc.id, 'run-7-2')
+  assert.equal(icc.table.matrix[1][1], '0.290')
+  // 表注要把口径、公式和「不适用」都写出来，读者不该还去翻别处。
+  const text = icc.notes.join('\n')
+  assert.match(text, /ICC\(2,1\)/)
+  assert.match(text, /单次测量/)
+  assert.match(text, /平均测量/)
+  assert.match(text, /Kappa/)
+  assert.match(text, /McGraw & Wong/)
+})
+
+check('ICC is skipped when the syntax changes the data first', () => {
+  const items = reliabilityItems()
+  annotateReliabilityIcc(items, iccDataset(), 'COMPUTE j1 = j1 * 2.\nEXECUTE.\nRELIABILITY /VARIABLES=j1 j2 j3 j4.', 8)
+  assert.equal(items.length, 2, 'no ICC table was invented')
+  assert.match(items[1].notes.at(-1), /没有计算 ICC/)
+  assert.match(items[1].notes.at(-1), /单独跑一次/)
+})
+
+check('ICC is skipped when the engine counted different cases', () => {
+  // 引擎的有效个案是 5，而插件重算得到 6：不是同一批数据，ICC 就不能贴上去。
+  const items = reliabilityItems('5')
+  annotateReliabilityIcc(items, iccDataset(), 'RELIABILITY /VARIABLES=j1 j2 j3 j4.', 9)
+  assert.equal(items.length, 2)
+  assert.match(items[1].notes.at(-1), /引擎的有效个案是 5/)
+  assert.match(items[1].notes.at(-1), /6 例/)
+})
+
+check('ICC is not attempted when no reliability table came back', () => {
+  const items = [chiSquareTable([['', 'Value', 'df'], ['Pearson Chi-Square', '1.00', '1']])]
+  annotateReliabilityIcc(items, iccDataset(), 'RELIABILITY /VARIABLES=j1 j2 j3 j4.', 10)
+  assert.equal(items.length, 1)
 })
 
 

@@ -12,8 +12,13 @@ import {
   buildPartialMatrix,
   buildPartialTable,
   buildSignificanceMatrix,
+  chiSquareFromTable,
   chiSquareP,
+  cramersVFromChiSquare,
+  crosstabCounts,
   fP,
+  fQuantile,
+  iccTable,
   pearsonChiSquare,
   studentP,
   welch,
@@ -425,6 +430,204 @@ check('two constant groups with different means have no t test', () => {
   assert.equal(welch([5, 5, 5], [9, 9, 9]), null)
   const same = welch([5, 5], [5, 5])
   assert.equal(same.p, 1)
+})
+
+
+/* ------------------------------------------------------------------ *
+ * 交叉表的效应量与 ICC：数字都是手算或对照已发表的算例钉住的。      *
+ * ------------------------------------------------------------------ */
+
+check("Cramér's V follows chi-square, N and the smaller dimension", () => {
+  // 2×2：min(r,c)−1 = 1，V 就是 φ = sqrt(χ²/N)。PSPP 那张表里 χ²=7.59、N=20。
+  assert.equal(cramersVFromChiSquare(7.59, 20, 2, 2).toFixed(4), '0.6160')
+  // 3×3：V = sqrt(12 / (60×2)) = sqrt(0.1) = 0.3162。
+  assert.equal(cramersVFromChiSquare(12, 60, 3, 3).toFixed(4), '0.3162')
+  // 单行（r = 1）没有可解释的 V，N = 0 也没有。
+  assert.equal(cramersVFromChiSquare(12, 60, 1, 3), null)
+  assert.equal(cramersVFromChiSquare(12, 0, 2, 2), null)
+})
+
+check('the F quantile inverts the tail fP reports', () => {
+  // df1 = 1 时 F = t²，所以 F(0.95, 1, ν) 必须等于 t(0.975, ν)²：4.9646 / 18.5128 / 6.6079。
+  assert.equal(fQuantile(0.95, 1, 10).toFixed(4), '4.9646')
+  assert.equal(fQuantile(0.95, 1, 2).toFixed(4), '18.5128')
+  assert.equal(fQuantile(0.95, 1, 5).toFixed(4), '6.6079')
+  // 教科书 F 表：F(0.975; 3, 12) = 4.47，F(0.99; 1, 1) = 4052.18。
+  assert.equal(fQuantile(0.975, 3, 12).toFixed(2), '4.47')
+  assert.equal(fQuantile(0.99, 1, 1).toFixed(2), '4052.18')
+  // 往返：反解出来的值代回 fP 必须回到原来的上尾概率。
+  for (const [p, df1, df2] of [[0.975, 5, 15], [0.025, 15, 5], [0.5, 6, 15]]) {
+    assert.ok(Math.abs(fP(fQuantile(p, df1, df2), df1, df2) - (1 - p)) < 1e-9)
+  }
+})
+
+// 两张矩阵都是从真实引擎输出里抄下来的（英文与中文各一份），
+// 所以这里的解析器对着 PSPP 2.1.3 的实际排版，而不是我以为的排版。
+const CROSSTAB_EN = [
+  ['', '', '', 'b', '', 'Total'],
+  ['', '', '', '1.00', '2.00', ''],
+  ['a', '1.00', 'Count', '8', '1', '9'],
+  ['', '', 'Expected', '4.95', '4.05', '9.00'],
+  ['', '2.00', 'Count', '3', '8', '11'],
+  ['', '', 'Expected', '6.05', '4.95', '11.00'],
+  ['Total', '', 'Count', '11', '9', '20'],
+  ['', '', 'Expected', '11.00', '9.00', '20.00'],
+]
+const CROSSTAB_ZH = [
+  ['', '', '', 'r1', '', '', '', '', '总计'],
+  ['', '', '', '6.00', '7.00', '8.00', '9.00', '10.00', ''],
+  ['sexgrp', '1.00', '计数', '1', '0', '1', '1', '0', '3'],
+  ['', '', '期望值', '1.00', '.50', '.50', '.50', '.50', '3.00'],
+  ['', '2.00', '计数', '1', '1', '0', '0', '1', '3'],
+  ['', '', '期望值', '1.00', '.50', '.50', '.50', '.50', '3.00'],
+  ['总计', '', '计数', '2', '1', '1', '1', '1', '6'],
+  ['', '', '期望值', '2.00', '1.00', '1.00', '1.00', '1.00', '6.00'],
+]
+
+check('crosstab counts are read back in both output languages', () => {
+  const en = crosstabCounts(CROSSTAB_EN)
+  assert.deepEqual(en.counts, [[8, 1], [3, 8]])
+  assert.equal(en.rows, 2)
+  assert.equal(en.columns, 2)
+  assert.equal(en.total, 20)
+  // 期望频数 4.95 / 4.05 / 4.95 三个格子 < 5。
+  assert.equal(en.smallCells, 3)
+  assert.equal(en.minExpected.toFixed(2), '4.05')
+
+  const zh = crosstabCounts(CROSSTAB_ZH)
+  assert.deepEqual(zh.counts, [[1, 0, 1, 1, 0], [1, 1, 0, 0, 1]])
+  assert.equal(zh.rows, 2)
+  assert.equal(zh.columns, 5)
+  assert.equal(zh.total, 6)
+  // 每个格子的期望频数都是 0.5，10 个格子全 < 5。
+  assert.equal(zh.smallCells, 10)
+  assert.equal(zh.minExpected.toFixed(2), '0.50')
+
+  // 一行或一列不是交叉表：这里没有可用的行列数。
+  assert.equal(crosstabCounts([['', 'Value', 'df'], ['Pearson Chi-Square', '4.00', '4']]), null)
+
+  // 带层变量（grp BY sex BY site）的表每一层各有一套行合计，整体不是一张方表：
+  // 前缀多两列、总计行只在层内出现。这里必须返回 null，否则会把 6 行当成行数
+  // 算出一个和引擎不一致的 V（实测 0.183 vs 0.330）。
+  const layered = [
+    ['', '', '', '', '', 'sex', '', 'Total'],
+    ['', '', '', '', '', '1.00', '2.00', ''],
+    ['site', '1.00', 'grp', '1.00', 'Count', '2', '1', '3'],
+    ['', '', '', '2.00', 'Count', '1', '2', '3'],
+    ['', '', 'Total', '', 'Count', '3', '3', '6'],
+    ['', '2.00', 'grp', '1.00', 'Count', '1', '1', '2'],
+    ['', '', '', '2.00', 'Count', '1', '1', '2'],
+    ['', '', 'Total', '', 'Count', '2', '2', '4'],
+  ]
+  assert.equal(crosstabCounts(layered), null)
+})
+
+check('a chi-square table without a Pearson row still gives N and the Fisher flag', () => {
+  // PSPP 在 Pearson χ² 恰好为 0 时会把那一行整个省掉 —— 2×2 小样本里常见。
+  const matrix = [
+    ['', 'Value', 'df', 'Asymptotic Sig. (2-tailed)', 'Exact Sig. (2-tailed)', 'Exact Sig. (1-tailed)'],
+    ["Fisher's Exact Test", '', '', '', '1.000', '.800'],
+    ['Continuity Correction', '.00', '1', '1.000', '', ''],
+    ['Linear-by-Linear Association', '.00', '1', '1.000', '', ''],
+    ['N of Valid Cases', '6', '', '', '', ''],
+  ]
+  assert.equal(chiSquareFromTable(matrix), null, 'no Pearson row means no chi-square value')
+
+  const withPearson = [
+    ['', '值', 'df', 'Asymptotic Sig. (2-tailed)'],
+    ['Pearson卡方', '7.59', '1', '.006'],
+    ['Fisher精确检验', '', '', '.010'],
+    ['有效个案N', '20', '', ''],
+  ]
+  const parsed = chiSquareFromTable(withPearson)
+  assert.equal(parsed.chiSquare, 7.59)
+  assert.equal(parsed.df, 1)
+  assert.equal(parsed.total, 20)
+  assert.equal(parsed.hasFisher, true)
+})
+
+/*
+ * Shrout & Fleiss (1979) 的经典算例：6 个目标 × 4 位评分者。四个系数在原文里
+ * 分别是 .29 / .62 / .71 / .91，所以这张表同时钉住了公式、口径与 F 检验。
+ */
+const SHROUT_FLEISS = {
+  variables: ['j1', 'j2', 'j3', 'j4'].map((name) => ({ name, type: 'numeric' })),
+  rows: [
+    [9, 2, 5, 8],
+    [6, 1, 3, 2],
+    [8, 4, 6, 8],
+    [7, 1, 2, 6],
+    [10, 5, 6, 9],
+    [6, 2, 4, 7],
+  ],
+}
+
+check('ICC reproduces the Shrout & Fleiss two-way example', () => {
+  const table = iccTable(SHROUT_FLEISS, ['j1', 'j2', 'j3', 'j4'])
+  assert.deepEqual(table.matrix[0], ['模型', 'ICC', '95% CI 下限', '95% CI 上限', 'F', 'df1', 'df2', 'Sig.'])
+  assert.equal(table.cases, 6)
+  assert.equal(table.items, 4)
+  // 单次测量的绝对一致（2,1）= .29 与一致性（3,1）= .71 是原文给的数。
+  assert.equal(table.matrix[1][1], '0.290')
+  assert.equal(table.matrix[3][1], '0.715')
+  // 平均测量（2,4）= .62、（3,4）= .91。
+  assert.equal(table.matrix[2][1], '0.620')
+  assert.equal(table.matrix[4][1], '0.909')
+  // 区间：下限随口径变宽，上限不超过 1；McGraw & Wong 的区间本来就是不对称的。
+  assert.equal(table.matrix[1][2], '0.019')
+  assert.equal(table.matrix[1][3], '0.761')
+  // F = BMS/EMS = 11.242/1.019 = 11.027，df = (n−1, (n−1)(k−1)) = (5, 15)。
+  assert.equal(table.matrix[1][4], '11.027')
+  assert.equal(table.matrix[1][5], '5')
+  assert.equal(table.matrix[1][6], '15')
+  assert.equal(table.matrix[1][7], '<0.001')
+  // 四个口径共用同一个 F 检验（原假设都是 ICC = 0）。
+  for (const index of [1, 2, 3, 4]) assert.equal(table.matrix[index][4], '11.027')
+  assert.ok(table.notes.some((note) => note.includes('McGraw & Wong')))
+  assert.ok(table.notes.some((note) => note.includes('ICC(3,1)') && note.includes('ICC(2,1)')))
+})
+
+check('ICC on three raters matches the hand-computed mean squares', () => {
+  // 3 个评分者 × 3 个个案，手算：BMS = JMS = 4.111111，EMS = 0.111111。
+  // 于是 ICC(2,1) = 4/(4.111111+0.222222+4) = 0.48，ICC(3,1) = 4/4.333333 = 0.9231，
+  // ICC(2,3) = 4/(4.111111+4/3) = 0.7347，ICC(3,3) = 4/4.111111 = 0.9730，F = 37。
+  const dataset = {
+    variables: ['r1', 'r2', 'r3'].map((name) => ({ name, type: 'numeric' })),
+    rows: [[1, 2, 3], [2, 3, 4], [3, 4, 6]],
+  }
+  const table = iccTable(dataset, ['r1', 'r2', 'r3'])
+  assert.equal(table.matrix[1][1], '0.480')
+  assert.equal(table.matrix[2][1], '0.735')
+  assert.equal(table.matrix[3][1], '0.923')
+  assert.equal(table.matrix[4][1], '0.973')
+  assert.equal(table.matrix[1][4], '37.000')
+  assert.equal(table.matrix[1][5], '2')
+  assert.equal(table.matrix[1][6], '4')
+  // F(37; 2, 4) 的上尾概率约 0.0026。
+  assert.equal(table.matrix[1][7], '0.003')
+  // 平均测量的行标题要写出实际评分者数，否则读者分不清 ICC(2,3) 与 ICC(2,4)。
+  assert.equal(table.matrix[2][0], 'ICC(2,3) 双向随机 绝对一致 平均测量（k=3）')
+})
+
+check('ICC refuses data where it has no meaning', () => {
+  const identical = {
+    variables: ['a', 'b', 'c'].map((name) => ({ name, type: 'numeric' })),
+    rows: [[1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4]],
+  }
+  const flat = iccTable(identical, ['a', 'b', 'c'])
+  assert.equal(flat.matrix.length, 0)
+  assert.match(flat.notes.at(-1), /误差均方为 0/)
+
+  const one = iccTable(identical, ['a'])
+  assert.equal(one.matrix.length, 0)
+  assert.match(one.notes.at(-1), /至少需要两个评分者/)
+
+  const missing = iccTable(identical, ['a', 'nope'])
+  assert.match(missing.notes.at(-1), /不存在/)
+
+  const tooFew = iccTable({ variables: identical.variables, rows: [[1, 2, 3], [2, 3, 4]] }, ['a', 'b', 'c'])
+  assert.equal(tooFew.matrix.length, 0)
+  assert.match(tooFew.notes.at(-1), /少于 3 例/)
 })
 
 console.log(`\n${checks} checks passed${failures ? ` (with ${failures} failures)` : ''}`)

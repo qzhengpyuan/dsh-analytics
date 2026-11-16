@@ -57,7 +57,7 @@ function loadBundle(file) {
   })
 }
 
-const registered = { tabs: [], viewers: [] }
+const registered = { tabs: [], viewers: [], settings: [] }
 function makeContext() {
   const services = {
     betterSidebar: {
@@ -65,6 +65,10 @@ function makeContext() {
       registerFileViewer(definition) { registered.viewers.push(definition); return () => {} },
       openTab() {},
       closeTab() {},
+    },
+    slots: {
+      inject(name, run) { assert.equal(name, 'settings.plugins.tab'); run(); return () => {} },
+      register(definition, component) { registered.settings.push({ ...definition, component }); return () => {} },
     },
     locale: { register() { return () => {} }, bind: () => (key) => key },
   }
@@ -79,16 +83,20 @@ function makeContext() {
 }
 
 const plugin = loadBundle(join(root, 'client.js'))
-assert.deepEqual(plugin.inject, ['betterSidebar'], 'the plugin must declare the service it reads')
+assert.deepEqual(plugin.inject, ['betterSidebar', 'slots'], 'the plugin must declare every service it reads')
 
 const ctx = makeContext()
 // A plugin body must survive a context whose services were not injected yet.
-assert.doesNotThrow(() => plugin.apply({ ...ctx, betterSidebar: undefined, get: () => undefined }), 'apply must not throw without the service')
+assert.doesNotThrow(() => plugin.apply({ ...ctx, betterSidebar: undefined, slots: undefined, get: () => undefined }), 'apply must not throw without the services')
 
 plugin.apply(ctx)
 assert.equal(registered.tabs.length, 1, 'exactly one tab is registered')
 assert.equal(registered.tabs[0].id, 'analytics')
 assert.equal(registered.viewers.length, 1, 'exactly one data-file viewer is registered')
+assert.equal(registered.settings.length, 1, 'the plugin puts one page under 设置 → 插件')
+assert.equal(registered.settings[0].id, 'analytics')
+assert.equal(registered.settings[0].label, '统计分析')
+assert.equal(typeof registered.settings[0].component, 'function', 'the settings page must render something')
 assert.equal(registered.viewers[0].id, 'analytics:data')
 assert.deepEqual(registered.viewers[0].exts, ['sav', 'por', 'sys', 'dta'])
 
@@ -779,4 +787,53 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.ok(stateCalls() >= 2, 'a changed signature pulls the full state')
   await act(async () => { pollRoot.unmount() })
   console.log('ok  poll asks the heartbeat first and only pulls state on change')
+}
+
+// The settings page is what makes the knobs reachable without editing the
+// profile patch, so it has to render the values it read, say where they live,
+// and post a validated patch back.
+{
+  const posts = []
+  const payload = {
+    ok: true,
+    settings: { maxRows: 5000, timeoutMs: 90000, safer: true, tableStyle: 'grid' },
+    defaults: { maxRows: 200000, timeoutMs: 120000, safer: false, tableStyle: 'three-line' },
+    path: '/home/someone/.dsh/analytics/settings.json',
+    exists: true,
+    problems: ['decimals 必须是整数，收到 "x"'],
+    deploymentOnly: { registerTools: { value: false, note: '这个开关决定 pspp_* 工具是否进每个会话' } },
+  }
+  window.fetch = async (url, init) => {
+    if (init?.method === 'POST') {
+      posts.push(JSON.parse(init.body))
+      const patch = JSON.parse(init.body).patch ?? {}
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ...payload, settings: { ...payload.settings, ...patch } }) }
+    }
+    return { ok: true, status: 200, text: async () => JSON.stringify(payload) }
+  }
+  globalThis.fetch = window.fetch
+  const root = window.document.createElement('div')
+  const reactRoot = createRoot(root)
+  await act(async () => {
+    reactRoot.render(React.createElement(registered.settings[0].component))
+    await new Promise((resolve) => setTimeout(resolve, 120))
+  })
+  const text = root.textContent
+  assert.match(text, /设置文件：\/home\/someone\/\.dsh\/analytics\/settings\.json/, 'the page names the file it writes')
+  assert.match(text, /下面这些值没被采用/, 'a broken field is reported instead of silently reverted')
+  assert.match(text, /工具挂载（registerTools）：关/, 'the deployment-only switch is shown with its value')
+  const numbers = [...root.querySelectorAll('input[type="number"]')].map((input) => input.value)
+  assert.deepEqual(numbers, ['5000', '90'], 'cases and timeout (in seconds) come back from the file')
+  const checkbox = root.querySelector('input[type="checkbox"]')
+  assert.equal(checkbox.checked, true)
+  const select = root.querySelector('select')
+  assert.equal(select.value, 'grid')
+  const save = [...root.querySelectorAll('button')].find((button) => button.textContent === '保存')
+  assert.ok(save, 'there is a save button')
+  await act(async () => { save.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 60)) })
+  assert.equal(posts.length, 1, 'saving posts once')
+  assert.deepEqual(posts[0].patch, { maxRows: 5000, timeoutMs: 90000, safer: true, tableStyle: 'grid' }, 'seconds go back as milliseconds')
+  assert.match(root.textContent, /已保存/, 'the page says the save landed')
+  await act(async () => { reactRoot.unmount() })
+  console.log('ok  settings page reads the file, reports problems and posts a patch')
 }

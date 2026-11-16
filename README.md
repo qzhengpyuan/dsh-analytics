@@ -13,15 +13,19 @@ PSPP 作为 DeepSeek Harness 插件自带引擎的统计分析工作台：**不�
 
 ## 安装
 
-从 Release 装成 bundle（自带 `engine/linux-x64` 与 `engine/win32-x64`，约 34 MB）：
+包自带 `engine/linux-x64` 与 `engine/win32-x64`（约 34 MB），一条命令装（0.27.0 起）：
 
 ```bash
-# 到 https://github.com/qzhengpyuan/dsh-analytics/releases/latest 拿 dsh-analytics-<版本>.tgz
-dsh plugin --profile <profile> add file:$PWD/dsh-analytics-<版本>.tgz   # 1) 装包
-# 2) 把 "dsh-analytics" 加进 ~/.dsh/profiles/<profile>/package.json 的 dsh.profile.bundles
-#    （或用 plugin_manager install_bundle 指向同一个 .tgz）
-# 3) 设置 → 插件 → dsh-analytics 关一次再开
+git clone https://github.com/qzhengpyuan/dsh-analytics.git && cd dsh-analytics
+node scripts/install.mjs            # 下最新 Release 的 .tgz、按 SHA256SUMS 校验、打印要执行的两步
+node scripts/install.mjs --apply    # 真的装：装进 profile + 把 dsh-analytics 加进 dsh.profile.bundles
+# 之后：设置 → 插件 → dsh-analytics 关一次再开
 ```
+
+- 私有仓库要 token：`GITHUB_TOKEN`，或 `~/.dsh/.credentials.yaml` 里的 `refs.GITHUB_TOKEN`（脚本自己读）。
+- 走代理时加 `NODE_USE_ENV_PROXY=1`（Node 的 `fetch` 默认不读 `https_proxy`）。
+- 想手动装：`dsh plugin --profile <profile> add file:<tgz>`，再把 `"dsh-analytics"` 加进 `~/.dsh/profiles/<profile>/package.json` 的 `dsh.profile.bundles`。
+- 这个包**没有发到 npm**：`dsh-analytics` 这个名字在 npm 上已被别的包占用（0.4.0），换名字只会把文档拆成两份。
 
 `linux-x64` 与 `win32-x64` 是实测平台；`linux-arm64`、`darwin-arm64`、`darwin-x64` 的引擎在 `engine-v1` 里有 CI 产物，但**没有真机验证**。细节与检查清单见 [docs/install.md](docs/install.md)。
 
@@ -32,6 +36,8 @@ dsh plugin --profile <profile> add file:$PWD/dsh-analytics-<版本>.tgz   # 1) �
 | Host | `index.js`、`lib/*.js` | 自带引擎的进程管理、每会话工作区、数据读写、输出解析、`/analytics` HTTP API，并把工作区注册成 `analytics` 服务 |
 | 预设半 | `tools-entry.js` | 23 个 `pspp_*` 工具，只挂在「数据分析」Agent 预设里，别的会话拿不到 |
 | Client | `client.js` | 通过 `ctx.betterSidebar.registerTab()` 注册侧栏页签；所有请求走同一套 API |
+
+面板的设置页（设置 → 插件 → 统计分析）管个案上限、超时、`--safer` 与表格样式，写 `~/.dsh/analytics/settings.json`，不用改 profile patch；`registerTools` 那一项仍属部署决定，只展示。
 
 Host 与 UI 共用**同一组 `Workspace` 方法**，所以"用户在对话框点确定"和"模型在对话里调 `pspp_analyze`"执行的是同一条代码路径，状态不会分叉。
 

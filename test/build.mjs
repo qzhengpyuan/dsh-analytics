@@ -641,6 +641,28 @@ check('crosstabs passes the statistics the caller asked for', () => {
   assert.equal(buildAnalysis('crosstabs', { row: 'a', column: 'b' }), 'CROSSTABS /TABLES=a BY b /STATISTICS=CHISQ PHI.')
 })
 
+check('crosstabs turns a kappa flag into the KAPPA statistic', () => {
+  // 面板/工具给的是「要不要 Kappa」这个开关，语法里必须变成 /STATISTICS 的 KAPPA；
+  // 而且要 Kappa 就同时带上 CHISQ —— Cramér's V 与「小样本看 Fisher」写在卡方表上。
+  assert.equal(
+    buildAnalysis('crosstabs', { row: 'a', column: 'b', kappa: true }),
+    'CROSSTABS /TABLES=a BY b /STATISTICS=CHISQ PHI KAPPA.')
+  assert.equal(
+    buildAnalysis('crosstabs', { row: 'a', column: 'b', statistics: { kappa: true } }),
+    'CROSSTABS /TABLES=a BY b /STATISTICS=CHISQ KAPPA.')
+  assert.equal(
+    buildAnalysis('crosstabs', { row: 'a', column: 'b', statistics: false, kappa: true }),
+    'CROSSTABS /TABLES=a BY b /STATISTICS=CHISQ KAPPA.')
+  // 对象写法里的其他统计量同样要翻译成关键字，而不是被丢掉。
+  assert.equal(
+    buildAnalysis('crosstabs', { row: 'a', column: 'b', statistics: { chisq: true, gamma: true, phi: false } }),
+    'CROSSTABS /TABLES=a BY b /STATISTICS=CHISQ GAMMA.')
+  // 没要 Kappa 就不要硬塞。
+  assert.equal(
+    buildAnalysis('crosstabs', { row: 'a', column: 'b', statistics: ['CHISQ'] }),
+    'CROSSTABS /TABLES=a BY b /STATISTICS=CHISQ.')
+})
+
 check('crosstabs passes the residual cell options through', () => {
   assert.equal(
     buildAnalysis('crosstabs', {

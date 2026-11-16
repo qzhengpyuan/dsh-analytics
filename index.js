@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { resolveEngine } from './lib/engine.js'
 import { pluginInfo } from './lib/version.js'
 import { createHandler } from './lib/routes.js'
+import { SettingsStore } from './lib/settings.js'
 import { createTools } from './lib/tools.js'
 import { WorkspaceRegistry } from './lib/workspace.js'
 
@@ -50,11 +51,17 @@ export function apply(ctx, config = {}) {
     : process.env.DSH_HOME || join(homedir(), '.dsh')
   const root = workspaceRoot(dshHome)
 
+  // Panel settings (`maxRows`, `timeoutMs`, `safer`, …) live in a file under the
+  // plugin's own root so they survive a reload without touching the profile
+  // patch. `registerTools` deliberately stays a patch-only switch.
+  const settingsStore = new SettingsStore(root, { registerTools: settings.registerTools === true })
+
   const registry = new WorkspaceRegistry({
     engine,
     root,
     config: { ...settings, pluginVersion: pluginInfo().version },
     cwdResolver: () => process.cwd(),
+    settingsStore,
   })
 
   /**
@@ -68,6 +75,7 @@ export function apply(ctx, config = {}) {
     registry,
     engine,
     config: { ...settings, pluginVersion: pluginInfo().version },
+    settings: settingsStore,
     version: pluginInfo().version,
   })
 
@@ -92,7 +100,7 @@ export function apply(ctx, config = {}) {
   ctx.inject(['webServer'], (scoped) => {
     const webServer = scoped.get('webServer')
     const connection = scoped.get('connection')
-    const handler = createHandler({ registry, connection, config: settings })
+    const handler = createHandler({ registry, connection, config: settings, settings: settingsStore })
     console.log(`[dsh-analytics] ${pluginInfo().version} routes ready (registerTools=${settings.registerTools === true})`)
     // Register the current prefix plus the pre-rename one.
     scoped.effect(() => {

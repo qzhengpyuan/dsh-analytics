@@ -1,6 +1,6 @@
 # dsh-analytics 功能说明
 
-> 版本 0.26.5 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 版本 0.27.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
 > 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
 > **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 23 个 agent 工具，让模型能在对话里直接分析、转换、画图。这些工具不再是「装了插件就有」，而是挂在插件自带的「数据分析」Agent 预设里（见 §9）。
 
@@ -30,6 +30,7 @@
 └ 状态栏：60 个个案 · 5 个变量 · 未保存 | /path/to/data.sav   （引擎信息在悬停提示里）
 ```
 
+- **尺寸按 SPSS 缩（0.27.0）**：侧栏只有 380–520 px，所以照 SPSS 26 的比例缩：统一 12 px 字体、菜单栏 24 px（下拉项 22 px 行高、快捷键右对齐）、工具条 30 px（按钮高 24、按下内凹、组间竖线）、**四个视图页签在内容区下方**（Data Editor / Viewer 的位置）、输出大纲树 190 px（可拖 150–460）、表格改三线表（外框 1 px、表头上下双线、去竖线、数值列右对齐、表注 11 px 斜体）、分析对话框 520 px、状态栏 22 px。取舍与完整尺寸表见 [ui-spss.md](ui-spss.md)。
 - **主题与字体**：面板所有颜色经 `--ap-*` 私有变量间接取自 Harness token（`--dsw-alias-bg-base`、`-label-primary/secondary/tertiary`、`-brand-primary`、`-interactive-bg-hover`、`-state-error-primary`、`-tooltip-bg`），字面值只作回退。token 挂在 `<body>`（浅色）与 `body[data-ds-dark-theme]`（深色）上，面板只读不写，所以皮肤中心的皮肤、`dsh-opencode-palette` 之类的主题插件、深色主题都会即时生效。
   两点派生规则（都是实测踩出来的）：Harness 的 `--dsw-alias-bg-layer-1/2/3` 在深色主题里与 `bg-base` 同为 `#0A0A0A`，直接用会让工具条/表头/状态栏全糊成一片，所以它们与网格线、斑马纹一样**按文字色混合**（5%/6%/7%/10% 面板、线 12/20/28/45%）：浅色下得到 `#f3f3f3`/`#e7e7e7`/`#e2e2e2` 跟原来的 SPSS 观感一致，深色下得到 `#151515`/`#212121`/`#252525`，两套都分层可见。
   字体跟随「设置 → 通用」：正文用 `--dsh-font-family-text` + `--dsh-content-font-size`（实测 13 px），语法编辑器用 `--dsh-font-family-code` + `--dsh-code-font-size`，表格行高 `max(22px, 1.7em)` 随字号伸缩，调大字号不会截字。
@@ -48,6 +49,7 @@
 - **拖放打开**：把 `.sav/.por/.sys/.csv/.txt/.tsv/.xlsx/.ods/.dta/.sps` 拖到面板上会先上传进工作区（`<sessionId>/uploads/<10 位以上时间戳+3 位序号>-<原文件名>`，同一文件反复拖入不会变成 `名字 (3).sav`）再按正常流程打开；上限 64 MB。显示时一律去掉数字前缀。浏览器只把文件的内容交给页面、不交路径，所以这份是**副本**：host 对副本的 `sourcePath` 直接返回 `null`，界面只能显示「文件名（拖入副本 · 路径未知）」，此时点保存会要求「另存为…」而不是悄悄写回副本。用「文件 → 打开数据…」选择磁盘路径则是就地打开，保存写回原文件。拖放事件在面板内 `stopPropagation`，所以文件不会同时被对话输入框收走；拖到面板外松手时蓝色提示层会立即消失。
 - **变量视图**：列 = 名称 / 类型 / 宽度 / 小数 / 标签 / 值 / 缺失 / 列 / 测量 / 对齐 / 角色；单击单元格就地编辑（回车提交并下移、Tab 提交并右移、Esc 取消，输入框把原值显示为占位提示），改名称/类型/宽度/小数/标签/对齐在保存时写回 `.sav`（`FORMATS` + `VARIABLE ALIGNMENT`）。**表头右边界可拖动改列宽**（48–600 px，双击恢复默认），宽度存在 localStorage 的 `ap.varWidths`。
 - **语法视图**：等宽编辑区 + 左侧行号栏，`Ctrl+Enter` 运行；`Tab` 在编辑器内插入两个空格（不跳出编辑器）；「运行并保存数据」用于会产生数据变更的语法。输入时自动补全：**数据集变量（优先级最高）→ 已用到的变量 → PSPP 命令前缀**，最多 8 条；`↑↓` 选择、`Enter`/`Tab` 接受、`Esc` 关闭、`Ctrl+Space` 手动唤出；注释内部不提示。
+- **粘贴语法（0.27.0）**：每个分析对话框页脚都有 SPSS 那排按钮 `确定 / 粘贴 / 重置 / 取消 / 帮助`。「粘贴」把这次设置生成的语法**追加**进语法编辑器并切到语法视图、**不执行**（连点三个对话框的「粘贴」会拼出一段完整程序，不覆盖已写的内容）；「帮助」显示这段语法要做什么，「重置」回到刚打开对话框时的状态。分析对话框左侧的变量列表还可单击选中（`.ap-current`），每个目标框左侧有 28 px 的 `▶` 用来加入/移出——SPSS 的两种操作方式都能用。
 - **语法高亮**：命令（`FREQUENCIES`、`COMPUTE` 等，行首词）用强调色加粗，子命令（`/VARIABLES`、`/STATISTICS`、`BY`、`WITH` 等大写词）用暗色加粗，字符串 `'…'`/`"…"` 绿色、数字紫色，`*` 整行注释与 `/* … */` 块注释灰色斜体（块注释可跨行）。高亮层是 textarea 背后的一层 `<pre>`，编辑、选区、输入法、撤销都是原生行为；滚动位置与行号栏同步。深色主题下三色会自动换成亮一档的版本。
 - **输出视图**：左侧目录树（点条目跳转），右侧按顺序显示日志、表格、图表；每张表带「编辑表格 / 复制为 CSV / 下载为 CSV」，图表可「点击放大」。
 - **编辑表格**：每张表的标题栏有「编辑表格…」——逐列改表头文字、给列宽（像素，留空自动），再填一行脚注（如「注：数据以均数±标准差表示」），用于三线表排版。保存后这张表按矩阵重绘（PSPP 自带的 HTML 装不下这些属性），导出 HTML 时一并生效；Word/Excel 导出仍是 PSPP 原始表格。
@@ -59,6 +61,22 @@
 - 菜单展开后点页面空白处不一定收起，再点一次菜单标题即可。
 
 ---
+
+## 2.1 设置面板（0.27.0）
+
+设置 → 插件 → 统计分析。写 `~/.dsh/analytics/settings.json`（宿主半 `lib/settings.js`，`GET/PUT api/settings`）：
+
+| 项 | 默认 | 生效时机 |
+| --- | --- | --- |
+| 数据视图最多载入个案数 `maxRows` | 200000（可设 1000–5000000） | 新建或重新打开的会话（工作区创建时读一次设置） |
+| 单次运行超时 `timeoutMs` | 120 秒（5–1800） | 下一次运行 |
+| 用 `--safer` 运行 `safer` | 关 | 下一次运行 |
+| 输出表格样式 `tableStyle` | `three-line`（三线表）／`grid`（带竖线） | 立即，且影响导出的 HTML |
+
+- `registerTools` **只展示不可改**：它决定 23 个 `pspp_*` 工具是否进每个会话，属部署决定，仍在 `cordis.patch.yml`。设置页把那一条连值一起列出来，并在旁边写明「改它要改 patch 并停→启插件」——省得有人在这一页里找不到它。
+- 手改坏一个字段（比如 `maxRows: "abc"`）不会让设置页打不开：那一项回默认，页面顶部列出「下面这些值没被采用」并给出原因（`settings.json` 整个坏掉也一样）。
+- 写入是原子的（先写 `.tmp` 再 rename），`settings.json` 不会出现写一半的状态。
+- 设置文件每秒最多重读一次，所以手改文件后刷新面板就能看到，不需要重启。
 
 ## 3. 文件
 
@@ -156,7 +174,13 @@
 | 频率 | 变量（多选，数值） | 统计量：均值/标准差/中位数（默认）、众数/最小/最大（默认）、总和/方差/偏度/峰度；图表：条形图/直方图；百分位（文本，如 `25 50 75`） | `FREQUENCIES /VARIABLES=… [/STATISTICS=…] [/PERCENTILES=…] [/BARCHART] [/HISTOGRAM].` |
 | 描述 | 变量（多选，数值） | 均值/标准差/最小/最大（默认）、均值标准误/方差/极差/偏度/峰度/总和 | `DESCRIPTIVES /VARIABLES=… [/STATISTICS=…].` |
 | 探索 | 变量（多选，数值）、分组变量（可选） | 箱线图（默认）/直方图/正态概率图；描述统计表（中位数、四分位数、四分位数间距、偏度峰度、Shapiro-Wilk）默认输出 | `EXAMINE v… [BY g] /PLOT=BOXPLOT\|NPPLOT /STATISTICS=DESCRIPTIVES /NOTOTAL.` |
-| 交叉表 | 行变量、列变量、分层变量（可选） | 统计量：卡方（默认）/Phi 与 Cramer's V/列联系数/Lambda/Gamma；单元格：计数（默认）/行百分比/列百分比/期望频数/残差类 | `CROSSTABS /TABLES=… BY … [BY 层] [/STATISTICS=…] /CELLS=…`（`BY 层` 相当于 SPSS 的「层 1 of 1」） |
+| 交叉表 | 行变量、列变量、分层变量（可选） | 统计量：卡方（默认）/Phi 与 Cramer's V/列联系数/Lambda/Gamma/**Kappa（方表一致性，0.27.0）**；单元格：计数（默认）/行百分比/列百分比/期望频数/残差类 | `CROSSTABS /TABLES=… BY … [BY 层] [/STATISTICS=…] /CELLS=…`（`BY 层` 相当于 SPSS 的「层 1 of 1」） |
+
+交叉表的三个附加量（0.27.0，都在 `runSyntax` 里自动加表注/表行，面板、`api/run`、导出三条路一致）：
+
+- **Cramér's V**：请求了卡方就在方表上追加 `V = sqrt(χ²/(N·(min(r,c)−1)))`；2×2 说明它就是 φ；引擎自己在 `Symmetric Measures` 给了 V 时不重复追加，只核对一致；行列数或有效 N 对不上（比如分层表、合并单元格）就不写——宁可没有，也不给一个口径说不清的数。
+- **小样本提示**：2×2 且期望频数 < 5 的格子存在时，表注点名「看同表的 Fisher's Exact Test 行（Exact Sig.）」。PSPP 本来就算这一行，以前是插件没引导用户去看。
+- **Kappa**：`/STATISTICS=… KAPPA`，透出 PSPP 的 `Symmetric Measures`（κ / ASE / Approx. T），并按 Landis & Koch 分档注在表下；非方表说明「即使引擎打了数字也解释不了」，没请求时说清怎么请求。开 Kappa 时会顺带保留 `CHISQ`，因为 V 与小样本提示挂在卡方表上。
 
 ### 6.2 比较平均值
 
@@ -179,8 +203,15 @@
 | 二元 Logistic | 因变量、协变量（多选）、选项「输出 Exp(B) 的 95% 置信区间」（默认开）。当预测变量出现分离的直接证据（`S.E. > 5`、CI 含 `+Infinit`、或上下限相差 1000 倍以上）时自动加一条表注；常数项再大也不触发 | `LOGISTIC REGRESSION y WITH x1 x2 /PRINT=CI(95) SUMMARY.` —— 输出 `Variables in the Equation` 含 `B`、`S.E.`、`Wald`、`df`、`Sig.`、`Exp(B)` 与 `95% CI for Exp(B) Lower/Upper`。PSPP 不接受 `/METHOD=ENTER`，插件不生成它 |
 | 因子分析 | 变量（多选）、旋转（VARIMAX/EQUAMAX/QUARTIMAX/PROMAX/不旋转）、输出（初始解/提取/KMO） | `FACTOR /VARIABLES=… /PRINT=INITIAL KMO EXTRACTION ROTATION /ROTATION=….`；KMO 与 Bartlett 默认打印，旋转后载荷矩阵单独成表；「不旋转」正确发成 `NOROTATE`（PSPP 不认 `NONE`） |
 | 快速聚类 | 变量（多选）、聚类数（默认 2） | `QUICK CLUSTER … /CRITERIA=CLUSTER(k).` |
-| 可靠性分析 | 变量（多选） | `RELIABILITY /VARIABLES=… /SCALE('all') ALL /MODEL=ALPHA.` |
+| 可靠性分析 | 变量（多选） | `RELIABILITY /VARIABLES=… /SCALE('all') ALL /MODEL=ALPHA.`；表后自动追加**组内相关系数 ICC（插件计算，0.27.0）** |
 | ROC 曲线 | 检验变量、状态变量、状态值（默认 1）、选项「输出曲线坐标」（默认开） | `ROC v BY g(1) /PLOT=CURVE /PRINT=COORDINATES.` —— 除曲线图与 AUC 外，多一张 `Coordinates of the Curve`（阈值 / 灵敏度 / 1 − 特异度），可用于约登指数。状态值只收单值，`(0 1)` 会被引擎拒绝 |
+
+**ICC（组内相关系数，0.27.0）**：PSPP 2.1.3 的 `RELIABILITY` 不接受 `/ICC=`（报 `Syntax error expecting SCALE, MODEL, SUMMARY, MISSING, or STATISTICS`），所以由插件自算并作为一张表追加在信度输出后面：
+
+- 四行口径：`ICC(2,1)` 双向随机/绝对一致/单次、`ICC(2,k)` 双向随机/绝对一致/平均、`ICC(3,1)` 双向混合/一致性/单次、`ICC(3,k)` 双向混合/一致性/平均；每行带 F、df1、df2、p 与 95% CI（McGraw & Wong 的参数化，与 R `irr::icc` 同口径）。
+- 方差分解：`BMS = k·Σ(个案均分−总均分)²/(n−1)`、`JMS = n·Σ(评分者均分−总均分)²/(k−1)`、`EMS = 残差/((n−1)(k−1))`；`F = BMS/EMS`、`df1 = n−1`、`df2 = (n−1)(k−1)`。
+- **不出表的情形**（只说明原因，不给一个口径说不清的数）：评分者 < 2 或个案 < 3；语法里带 `COMPUTE`/`WEIGHT`/`SELECT IF` 这类会改数据的命令；引擎的有效 N 与自算 n 不一致（缺失值会 listwise 掉，两边必须对上）。
+- 表注写清「`ICC(3,*)` 只看一致性、不惩罚评分者系统偏移，这种情况要报 `ICC(2,*)`」「平均测量必然更高，别与单次测量直接比」。
 
 ### 6.4 非参数检验（9 个）
 
@@ -308,6 +339,8 @@ SVG 尺寸 560×360，字体 Noto Sans CJK SC，中文标签正常。图表文�
 | 路由 | 用途 |
 | --- | --- |
 | `GET api/heartbeat` | 只回轮询签名（几百字节，面板每 3 秒拉这个） |
+| `GET api/settings` | 设置页读：当前值、默认值、文件路径、`problems`（坏掉被忽略的字段）、`deploymentOnly.registerTools` |
+| `POST api/settings` | 保存设置补丁（`{patch:{…}}` 或裸对象）；校验失败回 400 并说明哪一项、允许范围 |
 | `GET api/state` | 数据集形状 + 输出条目 + 当前签名（心跳说变了才拉） |
 | `POST api/open` / `api/new` / `api/close` / `api/clear` | 打开 / 新建 / 关闭数据集 / 清输出 |
 | `POST api/paste` | `{cells:[{row,variable,value}]}` 批量写单元格（先整体校验，再一次写入，一步撤销） |
@@ -583,9 +616,9 @@ npm run bundle-engine   # 从系统 PSPP 重新打包 engine/<本机平台>/
 node scripts/bundle-engine.mjs --from-prefix out --platform linux-x64   # 从容器里编好的 prefix 导入
 ```
 
-- 测试：`npm test` 依次跑 19 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/poll、预设挂载），全绿时共 268 条 ok 断言 —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」。
+- 测试：`npm test` 依次跑 20 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/poll、设置存储、预设挂载），全绿时共 302 条 ok 断言 —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」。
 - smoke：真实引擎跑一遍打开 → 分析 → 保存。
-- routes：42 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收、新增的 `api/heartbeat`）。
+- routes：43 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收、`api/heartbeat`、新增的 `api/settings`）。
 
 目录：
 

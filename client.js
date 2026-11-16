@@ -102,35 +102,59 @@ window.__ModuleLoader__.load({
   --ap-text-3: var(--dsw-alias-label-tertiary, #8f96a3);
   --ap-accent: var(--dsw-alias-brand-primary, #2f6fbb);
   --ap-danger: var(--dsw-alias-state-error-primary, #b42318);
-  --ap-hover: var(--dsw-alias-interactive-bg-hover, #dfe6f2);
+  /* SPSS 26's menu / tree selection tint, falling back to the harness hover
+     token. The dark scheme overrides both below with text/accent mixes, so no
+     light-only literal can leak into the dark theme. */
+  --ap-hover: var(--dsw-alias-interactive-bg-hover, #d6e6f7);
+  --ap-select: #cce8ff;
   /* A selected cell and the row stripe must stay readable in both schemes, so
      derive them from the accent/text instead of naming a fixed tint. */
   --ap-selected: color-mix(in srgb, var(--ap-accent) 18%, var(--ap-panel));
   --ap-stripe: color-mix(in srgb, var(--ap-text) 4%, var(--ap-panel));
   --ap-shadow: var(--dsw-elevation-panel, 0 6px 18px rgba(0,0,0,.18));
   --ap-shadow-strong: var(--dsw-elevation-prominent, 0 14px 40px rgba(0,0,0,.35));
+  /* Older rules read these three names while nothing defined them; aliasing
+     them here is cheaper than chasing every use, and keeps one source. */
+  --ap-muted: var(--ap-text-3);
+  --ap-button: var(--ap-surface);
+  --ap-head-1: var(--ap-head);
+  --ap-line-subtle: var(--ap-line);
 }
 
+/* Dark scheme: SPSS has no dark mode, but every tint above has to stay legible
+   on the harness dark surface, so the two literals become mixes of the text and
+   accent colours — the same recipe the panel already uses for its borders. */
+body[data-ds-dark-theme] .ap-root {
+  --ap-hover: color-mix(in srgb, var(--ap-text) 8%, var(--ap-panel));
+  --ap-select: color-mix(in srgb, var(--ap-accent) 25%, var(--ap-panel));
+}
 
 .ap-root { display:flex; flex-direction:column; height:100%; min-height:0; background:var(--ap-bg);
   color:var(--ap-text);
-  font-family:var(--dsh-font-family-text, var(--dsw-font-family, "Segoe UI","Noto Sans CJK SC","Microsoft YaHei",system-ui,sans-serif));
-  font-size:var(--dsh-content-font-size, 12px); line-height:1.45; }
+  /* SPSS 26 body text: 12px Segoe UI, CJK falls back to YaHei / Noto. */
+  font-family:"Segoe UI","Microsoft YaHei","Noto Sans CJK SC",system-ui,sans-serif;
+  font-size:12px; line-height:1.45; }
 .ap-root * { box-sizing:border-box; }
 /* Colours come from the harness design tokens (--dsw-alias-*), so switching
    the skin or the dark theme restyles this panel too; the literals are the
    pre-theme fallbacks. */
 .ap-root button, .ap-root input, .ap-root textarea, .ap-root select { color:var(--ap-text); font:inherit; }
-.ap-menu { display:flex; align-items:center; gap:2px; background:var(--ap-surface); border-bottom:1px solid var(--ap-line-3); padding:0 4px; flex:none; }
-.ap-menu-item { position:relative; }
-.ap-menu-button { background:none; border:0; padding:4px 8px; font:inherit; color:var(--ap-text); cursor:default; border-radius:3px; }
+/* ── 菜单栏：24px 高，项 8px 内边距，悬停用 --ap-hover ─────────────────── */
+.ap-menu { display:flex; align-items:stretch; gap:0; height:24px; background:var(--ap-surface);
+  border-bottom:1px solid var(--ap-line-3); padding:0 2px; flex:none; }
+/* 注意：菜单栏不能 overflow:hidden —— 下拉菜单是它的绝对定位子节点，剪掉就点不开了。*/
+.ap-menu-item { position:relative; display:flex; }
+.ap-menu-button { background:none; border:0; height:24px; padding:0 8px; font:inherit; color:var(--ap-text);
+  cursor:default; border-radius:0; }
 .ap-menu-button:hover, .ap-menu-button.ap-open { background:var(--ap-hover); }
 .ap-menu-pop.ap-flip { left:auto; right:0; }
 .ap-menu-pop { position:absolute; top:100%; left:0; min-width:220px; background:var(--ap-panel); border:1px solid var(--ap-line-2);
-  box-shadow:var(--ap-shadow); padding:4px 0; z-index:40; }
-.ap-menu-pop button { display:flex; width:100%; justify-content:space-between; gap:16px; background:none; border:0;
-  text-align:left; padding:5px 12px; font:inherit; cursor:default; }
+  box-shadow:2px 2px 2px color-mix(in srgb, var(--ap-text) 22%, transparent); padding:2px 0; z-index:40; }
+/* 22px 行高；快捷键靠右、灰字（renderMenuItems 把「（Ctrl+Z）」拆进 .ap-keys） */
+.ap-menu-pop button { display:flex; width:100%; align-items:center; justify-content:space-between; gap:16px;
+  background:none; border:0; text-align:left; min-height:22px; line-height:22px; padding:0 12px; font:inherit; cursor:default; }
 .ap-menu-pop button:hover { background:var(--ap-hover); }
+.ap-menu-pop .ap-keys { margin-left:auto; color:var(--ap-text-3); font-size:11px; white-space:nowrap; }
 .ap-menu-pop .ap-sep { height:1px; background:var(--ap-line); margin:4px 0; }
 .ap-menu-pop .ap-sub { color:var(--ap-text-2); font-size:11px; }
 .ap-check { display:flex; align-items:center; gap:6px; margin-top:6px; font-size:12px; }
@@ -143,9 +167,9 @@ window.__ModuleLoader__.load({
 .ap-col-resize { position:absolute; top:0; right:-2px; width:8px; height:100%; cursor:col-resize; z-index:3; }
 .ap-grid th:hover .ap-col-resize { background:var(--ap-line-2); opacity:.9; }
 .ap-cell-selected { background:var(--ap-selected); }
-.ap-doctabs { display:flex; align-items:stretch; gap:2px; padding:3px 4px 0; flex:none; overflow-x:auto;
+.ap-doctabs { display:flex; align-items:stretch; gap:2px; padding:2px 4px 0; flex:none; overflow-x:auto;
   background:var(--ap-bar); border-bottom:1px solid var(--ap-line-3); }
-.ap-doctab { display:flex; align-items:center; gap:4px; padding:3px 8px; border:1px solid var(--ap-line-3);
+.ap-doctab { display:flex; align-items:center; gap:4px; padding:2px 8px; border:1px solid var(--ap-line-3);
   border-bottom:0; border-radius:3px 3px 0 0; background:var(--ap-surface); cursor:default;
   max-width:230px; white-space:nowrap; font-size:11px; }
 .ap-doctab.ap-active { background:var(--ap-panel); font-weight:600; }
@@ -154,20 +178,37 @@ window.__ModuleLoader__.load({
 .ap-doctab-close { border:0; background:none; padding:0 2px; font:inherit; line-height:1; cursor:default;
   color:var(--ap-text-2); }
 .ap-doctab-close:hover { color:var(--ap-danger); }
-.ap-toolbar { display:flex; align-items:center; gap:3px; padding:3px 4px; background:var(--ap-bar);
+/* ── 工具条：30px 高、按钮 24×24（文字按钮按内容放宽）、悬停内凹 1px ──── */
+.ap-toolbar { display:flex; align-items:center; gap:1px; padding:3px 4px; min-height:30px; background:var(--ap-bar);
   border-bottom:1px solid var(--ap-line-3); flex:none; flex-wrap:wrap; }
-.ap-tool { display:inline-flex; align-items:center; gap:4px; background:var(--ap-surface); border:1px solid var(--ap-line-2);
-  border-radius:3px; padding:2px 7px; font:inherit; color:var(--ap-text); cursor:default; }
-.ap-tool:hover { background:var(--ap-panel); border-color:var(--ap-accent); }
+.ap-tool { display:inline-flex; align-items:center; justify-content:center; gap:4px; height:24px; min-width:24px;
+  background:transparent; border:1px solid transparent; border-radius:2px; padding:0 8px; font:inherit;
+  color:var(--ap-text); cursor:default; white-space:nowrap; }
+.ap-tool:hover { background:var(--ap-panel); border-color:var(--ap-line-2);
+  box-shadow:inset 1px 1px 0 var(--ap-line), inset -1px -1px 0 var(--ap-line); }
+.ap-tool:active { box-shadow:inset 1px 1px 2px color-mix(in srgb, var(--ap-text) 30%, transparent); }
 .ap-tool:disabled { opacity:.45; }
-.ap-tabstrip { display:flex; gap:2px; padding:4px 6px 0; background:var(--ap-bar); flex:none; }
-.ap-view-tab { padding:4px 12px; border:1px solid var(--ap-line-2); border-bottom:0; border-radius:4px 4px 0 0;
-  background:var(--ap-surface); cursor:default; }
-.ap-view-tab.ap-active { background:var(--ap-panel); font-weight:600; }
+/* 按钮之间的 1px 分隔竖线（原来用写死 #b7bcc5 的行内 span，深色下是白点） */
+.ap-tool-sep { flex:none; width:1px; height:16px; background:var(--ap-line-2); margin:0 3px; align-self:center; }
+/* ── 视图页签：移到内容区下方，26px，选中白底 ─────────────────────────── */
+.ap-tabstrip { display:flex; align-items:flex-end; gap:2px; padding:2px 6px 0; height:26px; background:var(--ap-surface-2);
+  border-top:1px solid var(--ap-line-2); flex:none; overflow:hidden; }
+.ap-view-tab { height:24px; padding:0 12px; border:1px solid var(--ap-line-2); border-bottom:0; border-radius:0;
+  background:var(--ap-surface); color:var(--ap-text-2); cursor:default; font-size:12px; }
+.ap-view-tab.ap-active { background:var(--ap-panel); color:var(--ap-text); font-weight:600;
+  border-top:1px solid var(--ap-line-3); box-shadow:0 -1px 0 var(--ap-panel); }
 .ap-body { flex:1; min-height:0; background:var(--ap-panel); border-top:1px solid var(--ap-line-2); display:flex; flex-direction:column; }
-.ap-status { flex:none; display:flex; gap:14px; padding:3px 8px; border-top:1px solid var(--ap-line-3); background:var(--ap-bar); color:var(--ap-text); }
-.ap-status .ap-grow { flex:1; }
-.ap-status .ap-status-version { color:var(--ap-muted); font-variant-numeric:tabular-nums; cursor:default; }
+/* ── 状态栏：22px，左「N 个个案 · M 个变量」，右引擎 ─────────────────── */
+.ap-status { flex:none; display:flex; align-items:center; gap:10px; height:22px; padding:0 8px;
+  border-top:1px solid var(--ap-line-3); background:var(--ap-bar); color:var(--ap-text);
+  font-size:11px; white-space:nowrap; overflow:hidden; }
+.ap-status .ap-grow { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.ap-status .ap-status-cases { flex:none; font-variant-numeric:tabular-nums; }
+.ap-status .ap-status-right { flex:0 1 auto; display:flex; align-items:center; gap:8px; color:var(--ap-text-2);
+  min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.ap-status .ap-status-right > * { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.ap-status .ap-status-version { color:var(--ap-text-3); font-variant-numeric:tabular-nums; cursor:default; }
+.ap-status .ap-chip { height:16px; font-size:11px; }
 .ap-chip { display:inline-flex; align-items:center; gap:4px; padding:0 6px; border:1px solid var(--ap-line-4);
   border-radius:9px; background:var(--ap-button); color:var(--ap-text); height:16px; line-height:16px; }
 .ap-chip .ap-chip-x { cursor:pointer; opacity:.7; font-weight:700; }
@@ -176,7 +217,7 @@ window.__ModuleLoader__.load({
 .ap-grid-wrap { flex:1; min-height:0; overflow:auto; background:var(--ap-panel); }
 .ap-grid { border-collapse:collapse; table-layout:fixed; font-family:inherit; font-size:inherit; }
 .ap-grid td.ap-spacer { height:auto; min-height:0; padding:0; border:0; line-height:0; }
-.ap-grid th, .ap-grid td { border-right:1px solid var(--ap-line); border-bottom:1px solid var(--ap-line); padding:1px 5px;
+.ap-grid th, .ap-grid td { border-right:1px solid var(--ap-line); border-bottom:1px solid var(--ap-line); padding:1px 6px;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; height:max(22px, 1.7em); }
 .ap-grid thead th { position:sticky; top:0; z-index:2; background:var(--ap-head); font-weight:600; text-align:center;
   border-bottom:1px solid var(--ap-line-4); }
@@ -193,7 +234,7 @@ window.__ModuleLoader__.load({
    at left 0, while that column sticks at the row number's width. Both are
    sticky, and without this the column rule would push the numbers aside. */
 .ap-grid td.ap-rownum { left:0; }
-.ap-grid td.ap-num { text-align:right; }
+.ap-grid td.ap-num { text-align:right; font-variant-numeric:tabular-nums; }
 .ap-grid td.ap-left { text-align:left; }
 .ap-grid td.ap-center { text-align:center; }
 .ap-grid td.ap-sel, .ap-grid td.ap-sel:focus { outline:2px solid var(--ap-accent); outline-offset:-2px; background:var(--ap-selected); }
@@ -205,15 +246,15 @@ window.__ModuleLoader__.load({
 .ap-grid th.ap-spare-head { background:var(--ap-head-2); cursor:cell; }
 .ap-grid th.ap-spare-head:hover { background:var(--ap-head-1); }
 .ap-grid td.ap-spare { cursor:cell; background:var(--ap-panel); }
-.ap-grid td.ap-spare:hover { background:var(--ap-hover, #eaf1fb); }
+.ap-grid td.ap-spare:hover { background:var(--ap-hover); }
 .ap-grid td.ap-spare-num { color:var(--ap-text-3); }
 .ap-grid tbody tr.ap-striped td.ap-cell-selected { background:var(--ap-selected); }
 .ap-grid tbody tr.ap-striped td { background:var(--ap-stripe); }
 /* The blank rows below the data are not cases: a striped one reads as a real
    empty case wedged between two filled ones. */
 .ap-grid tbody tr.ap-blank-row td { background:var(--ap-panel); }
-.ap-grid tbody tr.ap-blank-row td.ap-spare:hover { background:var(--ap-hover, #eaf1fb); }
-.ap-grid td.ap-hover { background:var(--ap-hover, #eaf1fb); }
+.ap-grid tbody tr.ap-blank-row td.ap-spare:hover { background:var(--ap-hover); }
+.ap-grid td.ap-hover { background:var(--ap-hover); }
 .ap-grid tbody tr.ap-striped td.ap-sel { background:var(--ap-selected); }
 .ap-cell-input { width:100%; border:0; outline:2px solid var(--ap-accent); font:inherit; padding:0 4px; }
 
@@ -255,113 +296,156 @@ body[data-ds-dark-theme] .ap-hl-str { color:#8fce8f; }
 body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-syntax-bar { display:flex; gap:6px; padding:4px 6px; background:var(--ap-surface-2); border-top:1px solid var(--ap-line); }
 
+/* ── 输出：左大纲 190px / 右内容，树选中用系统选中蓝 ────────────────── */
 .ap-output { position:relative; flex:1; display:flex; min-height:0; }
-.ap-outline { width:210px; min-width:120px; border-right:1px solid var(--ap-line-2); overflow:auto; background:var(--ap-surface-2); }
+.ap-outline { width:190px; min-width:150px; border-right:1px solid var(--ap-line); overflow:auto; background:var(--ap-surface-2); }
 .ap-output-grid { display:grid; grid-template-columns:auto 1fr; grid-template-rows:auto 1fr; }
-.ap-report-bar { grid-column:1 / -1; grid-row:1; display:flex; align-items:center; gap:6px; padding:4px 8px;
+.ap-report-bar { grid-column:1 / -1; grid-row:1; display:flex; align-items:center; gap:6px; padding:3px 8px;
   background:var(--ap-surface-2); border-bottom:1px solid var(--ap-line-2); }
 .ap-outline-resize { flex:none; width:6px; margin-left:-3px; cursor:col-resize; }
 .ap-outline-resize:hover { background:var(--ap-line-2); }
 .ap-outline button { display:block; width:100%; text-align:left; border:0; background:none; font:inherit;
-  padding:3px 10px; color:var(--ap-text); cursor:default; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  padding:2px 8px; color:var(--ap-text); cursor:default; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ap-outline button:hover { background:var(--ap-hover); }
+/* SPSS 的导航树选中项：浅色 #cce8ff / 深色 25% 强调混色，均经 --ap-select */
+.ap-outline button.ap-ol-active { background:var(--ap-select); color:var(--ap-text); }
+.ap-outline button.ap-ol-active:hover { background:var(--ap-select); }
 .ap-outline .ap-ol-table::before { content:"▦ "; color:var(--ap-accent); }
 .ap-outline .ap-ol-image::before { content:"▣ "; color:var(--ap-accent); }
-.ap-outline .ap-ol-heading { font-weight:600; padding:6px 10px 2px; color:var(--ap-text); }
+.ap-outline .ap-ol-heading { font-weight:600; padding:6px 8px 2px; color:var(--ap-text); }
 .ap-outline .ap-ol-facts { display:block; margin-top:1px; font-size:11px; color:var(--ap-text-3); font-variant-numeric:tabular-nums;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.ap-doc { flex:1; overflow:auto; padding:10px 14px 40px; background:var(--ap-panel); }
-.ap-doc h3 { font-size:13px; margin:14px 0 6px; color:var(--ap-text); }
+.ap-doc { flex:1; overflow:auto; padding:10px 12px 32px; background:var(--ap-panel); }
+.ap-doc h3 { font-size:12px; margin:14px 0 6px; color:var(--ap-text); }
 .ap-item { margin:0 0 14px; }
-.ap-item-head { display:flex; align-items:center; gap:6px; border-bottom:1px solid var(--ap-line-2); padding-bottom:2px; }
-.ap-item-head h3 { margin:0; flex:none; }
+.ap-item-head { display:flex; align-items:center; flex-wrap:wrap; row-gap:2px; gap:6px;
+  border-bottom:1px solid var(--ap-line); padding-bottom:2px; }
+.ap-item-head h3 { margin:0; flex:none; font-size:12px; font-weight:700; }
 .ap-item-toggle { border:0; background:none; font:inherit; color:var(--ap-text-3); cursor:default; padding:0 2px; width:14px; }
 .ap-item-toggle:hover { color:var(--ap-accent); }
 .ap-item-head .ap-grow { flex:1; }
-.ap-item-head .ap-tool { font-size:11px; padding:1px 6px; }
+.ap-item-head .ap-tool { font-size:11px; padding:0 6px; height:20px; min-width:0; }
 .ap-var-tools { display:flex; gap:6px; padding:4px 6px; background:var(--ap-bar); border-bottom:1px solid var(--ap-line-2); align-items:center; }
 .ap-var-tools .ap-tool { flex:none; white-space:nowrap; }
 .ap-var-tools th { position:relative; }
 .ap-grid th.ap-col-dragging { opacity:.45; }
-.ap-grid tbody tr.ap-var-drop td { box-shadow: inset 0 2px 0 var(--ap-accent, #2b6cb0); }
+.ap-grid tbody tr.ap-var-drop td { box-shadow: inset 0 2px 0 var(--ap-accent); }
 .ap-grid tbody tr.ap-var-new td { border-top:1px dashed var(--ap-line-2); color:var(--ap-text-3); }
-.ap-grid tbody tr.ap-var-new:hover td { background:var(--ap-hover, #eaf1fb); }
+.ap-grid tbody tr.ap-var-new:hover td { background:var(--ap-hover); }
 .ap-grid tbody tr.ap-var-sel td { background:var(--ap-selected); color:var(--ap-text); }
 .ap-grid tbody tr.ap-var-sel td.ap-rownum { background:color-mix(in srgb, var(--ap-accent) 26%, var(--ap-panel)); color:var(--ap-text-2); }
 .ap-grid tbody tr.ap-var-sel input, .ap-grid tbody tr.ap-var-sel select { background:var(--ap-panel); }
-.ap-var-menu { min-width:150px; background:var(--ap-panel); border:1px solid var(--ap-line-2); border-radius:4px; box-shadow:0 6px 18px rgba(0,0,0,.18); padding:3px 0; font-size:12px; }
+.ap-var-menu { min-width:150px; background:var(--ap-panel); border:1px solid var(--ap-line-2); border-radius:4px;
+  box-shadow:2px 2px 2px color-mix(in srgb, var(--ap-text) 22%, transparent); padding:3px 0; font-size:12px; }
 .ap-var-menu .ap-menu-label { padding:4px 12px; font-size:11px; color:var(--ap-text-3); }
-.ap-var-menu .ap-var-item { display:block; width:100%; text-align:left; padding:5px 12px; background:none; border:0; font:inherit; color:var(--ap-text); cursor:default; }
-.ap-var-menu .ap-var-item:hover { background:var(--ap-hover, #eaf1fb); }
-.ap-var-menu .ap-var-item.ap-danger { color:#b4453a; }
+.ap-var-menu .ap-var-item { display:block; width:100%; text-align:left; padding:3px 12px; background:none; border:0; font:inherit; color:var(--ap-text); cursor:default; }
+.ap-var-menu .ap-var-item:hover { background:var(--ap-hover); }
+.ap-var-menu .ap-var-item.ap-danger { color:var(--ap-danger); }
 .ap-var-menu .ap-sep { height:1px; background:var(--ap-line); margin:4px 0; }
-.ap-doc table { border-collapse:collapse; margin:0 0 14px; font-size:inherit; }
+/* ── 输出表：SPSS 三线表（外框 1px、表头上下双线、无竖线） ──────────── */
+.ap-doc table { border-collapse:collapse; margin:0 0 14px; font-size:12px; width:100%;
+  border-top:1px solid var(--ap-line-3); border-bottom:1px solid var(--ap-line-3); }
 .ap-doc table td, .ap-doc table th { white-space:normal; word-break:break-word; }
-.ap-doc table caption { caption-side:top; text-align:left; font-weight:600; padding:2px 0 4px; color:var(--ap-text); }
-.ap-doc th, .ap-doc td { border:1px solid var(--ap-line-4); padding:2px 6px; }
-.ap-doc thead th, .ap-doc th { background:var(--ap-head-2); font-weight:600; text-align:center; }
+/* 中文表头按「词」换行：宁可整词掉下一行，也不要「次/数」拆成两行 */
+.ap-doc table th { word-break:keep-all; }
+.ap-doc table caption { caption-side:top; text-align:left; font-weight:700; font-size:12px; padding:0 0 4px; color:var(--ap-text); }
+.ap-doc th, .ap-doc td { border:0; border-bottom:1px solid var(--ap-line); padding:3px 6px; text-align:left; }
+.ap-doc th, .ap-doc td.ap-num { white-space:nowrap; }
+.ap-doc thead th, .ap-doc th { background:var(--ap-head-2); font-weight:600; text-align:center;
+  border-top:0; border-bottom:1px solid var(--ap-line-4); }
+/* 表头双线：只有每组第一行带 2px 上框（PSPP 的表头行在 thead，本地面板渲染的在裸 tr 里） */
+.ap-doc table thead tr:first-child th, .ap-doc table tr:first-child th { border-top:2px solid var(--ap-line-3); }
+/* 行标题（频数的「18-25」这类）不是表头：左对齐、不加底色 */
+.ap-doc tbody th { background:transparent; font-weight:400; text-align:left; border-bottom:1px solid var(--ap-line); }
+/* 数值列右对齐：matrixHtml 给纯数字单元格加 .ap-num */
+.ap-doc td.ap-num { text-align:right; font-variant-numeric:tabular-nums; }
 .ap-doc img { max-width:100%; border:1px solid var(--ap-line); background:var(--ap-panel); }
 .ap-table-wrap { overflow-x:auto; max-width:100%; }
 .ap-edit-table { display:flex; flex-direction:column; gap:6px; max-height:320px; overflow:auto; }
 .ap-edit-row { display:flex; align-items:center; gap:8px; }
-.ap-edit-index { width:64px; color:var(--ap-muted); font-size:12px; }
-table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; font-size:12px; }
-/* Output table presets: the three-line table is what journals ask for, the
-   striped one is the on-screen default. */
-.ap-doc table.ap-tbl-three { border-collapse:collapse; border-top:2px solid var(--ap-text); border-bottom:2px solid var(--ap-text); }
-.ap-doc table.ap-tbl-three th, .ap-doc table.ap-tbl-three td { border-left:0; border-right:0; border-top:0; border-bottom:1px solid var(--ap-line-subtle, #d9d9d9); }
+.ap-edit-index { width:64px; color:var(--ap-text-3); font-size:12px; }
+/* 表注：11px 斜体灰（原来是写死的 #9aa1ad / #444） */
+.ap-doc table .ap-footnote, table .ap-footnote { border-top:1px solid var(--ap-line); border-bottom:0; text-align:left;
+  color:var(--ap-text-2); font-size:11px; font-style:italic; padding:2px 6px; }
+/* Output table presets: the default already is the SPSS three-line table; the
+   'three' preset is the heavier journal variant, 'grid' the full-ruled one. */
+.ap-doc table.ap-tbl-three { border-top:2px solid var(--ap-text); border-bottom:2px solid var(--ap-text); }
+.ap-doc table.ap-tbl-three th, .ap-doc table.ap-tbl-three td { border-left:0; border-right:0; border-top:0;
+  border-bottom:1px solid var(--ap-line); }
 .ap-doc table.ap-tbl-three thead th { border-bottom:1px solid var(--ap-text); }
-.ap-doc table.ap-tbl-plain th, .ap-doc table.ap-tbl-plain td { border-color:transparent; }
+.ap-doc table.ap-tbl-plain th, .ap-doc table.ap-tbl-plain td { border-color:transparent; background:transparent; }
 .ap-doc table.ap-tbl-grid th, .ap-doc table.ap-tbl-grid td { border:1px solid var(--ap-line); }
+.ap-doc table.ap-tbl-grid thead th { border-top:1px solid var(--ap-line); border-bottom:1px solid var(--ap-line); }
 .ap-table-tools { display:flex; gap:6px; margin:0 0 3px; }
-.ap-table-tools .ap-tool { font-size:10px; padding:1px 6px; }
+.ap-table-tools .ap-tool { font-size:11px; height:20px; padding:0 6px; }
 .ap-out-hint { position:absolute; right:18px; bottom:14px; background:var(--dsw-alias-tooltip-bg, #1f2b3a); color:var(--dsw-static-neutral-bluish-00, #fff); padding:6px 12px; border-radius:4px; font-size:12px; box-shadow:var(--ap-shadow); }
-.ap-doc table { font-size:11px; }
-.ap-doc th, .ap-doc td { padding:1px 5px; }
 .ap-chart-button { border:0; background:transparent; padding:0; cursor:zoom-in; display:block; }
 .ap-chart-button:hover img { border-color:var(--ap-accent); }
 .ap-dlg-var.ap-disabled { color:var(--ap-text-3); }
 .ap-chip.ap-chip-on { background:var(--ap-selected); border-color:var(--ap-accent); }
 .ap-empty { margin:auto; color:var(--ap-text-2); padding:30px; text-align:center; line-height:2; }
-.ap-toast { position:absolute; right:14px; bottom:34px; max-width:70%; background:var(--dsw-alias-tooltip-bg, #1f2a37); color:var(--dsw-static-neutral-bluish-00, #fff);
+.ap-toast { position:absolute; right:14px; bottom:56px; max-width:70%; background:var(--dsw-alias-tooltip-bg, #1f2a37); color:var(--dsw-static-neutral-bluish-00, #fff);
   padding:7px 12px; border-radius:4px; box-shadow:var(--ap-shadow); z-index:60; }
 .ap-has-sub > .ap-sub-pop { display:none; position:absolute; left:100%; top:-4px; min-width:200px;
-  background:var(--ap-panel); border:1px solid var(--ap-line-2); box-shadow:var(--ap-shadow); padding:4px 0; z-index:45; }
+  background:var(--ap-panel); border:1px solid var(--ap-line-2); box-shadow:2px 2px 2px color-mix(in srgb, var(--ap-text) 22%, transparent); padding:2px 0; z-index:45; }
 .ap-has-sub:hover > .ap-sub-pop { display:block; }
 .ap-flip .ap-has-sub > .ap-sub-pop { left:auto; right:100%; }
 .ap-menu-pop button:disabled { color:var(--ap-text-3); }
+/* ── 对话框：520px、13px 加粗标题、页脚 确定/粘贴/重置/取消/帮助 ───────── */
 .ap-modal-mask { position:absolute; inset:0; background:var(--dsw-alias-bg-mask-1, rgba(15,20,30,.35)); display:flex; align-items:center;
   justify-content:center; z-index:50; }
-.ap-modal { background:var(--ap-surface-2); border:1px solid var(--ap-line-3); border-radius:4px; box-shadow:var(--ap-shadow-strong);
-  min-width:420px; max-width:92%; max-height:86%; display:flex; flex-direction:column; }
-.ap-modal-title { padding:6px 10px; background:linear-gradient(var(--ap-surface-2),var(--ap-head-2)); border-bottom:1px solid var(--ap-line-3);
-  font-weight:600; }
+.ap-modal { background:var(--ap-surface-2); border:1px solid var(--ap-line-3); border-radius:3px; box-shadow:var(--ap-shadow-strong);
+  width:min(520px, calc(100% - 24px)); min-width:0; max-width:none; max-height:86%; display:flex; flex-direction:column; }
+.ap-modal-title { padding:5px 10px; background:linear-gradient(var(--ap-surface-2),var(--ap-head-2)); border-bottom:1px solid var(--ap-line-3);
+  font-weight:700; font-size:13px; }
 .ap-modal-body { padding:10px 12px; overflow:auto; display:flex; flex-direction:column; gap:9px; }
-.ap-modal-foot { display:flex; justify-content:flex-end; gap:6px; padding:8px 10px; border-top:1px solid var(--ap-line); }
-.ap-modal.ap-wide { min-width:560px; }
+.ap-modal-foot { display:flex; align-items:center; justify-content:flex-end; gap:6px; padding:6px 10px; border-top:1px solid var(--ap-line); }
+.ap-modal.ap-wide { width:min(560px, calc(100% - 24px)); }
+/* 页脚按钮：24px 高、左右 12px；确定（默认）加粗边框双线 */
+.ap-modal-foot .ap-tool { height:24px; padding:0 12px; min-width:64px; }
+.ap-modal-foot .ap-tool.ap-primary { font-weight:600; border-color:var(--ap-line-3);
+  box-shadow:inset 0 0 0 1px var(--ap-line-2); background:var(--ap-panel); }
+.ap-modal-foot .ap-tool.ap-primary:hover { border-color:var(--ap-accent); }
 .ap-mr-panel { position:absolute; left:0; right:0; bottom:22px; max-height:260px; display:flex; flex-direction:column;
   background:var(--ap-surface-2); border-top:1px solid var(--ap-line-2); box-shadow:0 -2px 6px rgba(0,0,0,.18); z-index:20; }
 .ap-mr-head { display:flex; align-items:center; gap:6px; padding:4px 8px; border-bottom:1px solid var(--ap-line); font-weight:600; }
 .ap-mr-body { display:flex; min-height:0; overflow:auto; }
-.ap-mr-list { width:210px; display:flex; flex-direction:column; gap:1px; padding:4px; border-right:1px solid var(--ap-line); overflow:auto; }
+.ap-mr-list { width:190px; display:flex; flex-direction:column; gap:1px; padding:4px; border-right:1px solid var(--ap-line); overflow:auto; }
 .ap-mr-detail { flex:1; display:flex; flex-direction:column; gap:6px; padding:6px 10px; min-width:0; }
 .ap-mr-item { display:block; width:100%; text-align:left; padding:3px 8px; background:none; border:0; font:inherit;
   color:var(--ap-text); cursor:default; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.ap-mr-item:hover { background:var(--ap-hover, #eaf1fb); }
-.ap-mr-item.ap-chosen { background:var(--ap-selected, #cfe0f7); }
+.ap-mr-item:hover { background:var(--ap-hover); }
+.ap-mr-item.ap-chosen { background:var(--ap-selected); }
 .ap-modal-foot-left { margin-right:auto; display:flex; gap:6px; }
-.ap-dlg { display:flex; gap:10px; min-height:270px; }
-.ap-dlg-left { width:196px; display:flex; flex-direction:column; gap:4px; }
+/* ── SPSS 式对话框主体：左变量列表 | 28px ▶ 箭头 | 右目标框 ────────── */
+.ap-dlg { display:flex; gap:8px; min-height:270px; }
+.ap-dlg-left { width:190px; flex:none; display:flex; flex-direction:column; gap:4px; min-width:0; }
 .ap-dlg-right { flex:1; display:flex; flex-direction:column; gap:6px; min-width:0; }
-.ap-dlg-caption { font-weight:600; color:var(--ap-text); }
-.ap-dlg-list { border:1px solid var(--ap-line-3); background:var(--ap-panel); max-height:250px; overflow:auto; }
+.ap-dlg-caption { font-weight:600; color:var(--ap-text); font-size:12px; }
+/* 白底 + 1px 内凹边框：列表要像被「按」进面板里 */
+.ap-dlg-list { border:1px solid var(--ap-line-3); background:var(--ap-panel); flex:1; min-height:0; max-height:250px; overflow:auto;
+  box-shadow:inset 1px 1px 2px color-mix(in srgb, var(--ap-text) 10%, transparent); }
 .ap-dlg-var { display:flex; align-items:center; gap:5px; padding:2px 6px; }
 .ap-dlg-var:hover { background:var(--ap-hover); }
 .ap-dlg-var.ap-chosen { background:var(--ap-selected); }
-.ap-dlg-box { border:1px solid var(--ap-line-2); background:var(--ap-panel); padding:5px 8px; display:flex; flex-direction:column;
-  gap:4px; min-height:46px; }
+.ap-dlg-var.ap-current { outline:1px solid var(--ap-accent); outline-offset:-1px; }
+.ap-dlg-box { border:1px solid var(--ap-line-2); background:var(--ap-panel); padding:4px 6px; display:flex; flex-direction:column;
+  gap:4px; min-height:44px; flex:1 1 auto; min-width:0; }
 .ap-dlg-box.ap-active-box { outline:2px solid var(--ap-accent); outline-offset:-1px; }
-.ap-dlg-box.ap-dlg-form input, .ap-dlg-box.ap-dlg-form select { border:1px solid var(--ap-line-3); padding:3px 6px; font:inherit; }
+.ap-dlg-box.ap-dlg-form input, .ap-dlg-box.ap-dlg-form select { border:1px solid var(--ap-line-3); padding:2px 6px; font:inherit; background:var(--ap-panel); border-radius:2px; }
+/* 每个目标框左侧的 28px 箭头按钮（SPSS 的 ▶/◀，这里一个键切换加入/移出） */
+/* 第一个目标框与左列表同高（SPSS 的变量列表 / 目标框是一对），其余按内容高 */
+.ap-dlg-field { display:flex; align-items:stretch; gap:6px; flex:none; min-height:0; }
+.ap-dlg-field:first-of-type { flex:1 1 auto; }
+.ap-dlg-arrow { flex:none; width:28px; align-self:center; height:24px; padding:0; border:1px solid var(--ap-line-2);
+  background:var(--ap-surface); color:var(--ap-text-2); cursor:default; font-size:12px; border-radius:2px; }
+.ap-dlg-arrow:hover { background:var(--ap-panel); border-color:var(--ap-accent); color:var(--ap-text); }
+.ap-dlg-arrow:disabled { opacity:.4; }
+/* 帮助面板：显示「确定」将要执行的 PSPP 语法（也是「粘贴」放进编辑器的内容） */
+.ap-dlg-help { border:1px solid var(--ap-line-2); background:var(--ap-panel); padding:6px 8px;
+  display:flex; flex-direction:column; gap:4px; max-height:190px; overflow:auto; }
+.ap-dlg-help-code { margin:0; white-space:pre-wrap; word-break:break-word; color:var(--ap-text);
+  font-family:var(--dsh-font-family-code, "Cascadia Mono","Consolas","DejaVu Sans Mono",monospace); font-size:11.5px; }
 .ap-dlg-chips { display:flex; flex-wrap:wrap; gap:4px; }
 .ap-chip { display:inline-flex; align-items:center; gap:3px; background:var(--ap-surface-2); border:1px solid var(--ap-line-2);
   border-radius:2px; padding:1px 5px; }
@@ -370,12 +454,13 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
 .ap-field { display:flex; flex-direction:column; gap:3px; }
 .ap-field > label { font-weight:600; color:var(--ap-text); }
 .ap-field input[type=text], .ap-field input[type=number], .ap-field select { border:1px solid var(--ap-line-3);
-  background:var(--ap-panel); padding:3px 6px; font:inherit; border-radius:2px; }
+  background:var(--ap-panel); padding:2px 6px; font:inherit; border-radius:2px; }
 .ap-picker { display:flex; gap:6px; }
 .ap-picker-list { flex:1; min-width:140px; height:150px; overflow:auto; border:1px solid var(--ap-line-3); background:var(--ap-panel); }
 .ap-picker-list label { display:flex; gap:6px; align-items:center; padding:2px 6px; }
 .ap-picker-list label:hover { background:var(--ap-hover); }
 .ap-row { display:flex; gap:8px; align-items:center; }
+/* 11px 是正文下限：说明文字/状态栏之外不再出现更小的字 */
 .ap-hint { color:var(--ap-text-2); font-size:11px; }
 .ap-dir { height:220px; overflow:auto; border:1px solid var(--ap-line-3); background:var(--ap-panel); }
 .ap-dir button { display:block; width:100%; text-align:left; border:0; background:none; font:inherit; padding:2px 8px; }
@@ -407,15 +492,25 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
 
     /* ------------------------------------------------------------- dialogs */
 
-    function Modal({ title, children, onOk, onCancel, okText = '确定', cancelText = '取消', okDisabled, wide, leading, hideCancel }) {
+    // SPSS's dialog footer runs 确定 / 粘贴 / 重置 / 取消 / 帮助, left to right,
+    // with 确定 carrying the double border. 粘贴/重置/帮助 only appear for the
+    // dialogs that can actually honour them (the analysis dialogs), because a
+    // button that does nothing is worse than a missing one.
+    function Modal({
+      title, children, onOk, onCancel, okText = '确定', cancelText = '取消', okDisabled, wide, leading, hideCancel,
+      onPaste, onReset, onHelp,
+    }) {
       return h('div', { className: 'ap-modal-mask', onMouseDown: (event) => { if (event.target === event.currentTarget) onCancel?.() } },
         h('div', { className: `ap-modal ${wide ? 'ap-wide' : ''}`, role: 'dialog' },
           h('div', { className: 'ap-modal-title' }, title),
           h('div', { className: 'ap-modal-body' }, children),
           h('div', { className: 'ap-modal-foot' },
             h('div', { className: 'ap-modal-foot-left' }, leading ?? null),
-            h('button', { className: 'ap-tool', onClick: onOk, disabled: okDisabled }, okText),
-            hideCancel ? null : h('button', { className: 'ap-tool', onClick: onCancel }, cancelText))))
+            h('button', { className: 'ap-tool ap-primary', onClick: onOk, disabled: okDisabled }, okText),
+            onPaste ? h('button', { className: 'ap-tool', onClick: onPaste, title: '把这次设置生成的语法放进语法编辑器，不运行' }, '粘贴') : null,
+            onReset ? h('button', { className: 'ap-tool', onClick: onReset, title: '把对话框恢复成刚打开时的样子' }, '重置') : null,
+            hideCancel ? null : h('button', { className: 'ap-tool', onClick: onCancel }, cancelText),
+            onHelp ? h('button', { className: 'ap-tool', onClick: onHelp, title: '这个过程会执行什么' }, '帮助') : null)))
     }
 
     // Delimited text is not self-describing in practice: Chinese exports are
@@ -465,6 +560,13 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
      * here are the English ones the engine emits, and a table without any of
      * them simply gets no summary.
      */
+    // SPSS right-aligns a numeric column and left-aligns its label column. The
+    // PSPP tables arrive as bare <td> text, so the only signal is the cell's
+    // own content: a cell that is nothing but a number (sign, thousands
+    // separators, decimals) is a number, anything else is text.
+    const NUMERIC_CELL = /^-?\d+(?:,\d{3})*(?:\.\d+)?$/
+    const isNumericCell = (text) => NUMERIC_CELL.test(String(text ?? '').trim())
+
     /** Draw a matrix as a table when the host could not render one. */
     function matrixHtml(matrix, className = '', edits = null) {
       const rows = Array.isArray(matrix) ? matrix : []
@@ -1128,19 +1230,26 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
         h('span', null, '我明白字符串列的内容会丢失')))
     }
 
-    function AnalysisDialog({ spec, variables, rows, onRun, onClose, initial = null }) {
+    function AnalysisDialog({ spec, variables, rows, onRun, onClose, onPaste, initial = null }) {
       const fields = spec.fields ?? []
       const groups = spec.groups ?? []
-      const [values, setValues] = useState(() => ({ ...(spec.defaults ?? {}), ...(initial ?? {}) }))
-      const [flags, setFlags] = useState(() => {
-        const initial = {}
+      // Named factories so 重置 can rebuild exactly what opening the dialog did.
+      const freshValues = () => ({ ...(spec.defaults ?? {}), ...(initial ?? {}) })
+      const freshFlags = () => {
+        const start = {}
         for (const group of groups) {
-          initial[group.key] = Object.fromEntries((group.items ?? []).map((item) => [item.key, item.default === true]))
+          start[group.key] = Object.fromEntries((group.items ?? []).map((item) => [item.key, item.default === true]))
         }
-        return initial
-      })
+        return start
+      }
+      const [values, setValues] = useState(freshValues)
+      const [flags, setFlags] = useState(freshFlags)
       const [active, setActive] = useState(fields[0]?.key ?? null)
       const [sheet, setSheet] = useState(null)
+      const [helpOpen, setHelpOpen] = useState(false)
+      // SPSS highlights one variable in the list and moves it with ▶; the
+      // checkboxes stay as the fast path for people used to ticking.
+      const [current, setCurrent] = useState(null)
       const activeField = fields.find((field) => field.key === active) ?? fields[0] ?? null
       const setValue = (key, value) => setValues((current) => ({ ...current, [key]: value }))
       const setFlag = (groupKey, itemKey, value) => setFlags((current) => ({
@@ -1189,6 +1298,22 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
         return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && String(value) !== ''
       })
 
+      // A field accepts a variable only of the kind it declares; the list greys
+      // the rest out, and the arrow has to respect the same rule.
+      const compatibleWith = (field, name) => {
+        const variable = (variables ?? []).find((entry) => entry.name === name)
+        if (!field || !variable) return false
+        return !field.accept || field.accept === 'any'
+          || (field.accept === 'numeric' ? variable.type === 'numeric' : variable.type === 'string')
+      }
+      const toggleInField = (field, name) => {
+        if (!compatibleWith(field, name)) return
+        if (field.kind === 'single') { setValue(field.key, values[field.key] === name ? null : name); return }
+        if (field.kind !== 'multi') return
+        const list = values[field.key] ?? []
+        setValue(field.key, list.includes(name) ? list.filter((entry) => entry !== name) : [...list, name])
+      }
+
       const variableList = h('div', { className: 'ap-dlg-left' },
         h('div', { className: 'ap-dlg-caption' }, '变量列表'),
         h('div', { className: 'ap-dlg-list' },
@@ -1204,8 +1329,9 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
                 || (activeField.accept === 'numeric' ? variable.type === 'numeric' : variable.type === 'string')
               return h('label', {
                 key: variable.name,
-                className: `ap-dlg-var ${chosen ? 'ap-chosen' : ''} ${compatible ? '' : 'ap-disabled'}`,
+                className: `ap-dlg-var ${chosen ? 'ap-chosen' : ''} ${compatible ? '' : 'ap-disabled'} ${current === variable.name ? 'ap-current' : ''}`,
                 title: compatible ? '' : (activeField?.accept === 'numeric' ? '需要数值变量' : '需要字符串变量'),
+                onClick: () => setCurrent(variable.name),
               },
                 h('input', { type: 'checkbox', checked: chosen, disabled: !compatible, onChange: () => toggle(variable.name) }),
                 h('span', null, variable.name),
@@ -1282,8 +1408,33 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
         h('div', { className: 'ap-dlg-chips' }, chips))
       }
 
-      const fieldColumn = h('div', { className: 'ap-dlg-right' }, fields.map((field) => fieldBox(field)))
+      // SPSS puts a 28px column of ▶ between the list and the target boxes; here
+      // the boxes are stacked, so each box carries its own arrow at its left
+      // edge — same width, and it lines up with the box it fills.
+      const fieldColumn = h('div', { className: 'ap-dlg-right' }, fields.map((field) => h('div', {
+        key: `row-${field.key}`,
+        className: 'ap-dlg-field',
+      },
+      h('button', {
+        className: 'ap-dlg-arrow',
+        disabled: !current || !compatibleWith(field, current),
+        title: current ? `把 ${current} 加入 / 移出这个框` : '先在左侧点一个变量',
+        onClick: () => toggleInField(field, current),
+      }, '▶'),
+      fieldBox(field))))
       const body = h('div', { className: 'ap-dlg' }, variableList, fieldColumn)
+      // 帮助 is not decoration: it shows the PSPP syntax 确定 would run, which
+      // is also what 粘贴 hands to the syntax editor.
+      const preview = ready ? spec.build(values, flags, variables) : null
+      const previewSyntax = typeof preview?.syntax === 'string' ? preview.syntax : null
+      const helpNode = !helpOpen ? null : h('div', { className: 'ap-dlg-help' },
+        h('div', { className: 'ap-dlg-caption' }, '这个过程会执行什么'),
+        previewSyntax
+          ? h('pre', { className: 'ap-dlg-help-code' }, previewSyntax)
+          : h('div', { className: 'ap-hint' }, ready
+            ? '这个对话框直接画图（或在插件里计算），不生成 PSPP 语法。'
+            : '先把左边必填的变量选上，这里会显示「确定」将要执行的语法。'),
+        h('div', { className: 'ap-hint' }, '确定 = 运行；粘贴 = 只把语法放进语法编辑器，不运行；重置 = 恢复成刚打开时的设置。'))
       const sheetGroup = groups.find((group) => group.key === sheet)
       const sheetNode = sheetGroup
         ? h(Modal, {
@@ -1326,11 +1477,22 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
           className: 'ap-tool',
           onClick: () => setSheet(group.key),
         }, `${group.title}…`)),
+        onPaste: onPaste && ready && previewSyntax
+          ? () => onPaste(previewSyntax)
+          : undefined,
+        onReset: () => {
+          setValues(freshValues())
+          setFlags(freshFlags())
+          setCurrent(null)
+          setHelpOpen(false)
+          setActive(fields[0]?.key ?? null)
+        },
+        onHelp: () => setHelpOpen((open) => !open),
         onOk: () => {
           const built = spec.build(values, flags, variables)
           onRun(built, spec)
         },
-      }, body, sheetNode)
+      }, body, helpNode, sheetNode)
     }
 
     const onKeys = (flags, group) => Object.entries(flags?.[group] ?? {}).filter(([, on]) => on).map(([key]) => key)
@@ -1437,6 +1599,10 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
             { key: 'cc', label: '列联系数' },
             { key: 'lambda', label: 'Lambda' },
             { key: 'gamma', label: 'Gamma' },
+            // Kappa needs a square table; PSPP prints it under Symmetric Measures.
+            // Turning it on also keeps CHISQ on, because the Cramér's V line and
+            // the small-sample Fisher hint hang off the chi-square table.
+            { key: 'kappa', label: 'Kappa（方表一致性）' },
           ] },
           { key: 'cells', title: '单元格', items: [
             { key: 'count', label: '计数', default: true },
@@ -1450,7 +1616,12 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
           ] },
         ],
         build: (v, flags) => {
-          const stats = mapKeys(onKeys(flags, 'statistics'), { chisq: 'CHISQ', phi: 'PHI', cc: 'CC', lambda: 'LAMBDA', gamma: 'GAMMA' })
+          const stats = mapKeys(onKeys(flags, 'statistics'), {
+            chisq: 'CHISQ', phi: 'PHI', cc: 'CC', lambda: 'LAMBDA', gamma: 'GAMMA', kappa: 'KAPPA',
+          })
+          // Kappa also implies the chi-square table: the Cramér's V line and the
+          // small-sample "look at Fisher's Exact Test" note are written onto it.
+          if (stats.includes('KAPPA') && !stats.includes('CHISQ')) stats.push('CHISQ')
           const cells = mapKeys(onKeys(flags, 'cells'), {
             count: 'COUNT',
             row: 'ROW',
@@ -3575,16 +3746,18 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
           return next
         })
       }
+      // SPSS's navigation tree is 190px in the Viewer; the sidebar is narrow, so
+      // 150 is the floor and the drag handle still goes up to 460.
       const [outlineWidth, setOutlineWidth] = useState(() => {
         const stored = Number(localStorage.getItem('ap.outlineWidth'))
-        return Number.isFinite(stored) && stored >= 120 && stored <= 460 ? stored : 210
+        return Number.isFinite(stored) && stored >= 150 && stored <= 460 ? stored : 190
       })
       const startOutlineResize = (event) => {
         event.preventDefault()
         const startX = event.clientX
         const startWidth = outlineWidth
         const onMove = (moveEvent) => {
-          const next = Math.max(120, Math.min(460, startWidth + (moveEvent.clientX - startX)))
+          const next = Math.max(150, Math.min(460, startWidth + (moveEvent.clientX - startX)))
           setOutlineWidth(next)
           try { localStorage.setItem('ap.outlineWidth', String(next)) } catch { /* quota */ }
         }
@@ -3607,6 +3780,19 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
         const target = docRef.current.querySelector(`[data-item-id="${active}"]`)
         target?.scrollIntoView({ block: 'start' })
       }, [active])
+      // SPSS right-aligns numeric columns. PSPP's table HTML arrives as bare
+      // <td> text with no column type, so the only signal is the cell itself:
+      // after every render, tag the all-number cells. Doing it on the DOM (not
+      // in matrixHtml) keeps the exported HTML byte-identical.
+      useEffect(() => {
+        const root = docRef.current
+        if (!root) return
+        for (const cell of root.querySelectorAll('td')) {
+          if (cell.classList.contains('ap-footnote')) continue
+          const text = (cell.textContent ?? '').trim()
+          if (text && isNumericCell(text)) cell.classList.add('ap-num')
+        }
+      })
       if (!items.length) {
         return h('div', { className: 'ap-empty' }, '尚无输出。运行语法或通过「分析」菜单执行一个过程。')
       }
@@ -3626,7 +3812,9 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
             const summary = item.kind === 'table' ? summarizeTable(item.table) : ''
             return h('button', {
               key: item.id,
-              className: `${item.kind === 'image' ? 'ap-ol-image' : item.kind === 'table' ? 'ap-ol-table' : 'ap-ol-heading'}${summary ? ' ap-ol-summary' : ''}`,
+              // SPSS's Viewer highlights the tree item whose content is on the
+              // right; ap-ol-active is that highlight (see --ap-select).
+              className: `${item.kind === 'image' ? 'ap-ol-image' : item.kind === 'table' ? 'ap-ol-table' : 'ap-ol-heading'}${summary ? ' ap-ol-summary' : ''}${active === item.id ? ' ap-ol-active' : ''}`,
               title: summary ? `${item.title ?? ''}\n${summary}` : item.title,
               style: collapsed[item.id] ? { opacity: 0.55 } : null,
               onClick: () => setActive(item.id),
@@ -5270,6 +5458,16 @@ let ITEM_CSV_PENDING = null
         Promise.resolve(action?.()).catch((error) => notify(error.message))
       }
 
+      // SPSS right-aligns the accelerator in grey at the far edge of the item.
+      // Menu labels carry it inline ("撤销（Ctrl+Z）"), so split that tail off
+      // and render it as its own span — the button's textContent is unchanged.
+      const KEYS_RE = /^(.*?)（((?:Ctrl|Alt|Shift|F\d)[^）]*)）$/
+      const menuLabel = (label) => {
+        const match = KEYS_RE.exec(String(label ?? ''))
+        return match
+          ? [h('span', { key: 'text' }, match[1]), h('span', { key: 'keys', className: 'ap-keys' }, match[2])]
+          : [h('span', { key: 'text' }, label)]
+      }
       const renderMenuItems = (list) => list.map((item, index) => item.sep
         ? h('div', { key: `sep-${index}`, className: 'ap-sep' })
         : h('div', {
@@ -5280,16 +5478,19 @@ let ITEM_CSV_PENDING = null
         h('button', {
           disabled: item.disabled === true,
           onClick: () => { if (!item.sub) runAction(item.action) },
-        }, h('span', null, item.label), item.sub ? h('span', { className: 'ap-sub' }, '▸') : null),
+        }, ...menuLabel(item.label), item.sub ? h('span', { className: 'ap-sub' }, '▸') : null),
         item.sub ? h('div', { className: 'ap-sub-pop' }, renderMenuItems(item.sub)) : null))
 
-      // SPSS puts the open file and its shape in the status bar and keeps the
-      // engine chatter out of the way; the engine path lives in the tooltip.
-      const status = st
+      // SPSS puts the open dataset's shape at the left of the status bar and
+      // the engine/status chatter at the right. Keeping the two strings apart
+      // is what lets the bar pin them to opposite edges.
+      const caseText = st
         ? (st.dataset
-          ? `${st.dataset.caseCount} 个个案 · ${st.dataset.variables.length} 个变量${st.dataset.dirty ? ' · 未保存' : ''}  |  ${describeSource(st.dataset)}`
+          ? `${st.dataset.caseCount} 个个案 · ${st.dataset.variables.length} 个变量${st.dataset.dirty ? ' · 未保存' : ''}`
           : '未打开数据集')
         : '正在连接分析引擎…'
+      const sourceText = st?.dataset ? describeSource(st.dataset) : ''
+      const status = sourceText ? `${caseText}  |  ${sourceText}` : caseText
       const engineHint = st
         ? `引擎：${st.engine.source === 'bundled' ? '内置' : st.engine.source === 'system' ? '系统' : '缺失'}（${st.engine.bin ?? '—'}）`
         : ''
@@ -5444,13 +5645,13 @@ let ITEM_CSV_PENDING = null
             disabled: !variables.length,
             title: '数据视图里显示值标签还是原始数值',
           }, showLabels ? '显示：标签' : '显示：数值'),
-          h('span', { style: { width: 1, height: 18, background: '#b7bcc5', margin: '0 4px' } }),
+          h('span', { className: 'ap-tool-sep' }),
           h('button', { className: 'ap-tool', onClick: () => command('frequencies'), disabled: !variables.length }, '频率'),
           h('button', { className: 'ap-tool', onClick: () => command('descriptives'), disabled: !variables.length }, '描述'),
           h('button', { className: 'ap-tool', onClick: () => command('crosstabs'), disabled: !variables.length }, '交叉表'),
           h('button', { className: 'ap-tool', onClick: () => command('correlation'), disabled: !variables.length }, '相关'),
           h('button', { className: 'ap-tool', onClick: () => command('regression'), disabled: !variables.length }, '回归'),
-          h('span', { style: { width: 1, height: 18, background: '#b7bcc5', margin: '0 4px' } }),
+          h('span', { className: 'ap-tool-sep' }),
           h('button', { className: 'ap-tool', onClick: () => run(syntax, false, '语法') }, '运行语法'),
           h('button', { className: 'ap-tool', onClick: () => command('clear') }, '清除输出'),
           busy ? h('span', { className: 'ap-hint' }, '处理中…') : null),
@@ -5471,12 +5672,6 @@ let ITEM_CSV_PENDING = null
               onClick: () => closeDoc(doc.id, doc.dirty === true),
             }, '×'))))
           : null,
-        h('div', { className: 'ap-tabstrip' },
-          ['data', 'variables', 'syntax', 'output'].map((key) => h('button', {
-            key,
-            className: `ap-view-tab ${view === key ? 'ap-active' : ''}`,
-            onClick: () => setView(key),
-          }, { data: '数据视图', variables: '变量视图', syntax: '语法', output: '输出' }[key]))),
         h('div', { className: 'ap-body' },
           view === 'data'
             ? (!st?.dataset
@@ -5639,7 +5834,17 @@ let ITEM_CSV_PENDING = null
                     setSt(value.state)
                   },
                 })),
+        // SPSS 的 Data Editor 与 Viewer 都把视图页签放在内容区下方，
+        // 状态栏再压在页签下面：内容区 → 页签条 → 状态栏。
+        h('div', { className: 'ap-tabstrip' },
+          ['data', 'variables', 'syntax', 'output'].map((key) => h('button', {
+            key,
+            className: `ap-view-tab ${view === key ? 'ap-active' : ''}`,
+            onClick: () => setView(key),
+          }, { data: '数据视图', variables: '变量视图', syntax: '语法', output: '输出' }[key]))),
+        // 状态栏 22px：左边是数据的形状（个案/变量），右边是来源、引擎与告警。
         h('div', { className: 'ap-status' },
+          h('span', { className: 'ap-status-cases', title: status }, caseText),
           sessionChips.length > 0
             ? h('span', { style: { display: 'flex', gap: 6, alignItems: 'center' } },
               ...sessionChips.map((chip) => h('span', { className: 'ap-chip', title: chip.title },
@@ -5648,28 +5853,32 @@ let ITEM_CSV_PENDING = null
                   ? h('span', { className: 'ap-chip-x', title: '取消这个设置', onClick: chip.onClear }, '×')
                   : null)))
             : null,
-          h('span', { className: 'ap-grow', title: engineHint }, status),
           outputQuery
             ? h('span', { className: 'ap-hint' }, `输出筛选「${outputQuery}」：${items.length}/${allItems.length}`,
               h('button', { className: 'ap-tool', style: { marginLeft: 6 }, onClick: () => setOutputQuery('') }, '清除'))
             : null,
-          h('span', { title: st?.lastError?.raw ?? '' },
-            st?.lastError
-              ? `最近错误：${st.lastError.message}${st.lastError.hint ? ` — ${st.lastError.hint}` : ''}`
-              : '就绪'),
-          // A toast is gone in four seconds; the list of renamed columns is
-          // what the user goes looking for later, when a column is not where
-          // the spreadsheet said it was.
-          (st?.importNotes ?? []).length > 0
-            ? h('button', {
-              className: 'ap-tool',
-              title: '导入时哪些列名被改过、原名保存在哪里',
-              onClick: () => setDialog({ kind: 'importNotes', notes: st.importNotes }),
-            }, `导入说明 ${st.importNotes.length}`)
-            : null,
-          st?.version
-            ? h('span', { className: 'ap-status-version', title: `插件版本 ${st.version}（改后端代码后停用再启用本插件即可生效，但要重新打开数据文件）` }, `v${st.version}`)
-            : null),
+          h('span', { className: 'ap-grow' }),
+          h('span', { className: 'ap-status-right' },
+            engineHint
+              ? h('span', { title: engineHint }, st?.engine?.source === 'bundled' ? '引擎：内置' : (st?.engine?.source === 'system' ? '引擎：系统' : '引擎：缺失'))
+              : null,
+            h('span', { title: st?.lastError?.raw ?? '' },
+              st?.lastError
+                ? `最近错误：${st.lastError.message}${st.lastError.hint ? ` — ${st.lastError.hint}` : ''}`
+                : '就绪'),
+            // A toast is gone in four seconds; the list of renamed columns is
+            // what the user goes looking for later, when a column is not where
+            // the spreadsheet said it was.
+            (st?.importNotes ?? []).length > 0
+              ? h('button', {
+                className: 'ap-tool',
+                title: '导入时哪些列名被改过、原名保存在哪里',
+                onClick: () => setDialog({ kind: 'importNotes', notes: st.importNotes }),
+              }, `导入说明 ${st.importNotes.length}`)
+              : null,
+            st?.version
+              ? h('span', { className: 'ap-status-version', title: `插件版本 ${st.version}（改后端代码后停用再启用本插件即可生效，但要重新打开数据文件）` }, `v${st.version}`)
+              : null)),
         toast ? h('div', { className: 'ap-toast' }, toast) : null,
         dialog?.kind === 'importNotes'
           ? h(Modal, {
@@ -5692,6 +5901,18 @@ let ITEM_CSV_PENDING = null
             variables,
             rows,
             onClose: () => setDialog(null),
+            // 粘贴 keeps the dialog's work without spending a run: the syntax
+            // lands in the editor, the dialog closes, nothing executes.
+            onPaste: (syntax) => {
+              // SPSS appends: 粘贴 in three dialogs in a row builds one program.
+              // Replacing would silently throw away what the user already wrote.
+              setSyntax((current) => {
+                const text = String(current ?? '').replace(/\s+$/, '')
+                return text ? `${text}\n${syntax}` : syntax
+              })
+              setView('syntax')
+              setDialog(null)
+            },
             onRun: async (built, spec) => {
               if (built?.error) { notify(built.error); return }
               if (built.chart) {
@@ -6465,6 +6686,158 @@ let ITEM_CSV_PENDING = null
       return h(AnalysisDialog, { spec: withTarget, variables, rows, onClose, onRun: (built) => onChart(built.chart) })
     }
 
+    /**
+     * Settings live in ~/.dsh/analytics/settings.json, not in the profile patch,
+     * so the knobs a user actually turns while working do not need a YAML edit
+     * and a plugin restart. `registerTools` is the one switch shown but not
+     * editable here: it decides whether 23 tools mount in every session, which
+     * is a deployment decision.
+     */
+    const SETTINGS_FIELDS = [
+      {
+        key: 'maxRows',
+        label: '数据视图最多载入个案数',
+        kind: 'number',
+        min: 1000,
+        max: 5000000,
+        step: 1000,
+        hint: '超过这个数量只载入前 N 个个案（分析仍可用语法在完整数据上跑）。新建或重新打开的会话生效。',
+      },
+      {
+        key: 'timeoutMs',
+        label: '单次运行超时（秒）',
+        kind: 'seconds',
+        hint: '引擎跑得比这个久就中止。下一次运行生效。',
+      },
+      {
+        key: 'safer',
+        label: '用 --safer 运行（禁用写入文件与外部命令）',
+        kind: 'boolean',
+        hint: '处理来路不明的数据时打开。下一次运行生效。',
+      },
+      {
+        key: 'tableStyle',
+        label: '输出表格样式',
+        kind: 'select',
+        options: [['three-line', '三线表（SPSS 默认）'], ['grid', '网格（带竖线）']],
+        hint: '立即生效，也影响导出的 HTML。',
+      },
+    ]
+
+    function SettingsTab() {
+      const [data, setData] = useState(null)
+      const [form, setForm] = useState(null)
+      const [status, setStatus] = useState('')
+      const [error, setError] = useState('')
+      const [busy, setBusy] = useState(false)
+
+      const load = useCallback(async () => {
+        try {
+          const payload = await api('api/settings')
+          setData(payload)
+          setForm({
+            maxRows: payload.settings.maxRows,
+            timeoutMs: Math.round(payload.settings.timeoutMs / 1000),
+            safer: payload.settings.safer === true,
+            tableStyle: payload.settings.tableStyle,
+          })
+          setError('')
+        } catch (failure) {
+          setError(failure.message)
+        }
+      }, [])
+
+      useEffect(() => { load() }, [load])
+
+      const save = useCallback(async () => {
+        if (!form) return
+        setBusy(true)
+        setError('')
+        setStatus('')
+        try {
+          const payload = await api('api/settings', {
+            patch: {
+              maxRows: Number(form.maxRows),
+              timeoutMs: Number(form.timeoutMs) * 1000,
+              safer: form.safer === true,
+              tableStyle: form.tableStyle,
+            },
+          })
+          setData(payload)
+          setStatus('已保存。表格样式立即生效，其余在新建或重新打开的会话里生效。')
+        } catch (failure) {
+          setError(failure.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [form])
+
+      if (error && !data) return h('div', { className: 'ap-root ap-settings' }, h('p', { className: 'ap-error' }, `设置读不出来：${error}`))
+
+      if (!data || !form) return h('div', { className: 'ap-root ap-settings' }, h('p', { className: 'ap-hint' }, '正在读取设置…'))
+
+      const set = (key, value) => setForm((current) => ({ ...current, [key]: value }))
+
+      return h('div', { className: 'ap-root ap-settings' }, [
+        h('h3', { key: 'title', className: 'ap-settings-title' }, '统计分析'),
+        h('p', { key: 'where', className: 'ap-hint' },
+          `设置文件：${data.path}${data.exists ? '' : '（还没创建，保存后生成）'}`),
+        data.problems?.length > 0
+          ? h('div', { key: 'problems', className: 'ap-settings-problems' }, [
+            h('strong', { key: 'h' }, '下面这些值没被采用：'),
+            h('ul', { key: 'ul' }, data.problems.map((text, index) => h('li', { key: index }, text))),
+          ])
+          : null,
+        ...SETTINGS_FIELDS.map((field) => {
+          const labelId = `ap-set-${field.key}`
+          let control
+          if (field.kind === 'boolean') {
+            control = h('input', {
+              key: 'c',
+              id: labelId,
+              type: 'checkbox',
+              checked: form[field.key] === true,
+              onChange: (event) => set(field.key, event.target.checked),
+            })
+          } else if (field.kind === 'select') {
+            control = h('select', {
+              key: 'c',
+              id: labelId,
+              value: form[field.key],
+              onChange: (event) => set(field.key, event.target.value),
+            }, field.options.map(([value, text]) => h('option', { key: value, value }, text)))
+          } else {
+            control = h('input', {
+              key: 'c',
+              id: labelId,
+              type: 'number',
+              value: form[field.key],
+              min: field.kind === 'seconds' ? 5 : field.min,
+              max: field.kind === 'seconds' ? 1800 : field.max,
+              step: field.kind === 'seconds' ? 5 : field.step,
+              onChange: (event) => set(field.key, event.target.value),
+            })
+          }
+          return h('div', { key: field.key, className: 'ap-settings-row' }, [
+            h('label', { key: 'l', htmlFor: labelId }, field.label),
+            control,
+            h('p', { key: 'hint', className: 'ap-hint' }, field.hint),
+          ])
+        }),
+        h('div', { key: 'deploy', className: 'ap-settings-deploy' }, [
+          h('strong', { key: 'h' }, `工具挂载（registerTools）：${data.deploymentOnly.registerTools.value ? '开' : '关'}`),
+          h('p', { key: 'p', className: 'ap-hint' }, data.deploymentOnly.registerTools.note),
+        ]),
+        h('div', { key: 'actions', className: 'ap-settings-actions' }, [
+          h('button', { key: 'save', type: 'button', className: 'ap-btn ap-primary', disabled: busy, onClick: save },
+            busy ? '保存中…' : '保存'),
+          h('button', { key: 'reload', type: 'button', className: 'ap-btn', disabled: busy, onClick: load }, '重新读取'),
+        ]),
+        status ? h('p', { key: 'status', className: 'ap-hint ap-settings-ok' }, status) : null,
+        error ? h('p', { key: 'err', className: 'ap-error' }, error) : null,
+      ].filter(Boolean))
+    }
+
     // Data files that only a statistics tool can make sense of. Clicking one in
     // the Files panel opens this workbench on it instead of the text viewer,
     // and every file gets its own workspace (`file-<hash>`), so two open
@@ -6482,8 +6855,18 @@ let ITEM_CSV_PENDING = null
     }
 
     return {
-      inject: ['betterSidebar'],
+      // `slots` is the settings shell: without it the panel is reachable but the
+      // plugin has no page under 设置 → 插件, so every knob would stay a YAML edit.
+      inject: ['betterSidebar', 'slots'],
       apply(ctx) {
+        if (ctx.slots) {
+          ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
+            name: 'settings.plugins.tab',
+            id: 'analytics',
+            order: 80,
+            label: '统计分析',
+          }, () => h(SettingsTab)))
+        }
         if (!ctx.betterSidebar) return
         ctx.effect(() => ctx.betterSidebar.registerFileViewer({
           id: 'analytics:data',
