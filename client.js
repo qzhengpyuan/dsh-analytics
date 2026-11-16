@@ -462,6 +462,17 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-row { display:flex; gap:8px; align-items:center; }
 /* 11px 是正文下限：说明文字/状态栏之外不再出现更小的字 */
 .ap-hint { color:var(--ap-text-2); font-size:11px; }
+.ap-settings { max-width: 640px; display: flex; flex-direction: column; gap: 10px; }
+.ap-settings-title { margin: 0; font-size: 13px; font-weight: 600; }
+.ap-settings-row { display: flex; flex-direction: column; gap: 4px; }
+.ap-settings-row label { font-size: 12px; }
+.ap-settings-row input[type=number], .ap-settings-row select { width: 220px; }
+.ap-settings-lines { width: 100%; box-sizing: border-box; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; padding: 4px 6px; resize: vertical; }
+.ap-settings-actions { display: flex; gap: 8px; }
+.ap-settings-problems { border: 1px solid #e0b4b4; background: #fdf3f3; padding: 6px 8px; font-size: 12px; }
+.ap-settings-problems ul { margin: 4px 0 0 18px; padding: 0; }
+.ap-settings-ok { color: #2e7d32; }
+.ap-settings-deploy { border-top: 1px solid var(--ap-line); padding-top: 8px; font-size: 12px; }
 .ap-dir { height:220px; overflow:auto; border:1px solid var(--ap-line-3); background:var(--ap-panel); }
 .ap-dir button { display:block; width:100%; text-align:left; border:0; background:none; font:inherit; padding:2px 8px; }
 .ap-dir button:hover { background:var(--ap-hover); }
@@ -6730,7 +6741,7 @@ let ITEM_CSV_PENDING = null
         min: 1000,
         max: 5000000,
         step: 1000,
-        hint: '超过这个数量只载入前 N 个个案（分析仍可用语法在完整数据上跑）。新建或重新打开的会话生效。',
+        hint: '超过这个数量只载入前 N 个个案（分析仍可用语法在完整数据上跑）。重新打开数据时生效。',
       },
       {
         key: 'timeoutMs',
@@ -6751,6 +6762,13 @@ let ITEM_CSV_PENDING = null
         options: [['three-line', '三线表（SPSS 默认）'], ['grid', '网格（带竖线）']],
         hint: '立即生效：面板与「导出输出为 HTML」都跟它走。Word/Excel 导出固定按三线表排版。',
       },
+      {
+        key: 'allowedDirs',
+        label: '允许读写哪些目录（每行一个）',
+        kind: 'lines',
+        placeholder: '例如 /mnt/F/数据\n例如 D:\\实验室',
+        hint: '插件的打开、保存、导出、合并、转换只在这些目录里工作。默认允许：主目录、当前工作目录、临时目录、/mnt、/tmp。~/.dsh、~/.ssh、~/.gnupg 永远不允许（里面有登录凭据）。要读写别处，把它的上级目录加到这里。',
+      },
     ]
 
     function SettingsTab() {
@@ -6769,6 +6787,7 @@ let ITEM_CSV_PENDING = null
             timeoutMs: Math.round(payload.settings.timeoutMs / 1000),
             safer: payload.settings.safer === true,
             tableStyle: payload.settings.tableStyle,
+            allowedDirs: (payload.settings.allowedDirs ?? []).join('\n'),
           })
           setError('')
         } catch (failure) {
@@ -6790,10 +6809,11 @@ let ITEM_CSV_PENDING = null
               timeoutMs: Number(form.timeoutMs) * 1000,
               safer: form.safer === true,
               tableStyle: form.tableStyle,
+              allowedDirs: String(form.allowedDirs ?? '').split('\n').map((line) => line.trim()).filter(Boolean),
             },
           })
           setData(payload)
-          setStatus('已保存。表格样式立即生效，其余在新建或重新打开的会话里生效。')
+          setStatus('已保存。表格样式、允许的目录立即生效；载入上限与超时在下一次使用生效。')
         } catch (failure) {
           setError(failure.message)
         } finally {
@@ -6827,6 +6847,17 @@ let ITEM_CSV_PENDING = null
               type: 'checkbox',
               checked: form[field.key] === true,
               onChange: (event) => set(field.key, event.target.checked),
+            })
+          } else if (field.kind === 'lines') {
+            control = h('textarea', {
+              key: 'c',
+              id: labelId,
+              className: 'ap-settings-lines',
+              rows: 4,
+              spellCheck: false,
+              placeholder: field.placeholder ?? '',
+              value: form[field.key] ?? '',
+              onChange: (event) => set(field.key, event.target.value),
             })
           } else if (field.kind === 'select') {
             control = h('select', {

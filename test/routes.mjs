@@ -1,6 +1,6 @@
 // Exercises the HTTP handler without the host's browser-auth fence.
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { WorkspaceRegistry } from '../lib/workspace.js'
 import { resolveEngine } from '../lib/engine.js'
@@ -546,6 +546,25 @@ r = await call('POST', `${base}/api/readFile`, { sessionId: sid, path: join(home
 console.log('readFile refuses a binary extension', r.code, r.code === 400)
 r = await call('POST', `${base}/api/readFile`, { sessionId: sid, path: home })
 console.log('readFile refuses a directory', r.code, r.code === 400 && /普通文件/.test(String(r.json().error)))
+
+// Path whitelist (lib/paths.js): the panel is reachable over HTTP, so "the user
+// typed this path" is not a boundary. Every reader and writer must answer the
+// same way, and the credential directory must be refused even though home is an
+// allowed root.
+r = await call('POST', `${base}/api/readFile`, { sessionId: sid, path: join(homedir(), '.ssh', 'id_rsa') })
+console.log('readFile refuses the credential directory', r.code, r.code === 400 && /不读写这个目录/.test(String(r.json().error)))
+r = await call('POST', `${base}/api/readFile`, { sessionId: sid, path: join(homedir(), '.dsh', '.credentials.yaml') })
+console.log('readFile refuses the dsh credential store', r.code, r.code === 400 && /不读写这个目录/.test(String(r.json().error)))
+r = await call('POST', `${base}/api/readFile`, { sessionId: sid, path: '/etc/passwd' })
+console.log('readFile refuses a path outside the roots', r.code, r.code === 400 && /允许的目录/.test(String(r.json().error)))
+r = await call('POST', `${base}/api/writeText`, { sessionId: sid, path: join(homedir(), '.dsh', 'x.csv'), text: 'a' })
+console.log('writeText refuses the dsh directory', r.code, r.code === 400 && /不读写这个目录/.test(String(r.json().error)))
+r = await call('GET', `${base}/api/dir?sessionId=${sid}&path=${encodeURIComponent('/etc')}`)
+console.log('api/dir refuses a directory outside the roots', r.code, r.code === 400 && /允许的目录/.test(String(r.json().error)))
+r = await call('GET', `${base}/api/dir?sessionId=${sid}&path=${encodeURIComponent(join(homedir(), '.ssh'))}`)
+console.log('api/dir refuses the credential directory', r.code, r.code === 400 && /不读写这个目录/.test(String(r.json().error)))
+r = await call('GET', `${base}/api/dir?sessionId=${sid}&path=${encodeURIComponent(home)}`)
+console.log('api/dir still lists an allowed directory', r.code, r.code === 200)
 
 // Settings: a file the panel can read and write, with `registerTools` marked as
 // the one knob that stays in the profile patch.

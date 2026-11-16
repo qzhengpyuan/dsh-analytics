@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { SETTINGS_DEFAULTS, SettingsStore, mergeSettings, readSettings, settingsPath, writeSettings } from '../lib/settings.js'
+import { Workspace } from '../lib/workspace.js'
 
 let checks = 0
 let failed = 0
@@ -99,6 +100,23 @@ await check('update() writes through and describe() names registerTools as deplo
   assert.match(described.deploymentOnly.registerTools.note, /cordis\.patch\.yml/)
   assert.ok(Array.isArray(described.problems))
   assert.equal(described.exists, true)
+})
+
+await check('an open workspace follows a settings change instead of keeping the old value', () => {
+  const store = new SettingsStore(join(root, 'live'), {})
+  const workspace = new Workspace({
+    id: 'live',
+    engine: { source: 'bundled' },
+    root: join(root, 'live'),
+    config: { tableStyle: 'three-line', maxRows: 200000 },
+    settingsStore: store,
+  })
+  assert.equal(workspace.state().tableStyle, 'three-line')
+  assert.equal(workspace.maxRows, 200000)
+  store.update({ tableStyle: 'grid', maxRows: 5000 })
+  assert.equal(workspace.state().tableStyle, 'grid', 'the promise is 立即生效, not 重开会话生效')
+  assert.equal(workspace.maxRows, 5000)
+  assert.equal(workspace.state().maxRows, 5000)
 })
 
 await check('writing leaves no .tmp file behind', () => {

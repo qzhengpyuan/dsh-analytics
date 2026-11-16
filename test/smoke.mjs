@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 
 import { resolveEngine } from '../lib/engine.js'
@@ -312,6 +312,31 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   const csv = await fresh.exportCsv(join(root, 'nodir', 'csv', 'b.csv'))
   if (!(await stat(csv.path)).size) throw new Error('exportCsv must create its parent folder')
   console.log('save and export create the folders they need')
+}
+
+// Every read and write goes through resolvePath(), so one guarded test proves
+// the whole class: a destination the user never named is refused, and the
+// credential directory stays refused even though it sits inside the home
+// directory that is allowed by default.
+{
+  const guarded = new Workspace({ id: 'guard', engine, root, config: { timeoutMs: 60000 } })
+  await guarded.init()
+  await guarded.createDataset({ variables: [{ name: 'x', type: 'numeric' }], rows: [[1]] })
+  const rejected = ['/etc/should-not-be-written.sav', join(homedir(), '.ssh', 'x.sav')]
+  for (const target of rejected) {
+    let refused = null
+    try {
+      await guarded.save(target)
+    } catch (error) {
+      refused = error.message
+    }
+    if (!refused) throw new Error(`save must refuse ${target}`)
+    if (!/允许的目录|不读写这个目录/.test(refused)) throw new Error(`the refusal must explain itself: ${refused}`)
+  }
+  const allowedTarget = join(root, 'guarded.sav')
+  const written = await guarded.save(allowedTarget)
+  if (!(await stat(written.path)).size) throw new Error('a path inside the allowed roots still saves')
+  console.log('paths outside the whitelist are refused, inside it still work')
 }
 
 await rm(root, { recursive: true, force: true })

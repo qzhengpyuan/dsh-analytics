@@ -1,6 +1,6 @@
 # dsh-analytics 功能说明
 
-> 版本 0.27.3 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 版本 0.28.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
 > 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
 > **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 23 个 agent 工具，让模型能在对话里直接分析、转换、画图。这些工具不再是「装了插件就有」，而是挂在插件自带的「数据分析」Agent 预设里（见 §9）。
 
@@ -68,10 +68,20 @@
 
 | 项 | 默认 | 生效时机 |
 | --- | --- | --- |
-| 数据视图最多载入个案数 `maxRows` | 200000（可设 1000–5000000） | 新建或重新打开的会话（工作区创建时读一次设置） |
+| 数据视图最多载入个案数 `maxRows` | 200000（可设 1000–5000000） | 重新打开数据时 |
 | 单次运行超时 `timeoutMs` | 120 秒（5–1800） | 下一次运行 |
 | 用 `--safer` 运行 `safer` | 关 | 下一次运行 |
-| 输出表格样式 `tableStyle` | `three-line`（三线表）／`grid`（带竖线） | 立即，随 `api/state` 下发到面板，并写进导出的 HTML；`视图 → 表格样式` 可在本浏览器内覆盖。Word/Excel 导出固定三线表 |
+| 输出表格样式 `tableStyle` | `three-line`（三线表）／`grid`（带竖线） | **立即**（包括已开着的工作区）：`api/state` 每次带上当前值；`视图 → 表格样式` 可在本浏览器内覆盖。Word/Excel 导出固定三线表 |
+| 允许读写哪些目录 `allowedDirs` | 空（只用默认根） | **立即**：默认允许主目录、会话工作目录、系统临时目录、`/mnt`、`/tmp`（Windows 补 `C:\Temp`）；要读写别处就把上级目录写进来 |
+
+### 2.1.1 文件路径白名单（0.28.0）
+
+插件能碰的文件从此有边界（`lib/paths.js`）。这不是防误操作，是堵一条不需要用户犯错的路：面板是 HTTP 服务，任何能向它发请求的东西都能让它读写文件，而 `~/.dsh/.credentials.yaml` 里放着浏览器 cookie 的签名密钥与 GitHub token。
+
+- **所有**读写都过 `Workspace.resolvePath()`：打开、保存、另存为、导出 CSV/Office/图表/文档/语法、合并、格式转换、工作表列表，以及工具侧的 `pspp_save`、`pspp_export*`。路由里三个直接吃路径的入口（`api/dir`、`api/readFile`、`api/saveSyntax`）也接同一个检查。
+- 解析顺序：先展开 `~`、按会话目录解析相对路径，再对**存在的部分**做 `realpath`（写到尚不存在的文件时，取最近的已存在祖先），所以指向 `~/.ssh` 的符号链接同样被拦。
+- **硬拒**：`~/.dsh`、`~/.ssh`、`~/.gnupg` 及子路径，即使它们落在允许的根里；也不允许把这三个目录加进 `allowedDirs`。
+- 越界的错误是可操作的中文句子：`<路径> 不在允许的目录里：<绝对路径> / 现在允许：… / 要放开就把它的上级目录加到「设置 → 统计分析 → 允许的目录」，比如 <上级目录>`。
 
 - `registerTools` **只展示不可改**：它决定 23 个 `pspp_*` 工具是否进每个会话，属部署决定，仍在 `cordis.patch.yml`。设置页把那一条连值一起列出来，并在旁边写明「改它要改 patch 并停→启插件」——省得有人在这一页里找不到它。
 - 手改坏一个字段（比如 `maxRows: "abc"`）不会让设置页打不开：那一项回默认，页面顶部列出「下面这些值没被采用」并给出原因（`settings.json` 整个坏掉也一样）。
@@ -616,7 +626,7 @@ npm run bundle-engine   # 从系统 PSPP 重新打包 engine/<本机平台>/
 node scripts/bundle-engine.mjs --from-prefix out --platform linux-x64   # 从容器里编好的 prefix 导入
 ```
 
-- 测试：`npm test` 依次跑 20 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/poll、设置存储、预设挂载），全绿时共 302 条 ok 断言 —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」。
+- 测试：`npm test` 依次跑 21 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/poll、设置存储、路径白名单、预设挂载），全绿时共 310 条 ok 断言 —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」。
 - smoke：真实引擎跑一遍打开 → 分析 → 保存。
 - routes：43 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收、`api/heartbeat`、新增的 `api/settings`）。
 

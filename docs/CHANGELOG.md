@@ -1,3 +1,15 @@
+## 0.28.0
+
+给「插件能碰哪些文件」立一条边界。这一版没有新功能，修的是**不需要用户犯错也会出事**的那一类。
+
+- 病根：面板是 3080 端口上的网页，`open` / `save` / `export*` / `merge` / `convert` / `readFile` / `saveSyntax` 都接受任意绝对路径。Win10 侧复验员自己签了一个 cookie 就拿到了 `/analytics/api/*` 的全部权限 —— 也就是说「路径是用户输入的」不能当安全边界：一次笔误，或者数据集里某段文字把模型引到一个路径上，就能读走 `~/.dsh/.credentials.yaml`（浏览器 cookie 的签名密钥和 GitHub token 都在里面），或者覆盖任意文件。
+- 新增 `lib/paths.js`：白名单 + 硬拒两类目录。默认允许主目录、会话工作目录、系统临时目录，以及 Linux 上的 `/mnt` 与 `/tmp`（Windows 上补 `C:\Temp`）；`~/.dsh`、`~/.ssh`、`~/.gnupg` **即使落在允许的根里也一律拒绝**，并且允许目录加不进这些路径。
+- 所有读写都走 `Workspace.resolvePath()` 这一处闸门（`open`/`save`/`exportCsv`/`exportOffice`/`exportChart`/`exportDocument`/`exportScript`/`writeText`/`mergeFile`/`convert`/`listSheets`，以及工具侧的 `pspp_save` 等）；路由里的 `api/dir`、`api/readFile`、`api/saveSyntax` 三个直接吃路径的入口也接上同一个检查，`api/dir` 的目录清单不再能走到白名单之外。
+- 越界不是静默失败，也不写英文栈：`<路径> 不在允许的目录里：<绝对路径> / 现在允许：… / 要放开就把它的上级目录加到「设置 → 统计分析 → 允许的目录」，比如 <上级目录>`。命中凭据目录另有一句说明。
+- 设置页新增「允许读写哪些目录（每行一个）」（`lib/settings.js` 的 `allowedDirs`，默认空数组）：要读写别处就把上级目录写进去，`~` 会展开，相对路径与非绝对路径会被拒绝，重复项自动合并。
+- 顺带修掉 Win10 判为 FAIL 的「立即生效」：`WorkspaceRegistry.configFor()` 只在创建工作区时读设置，老会话不跟随。现在 `Workspace` 持有 `settingsStore`，`liveConfig()` 每次按需重读（`SettingsStore` 自带 1 秒缓存），`state()` 的 `tableStyle`/`maxRows`、`timeoutMs`/`maxRows` getter 都走它 —— 表格样式与允许目录立即生效，载入上限与超时在下一次使用生效。
+- 测试 302 → 310 条：新增 `test/paths.mjs`（10 条：`~` 展开、默认根、相对路径按会话目录解析、越界拒绝的措辞、三个凭据目录、符号链接指向 `~/.ssh` 也被拦、`allowedDirs` 的展开与去重、不允许把凭据目录加进白名单、空路径）；`test/routes.mjs` 补 7 条（`readFile` 拒凭据目录/拒 `/etc/passwd`、`writeText` 拒 `~/.dsh`、`api/dir` 越界与凭据目录都 400、允许目录仍 200）；`test/smoke.mjs` 一条真引擎用例（拒 `/etc` 与 `~/.ssh`、允许目录内仍能保存）；`test/settings.mjs` 一条（已开着的工作区跟随设置变化）。
+
 ## 0.27.3
 
 把 0.27.2 只接到面板的那半个修复补完：**导出的 HTML 也跟表格样式走**。

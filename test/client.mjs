@@ -840,8 +840,8 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   const posts = []
   const payload = {
     ok: true,
-    settings: { maxRows: 5000, timeoutMs: 90000, safer: true, tableStyle: 'grid' },
-    defaults: { maxRows: 200000, timeoutMs: 120000, safer: false, tableStyle: 'three-line' },
+    settings: { maxRows: 5000, timeoutMs: 90000, safer: true, tableStyle: 'grid', allowedDirs: ['/mnt/F/data'] },
+    defaults: { maxRows: 200000, timeoutMs: 120000, safer: false, tableStyle: 'three-line', allowedDirs: [] },
     path: '/home/someone/.dsh/analytics/settings.json',
     exists: true,
     problems: ['decimals 必须是整数，收到 "x"'],
@@ -876,7 +876,9 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.ok(save, 'there is a save button')
   await act(async () => { save.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 60)) })
   assert.equal(posts.length, 1, 'saving posts once')
-  assert.deepEqual(posts[0].patch, { maxRows: 5000, timeoutMs: 90000, safer: true, tableStyle: 'grid' }, 'seconds go back as milliseconds')
+  const textarea = root.querySelector('textarea')
+  assert.equal(textarea.value, '/mnt/F/data', 'the allowed directories come back one per line')
+  assert.deepEqual(posts[0].patch, { maxRows: 5000, timeoutMs: 90000, safer: true, tableStyle: 'grid', allowedDirs: ['/mnt/F/data'] }, 'seconds go back as milliseconds and directories go back as a list')
   assert.match(root.textContent, /已保存/, 'the page says the save landed')
   await act(async () => { reactRoot.unmount() })
   console.log('ok  settings page reads the file, reports problems and posts a patch')
