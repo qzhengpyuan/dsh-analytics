@@ -6760,7 +6760,7 @@ let ITEM_CSV_PENDING = null
         label: '输出表格样式',
         kind: 'select',
         options: [['three-line', '三线表（SPSS 默认）'], ['grid', '网格（带竖线）']],
-        hint: '立即生效：面板与「导出输出为 HTML」都跟它走。Word/Excel 导出固定按三线表排版。',
+        hint: '立即生效：面板、导出的 HTML、Word 与 Excel 都跟它走。',
       },
       {
         key: 'allowedDirs',

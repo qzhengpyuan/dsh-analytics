@@ -15,7 +15,7 @@
  */
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 
@@ -24,8 +24,31 @@ const argv = process.argv.slice(2)
 const APPLY = argv.includes('--apply')
 const offlineIndex = argv.indexOf('--offline')
 const offline = offlineIndex >= 0 ? argv[offlineIndex + 1] : null
-const positional = argv.filter((arg, index) => !arg.startsWith('--') && index !== offlineIndex + 1)
-const PROFILE = positional[0] ?? 'web'
+// `--offline <tgz>` takes a value, so that one positional must not be read as
+// the profile name. With no --offline there is nothing to skip (index 0 used to
+// be dropped unconditionally, which silently ignored `install.mjs web`).
+const positional = argv.filter((arg, index) => !arg.startsWith('--') && !(offlineIndex >= 0 && index === offlineIndex + 1))
+/**
+ * Which profile to install into.
+ *
+ * It used to be hard-coded to `web`, which is this machine's name for it and
+ * not everyone's (the Windows desktop app calls its only profile `desktop`, so
+ * the script wrote into a profile that did not exist). An explicit argument
+ * still wins; otherwise a lone profile is used, and only when there is exactly
+ * one — guessing among several is how you install into the wrong place.
+ */
+function pickProfile() {
+  if (positional[0]) return positional[0]
+  const profilesDir = join(homedir(), '.dsh', 'profiles')
+  const found = existsSync(profilesDir)
+    ? readdirSync(profilesDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name)
+    : []
+  if (found.length === 1) return found[0]
+  if (found.length === 0) return 'web'
+  throw new Error(`这个机器上有多个 profile（${found.join('、')}），请指明要装进哪一个：node scripts/install.mjs <profile> --apply`)
+}
+
+const PROFILE = pickProfile()
 
 function token() {
   for (const name of ['GITHUB_TOKEN', 'GH_TOKEN']) {

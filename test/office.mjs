@@ -781,6 +781,34 @@ await check('xlsx carries the sources in docProps', () => {
   assert.ok(files['_rels/.rels'].toString('utf8').includes('docProps/core.xml'))
 })
 
+await check('the picked table style decides the borders in Word and Excel', () => {
+  const matrix = [['变量', 'N'], ['score', '60']]
+  const body = (style) => unzip(buildDocx({ items: [{ kind: 'table', table: { caption: 'T', matrix } }], style }))['word/document.xml'].toString('utf8')
+  const grid = body('grid')
+  assert.match(grid, /<w:insideV w:val="single"/, 'grid draws vertical rules the three-line table never had')
+  assert.match(grid, /<w:left w:val="single" w:sz="4"/, 'every cell in grid mode is boxed')
+  const plain = body('plain')
+  assert.ok(!/<w:top w:val="single"/.test(plain), 'plain has no rules at all')
+  assert.ok(!/<w:insideV w:val="single"/.test(plain))
+  const three = body('three-line')
+  assert.match(three, /<w:top w:val="single" w:sz="12"/, 'three-line keeps the heavy rule above the header')
+  assert.ok(!/<w:insideV w:val="single"/.test(three))
+
+  const sheets = (style) => unzip(buildXlsx({ items: [{ kind: 'table', table: { caption: 'T', matrix } }], style }))
+  const gridBook = sheets('grid')
+  const styles = gridBook['xl/styles.xml'].toString('utf8')
+  assert.match(styles, /<borders count="2">/, 'grid adds a bordered border definition')
+  assert.match(styles, /<cellXfs count="14">/, 'and the seven base styles again, bordered')
+  const shelf = gridBook['xl/worksheets/sheet1.xml'].toString('utf8')
+  // Caption on row 1, header on row 2, first data row on row 3; with the
+  // bordered block appended, header 2 becomes 9 and data 0 becomes 7.
+  assert.match(shelf, /<c r="A2" t="inlineStr" s="9">/, 'the header uses the bordered header style')
+  assert.match(shelf, /<c r="B3" s="7"><v>60<\/v><\/c>/, 'and a number stays numeric in the bordered style')
+  const plainBook = sheets('three-line')
+  assert.match(plainBook['xl/styles.xml'].toString('utf8'), /<borders count="1">/)
+  assert.match(plainBook['xl/worksheets/sheet1.xml'].toString('utf8'), /<c r="A2" t="inlineStr" s="2">/, 'the plain workbook keeps the old indices')
+})
+
 if (failures.length > 0) {
   console.error(`${failures.length} failed, ${checks - failures.length} passed`)
 } else {

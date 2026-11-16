@@ -46,15 +46,16 @@ Release 现在同时挂 `dsh-analytics-<版本>.tgz` 与 `SHA256SUMS`。仓库�
 
 ```bash
 git clone https://github.com/qzhengpyuan/dsh-analytics.git && cd dsh-analytics
-node scripts/install.mjs                 # 干跑：下载、比对 SHA256SUMS、打印下面两步
-node scripts/install.mjs --apply         # 真的装进默认 profile（web）
-node scripts/install.mjs --apply desktop # 指定 profile
+node scripts/install.mjs web                    # 干跑：下载、比对 SHA256SUMS、打印下面两步
+node scripts/install.mjs web --apply            # 真的装进 profile「web」
+node scripts/install.mjs desktop --apply        # 换 profile 就把第一个参数换掉
 node scripts/install.mjs --offline /path/to/dsh-analytics-<版本>.tgz   # 不联网
 ```
 
 要点：
 
 - **token**：仓库是私有的，脚本按 `GITHUB_TOKEN` / `GH_TOKEN` → `~/.dsh/.credentials.yaml` 的 `refs.GITHUB_TOKEN` 顺序找；两处都没有就报「仓库是私有的，需要 GITHUB_TOKEN」而不是 404。
+- **profile 名**：不写就用唯一的那个；机器上有多个 profile 时脚本会报错并列出名字（以前写死 `web`，在只有 `desktop` 的机器上会装进不存在的 profile）。
 - **代理**：Node 的 `fetch` 默认不读代理变量，走代理要 `NODE_USE_ENV_PROXY=1 https_proxy=… node scripts/install.mjs`。
 - **按最新发布取版本号**：脚本读 `releases/latest` 的 tag，不写死版本；`SHA256SUMS` 里有这个资产就比对，没有就打印校验和并提示「未能自动比对」（0.27.0 起的发布都有）。
 - **改 profile 前先备份**：往 `~/.dsh/profiles/<profile>/package.json` 的 `dsh.profile.bundles` 里加 `dsh-analytics` 之前，会先写一份 `package.json.before-dsh-analytics`。

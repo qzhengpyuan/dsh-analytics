@@ -1,3 +1,14 @@
+## 0.28.1
+
+把 0.28.0 只接了一半的样式收尾：**Word 与 Excel 导出也跟 `tableStyle` 走**。
+
+- 以前 `lib/office.js` 的 `tableXml()` 把边框写死成三线表（表头上下一粗一细，其余无框线），设置里选「网格」只影响面板与 HTML。现在 `buildDocx` / `buildXlsx` 都收 `style`，`exportOffice` 从 `liveConfig()` 取当前设置：`grid` 给每格四边加细线、表头下 8 分、表级加 `insideH`/`insideV`；`plain` 一条线都不画；`three-line` 保持原样。
+- Excel 侧没有「表格边框」这种东西，靠 cell style：`stylesXml(style)` 在 `grid` 时把原有七个样式追加一份带 `borderId=1` 的副本（`cellXfs` 从 7 变 14），`sheetXml` 用 `XLSX_BASE_XFS.length` 作偏移，所以表头、数据、百分比/小数/公式样式一起带框线。
+- 设置页提示改成准确说法：「立即生效：面板、导出的 HTML、Word 与 Excel 都跟它走。」
+- 顺手修 `scripts/install.mjs` 两处：profile 不再写死 `web`（不写就用唯一的那个，多个 profile 时列名字报错 —— Windows 桌面版只有一个 `desktop`，以前会装进不存在的 `web`）；`--offline` 没传时不再把第一个位置参数当路径吃掉（`install.mjs web` 之前会把 `web` 丢掉，回落到写死的 `web`，等于参数无效）。
+- 测试 310 → 312：`test/office.mjs` 新增一条，按三种样式各生成一份 docx/xlsx，断言 `grid` 有 `insideV` 规则且每格四边都有线、`plain` 一条没有、`three-line` 只保留表头粗线；xlsx 侧断言 `borders count="2"`、`cellXfs count="14"`、表头样式从 2 变 9 而数字仍是数字。
+- 实测（真引擎 + 真导出）：`DESCRIPTIVES` 后设 `grid` 导出 docx 16 989 B / xlsx 8 434 B，`word/document.xml` 含 `<w:insideV w:val="single"/>`，xlsx 的 `styles.xml` 是 `borders count="2"`、表头 `s="9"`；两份文件 LibreOffice 都能打开并转 PDF。
+
 ## 0.28.0
 
 给「插件能碰哪些文件」立一条边界。这一版没有新功能，修的是**不需要用户犯错也会出事**的那一类。

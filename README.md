@@ -17,8 +17,8 @@ PSPP 作为 DeepSeek Harness 插件自带引擎的统计分析工作台：**不�
 
 ```bash
 git clone https://github.com/qzhengpyuan/dsh-analytics.git && cd dsh-analytics
-node scripts/install.mjs            # 下最新 Release 的 .tgz、按 SHA256SUMS 校验、打印要执行的两步
-node scripts/install.mjs --apply    # 真的装：装进 profile + 把 dsh-analytics 加进 dsh.profile.bundles
+node scripts/install.mjs web            # 下最新 Release 的 .tgz、按 SHA256SUMS 校验、打印要执行的两步
+node scripts/install.mjs web --apply    # 真的装：装进 profile + 把 dsh-analytics 加进 dsh.profile.bundles
 # 之后：设置 → 插件 → dsh-analytics 关一次再开
 ```
 
