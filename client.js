@@ -4613,7 +4613,7 @@ let ITEM_CSV_PENDING = null
       // menu, Up/Down walks its items, Enter runs one, Esc closes. The panel had
       // no keyboard path into the menus at all, which also made it untestable in
       // a browser that cannot click a 12 px target reliably.
-      const MENU_MNEMONICS = { f: '文件', e: '编辑', d: '数据', t: '转换', a: '分析', g: '图形', u: '实用程序', h: '帮助' }
+      const MENU_MNEMONICS = { f: '文件', e: '编辑', v: '视图', d: '数据', t: '转换', a: '分析', g: '图形', u: '实用程序', h: '帮助' }
       // Read the labels off the DOM: the menu list itself is built further down
       // this component, and a hook may not depend on something declared later.
       const menuButtonLabels = () => [...(menuBarRef.current?.querySelectorAll('.ap-menu-button') ?? [])].map((node) => node.textContent)
@@ -5772,6 +5772,7 @@ let ITEM_CSV_PENDING = null
             ] },
             { label: '相关', sub: [
               { label: '双变量…', action: () => runAnalysis('correlation') },
+              { label: '偏相关…', action: () => setDialog({ kind: 'partial' }) },
             ] },
             { label: '回归', sub: [
               { label: '线性…', action: () => runAnalysis('regression') },
@@ -5816,8 +5817,7 @@ let ITEM_CSV_PENDING = null
               { label: '曲线估计（CURVEFIT）', action: () => notify('PSPP 2.1.3 返回「CURVEFIT 尚未实现」。替代：用「转换 → 计算变量」造 x²、ln(x)、1/x 等项，再跑「回归 → 线性」。') },
               { label: '多选题直接进 CROSSTABS 等过程', action: () => notify('PSPP 不认 $ 变量。替代：多选题的频数与交叉表由本插件自己算——「转换 → 多选题面板」；要进其他过程，先把选项拆成二分变量。') },
               { label: 'Durbin-Watson 残差自相关', action: () => notify('PSPP 的 REGRESSION 没有 /STATISTICS=DURBIN（只支持 COEFF、R、ANOVA、BCOV、CI、TOL）。替代：回归时勾「保存残差」，导出 CSV 后按公式算 DW。') },
-              { label: '偏相关…', action: () => setDialog({ kind: 'partial' }) },
-              { label: '决策树 / 报表 / 概率图', action: () => notify('TREE、REPORT、PPLOT 在 PSPP 2.1.3 都没有实现。替代：P-P/Q-Q 图可用「分析 → 探索」里的正态概率图近似；报表用「表 1 / 表 2」或导出 Word。偏相关已经由插件自己实现，见「相关 → 偏相关…」。') },
+              { label: '决策树 / 报表 / 概率图', action: () => notify('TREE、REPORT、PPLOT 在 PSPP 2.1.3 都没有实现。替代：P-P/Q-Q 图可用「分析 → 探索」里的正态概率图近似；报表用「表 1 / 表 2」或导出 Word。偏相关由插件自己实现，在「相关 → 偏相关…」。') },
             ] },
           ],
         },
@@ -5832,7 +5832,7 @@ let ITEM_CSV_PENDING = null
             { label: '散点图…', action: () => setDialog({ kind: 'chart', type: 'scatterplot' }) },
             {
               label: '快速图形（用当前选中的列）',
-              items: [
+              sub: [
                 { label: '柱状图', action: () => quickChart('bar') },
                 { label: '直方图', action: () => quickChart('histogram') },
                 { label: '箱线图', action: () => quickChart('boxplot') },

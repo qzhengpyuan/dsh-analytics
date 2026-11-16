@@ -1111,6 +1111,57 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     await new Promise((resolve) => setTimeout(resolve, 30))
   })
   assert.equal(menuHost.querySelector('.ap-menu-pop'), null, 'Escape closes the menu')
+  // Alt+V had no mnemonic, so the view menu was the one menu a keyboard could not
+  // reach. The quick-chart group was a leaf: its five entries were defined under
+  // `items`, which the renderer does not read, so they were unreachable too.
+  await act(async () => {
+    window.dispatchEvent(key('v', { altKey: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const viewMenu = menuHost.querySelector('.ap-menu-pop')
+  assert.ok(viewMenu, 'Alt+V drops the 视图 menu')
+  assert.match(viewMenu.textContent, /显示值标签/, 'the view menu really opened')
+  await act(async () => {
+    window.dispatchEvent(key('Escape'))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const chartButton = [...menuHost.querySelectorAll('.ap-menu-button')].find((node) => node.textContent === '图形')
+  await act(async () => {
+    chartButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const chartPop = menuHost.querySelector('.ap-menu-pop')
+  const quick = [...chartPop.querySelectorAll('button')].find((node) => node.textContent.startsWith('快速图形'))
+  await act(async () => {
+    quick?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.deepEqual(
+    [...(quick?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])].map((node) => node.textContent),
+    ['柱状图', '直方图', '箱线图', '饼图', '折线图'],
+    'the quick-chart group opens and lists its five charts',
+  )
+  await act(async () => {
+    window.dispatchEvent(key('Escape'))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const analyseButton = [...menuHost.querySelectorAll('.ap-menu-button')].find((node) => node.textContent === '分析')
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const analysePop = menuHost.querySelector('.ap-menu-pop')
+  const correlate = [...analysePop.querySelectorAll('button')].find((node) => node.textContent.startsWith('相关'))
+  await act(async () => {
+    correlate.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    correlate.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.ok([...analysePop.querySelectorAll('.ap-sub-pop button')].some((node) => node.textContent.startsWith('偏相关')),
+    'partial correlation sits under 相关, where SPSS and the docs put it')
+  const limits = [...analysePop.querySelectorAll('button')].find((node) => node.textContent.startsWith('受引擎限制的功能'))
+  const limitsText = limits?.parentElement?.querySelector('.ap-sub-pop')?.textContent ?? ''
+  assert.doesNotMatch(limitsText, /偏相关/, 'partial correlation is no longer listed as an engine limitation')
   const outTab = [...menuHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
   await act(async () => {
     outTab.click()
