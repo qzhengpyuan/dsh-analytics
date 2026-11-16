@@ -898,6 +898,69 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   console.log('ok  a big table draws 200 rows and offers the rest')
 }
 
+// SPSS's menu bar works without the mouse. Two Windows users hit this trying to
+// drive the panel from a screenshot: there was no keyboard path into the menus
+// at all, so a miscalculated click meant nothing happened.
+{
+  const menuHost = window.document.createElement('div')
+  window.document.body.appendChild(menuHost)
+  const menuRoot = createRoot(menuHost)
+  const menuState = {
+    id: 'session-test',
+    version: '0.30.0',
+    engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+    dataset: { sourcePath: '/tmp/a.sav', name: 'a.sav', caseCount: 5, variables: [] },
+    items: [
+      { id: 'run-1-0', kind: 'table', title: '第一张', table: { caption: '第一张', matrix: [['', 'N'], ['x', '5']] }, runId: 1 },
+      { id: 'run-2-0', kind: 'table', title: '第二张', table: { caption: '第二张', matrix: [['', 'N'], ['y', '5']] }, runId: 2 },
+    ],
+    importNotes: [],
+    log: [],
+    mrSets: [],
+    splitBy: [],
+    history: { undo: 0, redo: 0 },
+    tableStyle: 'three-line',
+    signal: { id: 'session-test', items: 2 },
+  }
+  window.fetch = async (url) => ({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify(String(url).includes('api/heartbeat') ? { ok: true, signal: menuState.signal } : { ok: true, state: menuState }),
+  })
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    menuRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  })
+  const key = (name, init = {}) => new window.KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true, ...init })
+  await act(async () => {
+    window.dispatchEvent(key('f', { altKey: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.ok(menuHost.querySelector('.ap-menu-pop'), 'Alt+F drops the 文件 menu')
+  const firstItem = window.document.activeElement
+  assert.ok(menuHost.querySelector('.ap-menu-pop')?.contains(firstItem), 'the first entry takes focus')
+  await act(async () => {
+    window.dispatchEvent(key('ArrowDown'))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  assert.notEqual(window.document.activeElement, firstItem, 'ArrowDown moves through the entries')
+  await act(async () => {
+    window.dispatchEvent(key('Escape'))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  assert.equal(menuHost.querySelector('.ap-menu-pop'), null, 'Escape closes the menu')
+  const outTab = [...menuHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
+  await act(async () => {
+    outTab.click()
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.match(menuHost.querySelector('.ap-outline')?.textContent ?? '', /运行 1/, 'the outline groups results under the run that produced them')
+  assert.match(menuHost.querySelector('.ap-outline')?.textContent ?? '', /运行 2/, 'a second run gets its own heading')
+  await act(async () => { menuRoot.unmount() })
+  console.log('ok  the menu bar opens from the keyboard and the outline groups runs')
+}
+
 // The settings page is what makes the knobs reachable without editing the
 // profile patch, so it has to render the values it read, say where they live,
 // and post a validated patch back.

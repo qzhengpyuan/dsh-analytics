@@ -188,6 +188,9 @@ body[data-ds-dark-theme] .ap-root {
   box-shadow:inset 1px 1px 0 var(--ap-line), inset -1px -1px 0 var(--ap-line); }
 .ap-tool:active { box-shadow:inset 1px 1px 2px color-mix(in srgb, var(--ap-text) 30%, transparent); }
 .ap-tool:disabled { opacity:.45; }
+/* 图标按钮：SPSS 的工具栏只有图，字在 title 里（也是读屏名） */
+.ap-icon-btn { width:26px; min-width:26px; padding:0; }
+.ap-icon { flex:none; display:block; }
 /* 按钮之间的 1px 分隔竖线（原来用写死 #b7bcc5 的行内 span，深色下是白点） */
 .ap-tool-sep { flex:none; width:1px; height:16px; background:var(--ap-line-2); margin:0 3px; align-self:center; }
 /* ── 视图页签：移到内容区下方，26px，选中白底 ─────────────────────────── */
@@ -221,6 +224,11 @@ body[data-ds-dark-theme] .ap-root {
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; height:max(22px, 1.7em); }
 .ap-grid thead th { position:sticky; top:0; z-index:2; background:var(--ap-head); font-weight:600; text-align:center;
   border-bottom:1px solid var(--ap-line-4); }
+/* 表头两行：上面变量名，下面变量标签（SPSS 数据编辑器的样子），行高按内容长 */
+.ap-grid thead th .ap-head-name { display:block; line-height:1.25; }
+.ap-grid thead th .ap-head-label { display:block; font-weight:400; font-size:10px; line-height:1.2;
+  color:var(--ap-text-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ap-grid thead th:has(.ap-head-label) { height:auto; padding-top:1px; padding-bottom:1px; }
 .ap-grid-wrap.ap-freeze-rows-false thead th { position:static; }
 .ap-grid th.ap-freeze-col, .ap-grid td.ap-freeze-col { position:sticky; left:var(--ap-freeze-x, 52px); }
 .ap-grid th.ap-freeze-col { z-index:2; background:var(--ap-head); }
@@ -313,6 +321,10 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-outline .ap-ol-table::before { content:"▦ "; color:var(--ap-accent); }
 .ap-outline .ap-ol-image::before { content:"▣ "; color:var(--ap-accent); }
 .ap-outline .ap-ol-heading { font-weight:600; padding:6px 8px 2px; color:var(--ap-text); }
+/* 每次运行的分组标题：SPSS 输出树按过程分组，这里按 run 分组 */
+.ap-outline .ap-ol-run { padding:5px 8px 1px; font-size:11px; font-weight:600; letter-spacing:.04em;
+  color:var(--ap-text-3); text-transform:none; border-top:1px solid var(--ap-line-3); }
+.ap-outline > .ap-ol-run:first-child { border-top:0; }
 .ap-outline .ap-ol-facts { display:block; margin-top:1px; font-size:11px; color:var(--ap-text-3); font-variant-numeric:tabular-nums;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ap-doc { flex:1; overflow:auto; padding:10px 12px 32px; background:var(--ap-panel); }
@@ -617,6 +629,38 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         seen += 1
       }
       return { html: `${text.slice(0, cut)}</table>`, total, shown: limit }
+    }
+
+    /**
+     * Toolbar glyphs, drawn as inline SVG so the bar works offline, follows the
+     * theme colour, and stays crisp on a HiDPI screen. SPSS has an icon-only
+     * toolbar; the words live in `title`, which is also the screen-reader name.
+     */
+    const ICON_PATHS = {
+      open: [['M2.5 5.4V4h4l1.2 1.4h5.8v6.6h-11z']],
+      save: [['M2.6 3.6h8.2l2.6 2.6v6.2h-10.8z'], ['M5 3.6h5v3.2H5z'], ['M5.2 9h5.6v3.4H5.2z']],
+      labels: [['M3 3.2h4.6L13 8.6l-4.4 4.4L3 7.8z'], ['M5.4 5.6', 'dot']],
+      frequency: [['M3.4 12.6h9.2'], ['M4.6 12.2V8.4h2v3.8z'], ['M7.6 12.2V5.4h2v6.8z'], ['M10.6 12.2V9.6h2v2.6z']],
+      descriptives: [['M3.6 4.4h8.8'], ['M3.6 8h8.8'], ['M3.6 11.6h8.8'], ['M2.2 4.4', 'dot'], ['M2.2 8', 'dot'], ['M2.2 11.6', 'dot']],
+      crosstabs: [['M3 3.6h10v8.8H3z'], ['M8 3.6v8.8'], ['M3 8h10']],
+      correlation: [['M2.6 12.8l10.8-9.6'], ['M4.6 10.6', 'dot'], ['M7.4 7.4', 'dot'], ['M10.4 4.6', 'dot']],
+      regression: [['M2.6 12.4l10.8-8.4'], ['M4 7.4', 'dot'], ['M8.4 10.2', 'dot'], ['M11.4 5.2', 'dot']],
+      syntax: [['M5.8 4.6L2.6 8l3.2 3.4'], ['M10.2 4.6L13.4 8l-3.2 3.4']],
+      clear: [['M3.2 4.4h9.6'], ['M5 4.4l.8 8.2h4.4l.8-8.2'], ['M6.6 4.4V3.2h2.8v1.2']],
+    }
+    function apIcon(name) {
+      const parts = ICON_PATHS[name] ?? []
+      return h('svg', {
+        key: `icon-${name}`,
+        className: 'ap-icon',
+        viewBox: '0 0 16 16',
+        width: 16,
+        height: 16,
+        'aria-hidden': 'true',
+        focusable: 'false',
+      }, parts.map((part, index) => (part[1] === 'dot'
+        ? h('circle', { key: index, cx: Number(part[0].split(' ')[0]), cy: Number(part[0].split(' ')[1]), r: 1.1, fill: 'currentColor', stroke: 'none' })
+        : h('path', { key: index, d: part[0], fill: 'none', stroke: 'currentColor', 'stroke-width': 1.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }))))
     }
 
     function matrixHtml(matrix, className = '', edits = null, limit = 0) {
@@ -2985,7 +3029,11 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
                   onWidth?.(variable.name, Math.max(48, Math.min(600, 16 + longest * 8)))
                 },
               },
-              variable.name,
+              h('span', { className: 'ap-head-name' }, variable.name),
+              // SPSS prints the variable label under the name in the header, so
+              // a sheet of v1..v9 still reads as age/sex/score. Only two lines:
+              // a third would push the rows down for nothing.
+              variable.label ? h('span', { className: 'ap-head-label' }, variable.label) : null,
               h('span', { className: 'ap-col-resize' }))),
             Array.from({ length: spareCount }, (unused, offset) => h('th', {
               key: `__spare-${offset}`,
@@ -3869,20 +3917,34 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             h('button', { className: 'ap-tool', onClick: () => onTogglePick?.('__clear__') }, '清空选择'))
           : null,
         h('div', { className: 'ap-outline', style: { width: outlineWidth, minWidth: outlineWidth } },
-          items.map((item) => {
-            const summary = item.kind === 'table' ? summarizeTable(item.table) : ''
-            return h('button', {
-              key: item.id,
-              // SPSS's Viewer highlights the tree item whose content is on the
-              // right; ap-ol-active is that highlight (see --ap-select).
-              className: `${item.kind === 'image' ? 'ap-ol-image' : item.kind === 'table' ? 'ap-ol-table' : 'ap-ol-heading'}${summary ? ' ap-ol-summary' : ''}${active === item.id ? ' ap-ol-active' : ''}`,
-              title: summary ? `${item.title ?? ''}\n${summary}` : item.title,
-              style: collapsed[item.id] ? { opacity: 0.55 } : null,
-              onClick: () => setActive(item.id),
-            },
-            `${collapsed[item.id] ? '▸ ' : ''}${item.title || (item.kind === 'table' ? '表格' : '图')}`,
-            summary ? h('span', { className: 'ap-ol-facts' }, summary) : null)
-          })),
+          (() => {
+            // SPSS's Viewer groups results under the procedure that produced
+            // them; ours came back as one flat list, so three runs in a row were
+            // indistinguishable. One grey heading per run, in the order the runs
+            // happened.
+            const nodes = []
+            let lastRun = null
+            for (const item of items) {
+              const runKey = item.runId ?? null
+              if (runKey !== null && runKey !== lastRun) {
+                lastRun = runKey
+                nodes.push(h('div', { key: `run-${runKey}`, className: 'ap-ol-run' }, `运行 ${runKey}`))
+              }
+              const summary = item.kind === 'table' ? summarizeTable(item.table) : ''
+              nodes.push(h('button', {
+                key: item.id,
+                // SPSS's Viewer highlights the tree item whose content is on the
+                // right; ap-ol-active is that highlight (see --ap-select).
+                className: `${item.kind === 'image' ? 'ap-ol-image' : item.kind === 'table' ? 'ap-ol-table' : 'ap-ol-heading'}${summary ? ' ap-ol-summary' : ''}${active === item.id ? ' ap-ol-active' : ''}`,
+                title: summary ? `${item.title ?? ''}\n${summary}` : item.title,
+                style: collapsed[item.id] ? { opacity: 0.55 } : null,
+                onClick: () => setActive(item.id),
+              },
+              `${collapsed[item.id] ? '▸ ' : ''}${item.title || (item.kind === 'table' ? '表格' : '图')}`,
+              summary ? h('span', { className: 'ap-ol-facts' }, summary) : null))
+            }
+            return nodes
+          })()),
         h('span', { className: 'ap-outline-resize', onMouseDown: startOutlineResize, title: '拖动改变导航栏宽度' }),
 
         h('div', { className: 'ap-doc', ref: docRef },
@@ -4384,6 +4446,7 @@ let ITEM_CSV_PENDING = null
       const [dialog, setDialog] = useState(null)
       const [toast, setToast] = useState(null)
       const rootRef = useRef(null)
+      const menuBarRef = useRef(null)
       // Which multiple response set the panel is reading, and how its
       // frequency table is laid out.
       const [activeMr, setActiveMr] = useState(null)
@@ -4400,6 +4463,68 @@ let ITEM_CSV_PENDING = null
           return next
         })
       }, [])
+      // SPSS's menu bar works without the mouse: Alt+F/E/D/T/A/G/U/H drops a
+      // menu, Up/Down walks its items, Enter runs one, Esc closes. The panel had
+      // no keyboard path into the menus at all, which also made it untestable in
+      // a browser that cannot click a 12 px target reliably.
+      const MENU_MNEMONICS = { f: '文件', e: '编辑', d: '数据', t: '转换', a: '分析', g: '图形', u: '实用程序', h: '帮助' }
+      // Read the labels off the DOM: the menu list itself is built further down
+      // this component, and a hook may not depend on something declared later.
+      const menuButtonLabels = () => [...(menuBarRef.current?.querySelectorAll('.ap-menu-button') ?? [])].map((node) => node.textContent)
+      useEffect(() => {
+        const onKey = (event) => {
+          if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+          const wanted = MENU_MNEMONICS[String(event.key).toLowerCase()]
+          if (!wanted || !menuButtonLabels().includes(wanted)) return
+          event.preventDefault()
+          setMenu(wanted)
+          const button = [...(menuBarRef.current?.querySelectorAll('.ap-menu-button') ?? [])].find((node) => node.textContent === wanted)
+          button?.focus?.()
+        }
+        window.addEventListener('keydown', onKey, true)
+        return () => window.removeEventListener('keydown', onKey, true)
+      }, [])
+      useEffect(() => {
+        if (!menu) return
+        const bar = menuBarRef.current
+        const items = () => [...(bar?.querySelectorAll('.ap-menu-pop button') ?? [])]
+        // Focus the first entry so Up/Down/Enter work straight away.
+        items()[0]?.focus?.()
+        const focusMenuButton = () => {
+          const button = [...(bar?.querySelectorAll('.ap-menu-button') ?? [])].find((node) => node.textContent === menu)
+          button?.focus?.()
+        }
+        const step = (delta) => {
+          const list = items()
+          if (!list.length) return
+          const at = list.indexOf(document.activeElement)
+          const next = at < 0 ? 0 : (at + delta + list.length) % list.length
+          list[next]?.focus?.()
+        }
+        const walk = (delta) => {
+          const labels = menuButtonLabels()
+          const at = labels.indexOf(menu)
+          if (at < 0) return
+          const next = labels[(at + delta + labels.length) % labels.length]
+          const button = [...(bar?.querySelectorAll('.ap-menu-button') ?? [])].find((node) => node.textContent === next)
+          button?.click?.()
+        }
+        const onKey = (event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopPropagation()
+            setMenu(null)
+            focusMenuButton()
+            return
+          }
+          if (event.key === 'ArrowDown') { event.preventDefault(); step(1); return }
+          if (event.key === 'ArrowUp') { event.preventDefault(); step(-1); return }
+          if (event.key === 'ArrowRight') { event.preventDefault(); walk(1); return }
+          if (event.key === 'ArrowLeft') { event.preventDefault(); walk(-1) }
+        }
+        window.addEventListener('keydown', onKey, true)
+        return () => window.removeEventListener('keydown', onKey, true)
+      }, [menu])
       const [busy, setBusy] = useState(false)
       // Column widths live here so the data grid and the variable view's
       // "列" column edit the same numbers (localStorage remembers them).
@@ -5743,7 +5868,7 @@ let ITEM_CSV_PENDING = null
             : null)
         })()
           : null,
-        h('div', { className: 'ap-menu' },
+        h('div', { className: 'ap-menu', ref: menuBarRef },
           menus.map((entry, index) => h('div', { key: entry.label, className: 'ap-menu-item' },
             h('button', {
               className: `ap-menu-button ${menu === entry.label ? 'ap-open' : ''}`,
@@ -5757,23 +5882,42 @@ let ITEM_CSV_PENDING = null
               }, renderMenuItems(entry.items))
               : null))),
         h('div', { className: 'ap-toolbar' },
-          h('button', { className: 'ap-tool', onClick: () => command('open') }, '打开数据'),
-          h('button', { className: 'ap-tool', onClick: () => command('save'), disabled: !st?.dataset }, '保存'),
           h('button', {
-            className: 'ap-tool',
+            className: 'ap-tool ap-icon-btn', title: '打开数据', 'aria-label': '打开数据', onClick: () => command('open'),
+          }, apIcon('open')),
+          h('button', {
+            className: 'ap-tool ap-icon-btn', title: '保存数据', 'aria-label': '保存数据', onClick: () => command('save'), disabled: !st?.dataset,
+          }, apIcon('save')),
+          h('button', {
+            className: 'ap-tool ap-icon-btn',
             onClick: toggleLabels,
             disabled: !variables.length,
-            title: '数据视图里显示值标签还是原始数值',
-          }, showLabels ? '显示：标签' : '显示：数值'),
+            title: showLabels ? '数据视图正在显示值标签，点一下改显示原始数值' : '数据视图正在显示原始数值，点一下改显示值标签',
+            'aria-label': showLabels ? '显示：标签' : '显示：数值',
+          }, apIcon('labels')),
           h('span', { className: 'ap-tool-sep' }),
-          h('button', { className: 'ap-tool', onClick: () => command('frequencies'), disabled: !variables.length }, '频率'),
-          h('button', { className: 'ap-tool', onClick: () => command('descriptives'), disabled: !variables.length }, '描述'),
-          h('button', { className: 'ap-tool', onClick: () => command('crosstabs'), disabled: !variables.length }, '交叉表'),
-          h('button', { className: 'ap-tool', onClick: () => command('correlation'), disabled: !variables.length }, '相关'),
-          h('button', { className: 'ap-tool', onClick: () => command('regression'), disabled: !variables.length }, '回归'),
+          h('button', {
+            className: 'ap-tool ap-icon-btn', title: '频率', 'aria-label': '频率', onClick: () => command('frequencies'), disabled: !variables.length,
+          }, apIcon('frequency')),
+          h('button', {
+            className: 'ap-tool ap-icon-btn', title: '描述', 'aria-label': '描述', onClick: () => command('descriptives'), disabled: !variables.length,
+          }, apIcon('descriptives')),
+          h('button', {
+            className: 'ap-tool ap-icon-btn', title: '交叉表', 'aria-label': '交叉表', onClick: () => command('crosstabs'), disabled: !variables.length,
+          }, apIcon('crosstabs')),
+          h('button', {
+            className: 'ap-tool ap-icon-btn', title: '相关', 'aria-label': '相关', onClick: () => command('correlation'), disabled: !variables.length,
+          }, apIcon('correlation')),
+          h('button', {
+            className: 'ap-tool ap-icon-btn', title: '回归', 'aria-label': '回归', onClick: () => command('regression'), disabled: !variables.length,
+          }, apIcon('regression')),
           h('span', { className: 'ap-tool-sep' }),
-          h('button', { className: 'ap-tool', onClick: () => run(syntax, false, '语法') }, '运行语法'),
-          h('button', { className: 'ap-tool', onClick: () => command('clear') }, '清除输出'),
+          h('button', {
+            className: 'ap-tool ap-icon-btn', title: '运行语法', 'aria-label': '运行语法', onClick: () => run(syntax, false, '语法'),
+          }, apIcon('syntax')),
+          h('button', {
+            className: 'ap-tool ap-icon-btn', title: '清除输出', 'aria-label': '清除输出', onClick: () => command('clear'),
+          }, apIcon('clear')),
           busy ? h('span', { className: 'ap-hint' }, '处理中…') : null),
         docs.length > 1 || (docs.length === 1 && Boolean(st?.dataset))
           ? h('div', { className: 'ap-doctabs' },
