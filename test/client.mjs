@@ -1246,3 +1246,74 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   await act(async () => { enRoot.unmount() })
   console.log('ok  locale=en pulls the dictionary and redraws the panel in English')
 }
+
+// The English panel has to be English all the way: a half-translated frame is
+// worse than a Chinese one for the reader this feature exists for. The real
+// dictionary is used here, and the assertion is simply that no Chinese is left
+// in the rendered panel.
+{
+  const dict = JSON.parse(readFileSync(join(root, 'locale', 'en.json'), 'utf8')).strings
+  const fullHost = window.document.createElement('div')
+  window.document.body.appendChild(fullHost)
+  const fullRoot = createRoot(fullHost)
+  const fullState = {
+    id: 'session-en2',
+    version: '0.32.1',
+    engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+    dataset: {
+      sourcePath: '/tmp/en.sav',
+      name: 'en.sav',
+      caseCount: 12,
+      variables: [
+        { name: 'score', label: 'Score', type: 'numeric', width: 8, decimals: 2, measure: 'scale', alignment: 'right' },
+      ],
+      truncated: false,
+    },
+    items: [
+      {
+        id: 'run-1-0',
+        kind: 'table',
+        title: 'Descriptive Statistics',
+        runId: 1,
+        table: { caption: 'Descriptive Statistics', matrix: [['', 'N', 'Mean'], ['score', '12', '50.25']] },
+      },
+    ],
+    importNotes: [],
+    log: [],
+    mrSets: [],
+    splitBy: [],
+    history: { undo: 0, redo: 0 },
+    tableStyle: 'three-line',
+    maxRows: null,
+    maxExportRows: null,
+    locale: 'en',
+    signal: { id: 'session-en2', items: 1 },
+  }
+  window.fetch = async (url) => {
+    const target = String(url)
+    if (target.includes('api/locale')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, locale: 'en', strings: dict }) }
+    }
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(target.includes('api/heartbeat') ? { ok: true, signal: fullState.signal } : { ok: true, state: fullState }),
+    }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    fullRoot.render(React.createElement(registered.tabs[0].component, { ...props, scope: { sessionId: 'session-en2', cwd: '/tmp' }, tab: null }))
+    await new Promise((resolve) => setTimeout(resolve, 220))
+  })
+  // Switch to the output view, which is where most of the text lives.
+  await act(async () => {
+    const tab = [...fullHost.querySelectorAll('.ap-view-tab')].find((node) => /Output/.test(node.textContent))
+    assert.ok(tab, 'the output view tab is labelled in English')
+    tab.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 120))
+  })
+  const leftovers = [...new Set((fullHost.textContent.match(/[\u4e00-\u9fff]+/g) ?? []))]
+  assert.deepEqual(leftovers, [], `translated panel still shows Chinese: ${leftovers.join(' / ')}`)
+  await act(async () => { fullRoot.unmount() })
+  console.log('ok  the rendered english panel has no chinese text left in it')
+}
