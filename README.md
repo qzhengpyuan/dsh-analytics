@@ -37,7 +37,7 @@ node scripts/install.mjs --apply    # 真的装：装进 profile + 把 dsh-analy
 | 预设半 | `tools-entry.js` | 23 个 `pspp_*` 工具，只挂在「数据分析」Agent 预设里，别的会话拿不到 |
 | Client | `client.js` | 通过 `ctx.betterSidebar.registerTab()` 注册侧栏页签；所有请求走同一套 API |
 
-面板的设置页（设置 → 插件 → 统计分析）管个案上限、超时、`--safer` 与表格样式，写 `~/.dsh/analytics/settings.json`，不用改 profile patch；`registerTools` 那一项仍属部署决定，只展示。
+面板的设置页（设置 → 统计分析）管个案上限、超时、`--safer` 与表格样式，写 `~/.dsh/analytics/settings.json`，不用改 profile patch；`registerTools` 那一项仍属部署决定，只展示。
 
 Host 与 UI 共用**同一组 `Workspace` 方法**，所以"用户在对话框点确定"和"模型在对话里调 `pspp_analyze`"执行的是同一条代码路径，状态不会分叉。
 

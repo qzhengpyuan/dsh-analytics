@@ -67,7 +67,7 @@ function makeContext() {
       closeTab() {},
     },
     slots: {
-      inject(name, run) { assert.equal(name, 'settings.plugins.tab'); run(); return () => {} },
+      inject(name, run) { assert.equal(name, 'settings.section'); run(); return () => {} },
       register(definition, component) { registered.settings.push({ ...definition, component }); return () => {} },
     },
     locale: { register() { return () => {} }, bind: () => (key) => key },

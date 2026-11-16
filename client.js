@@ -6856,12 +6856,17 @@ let ITEM_CSV_PENDING = null
 
     return {
       // `slots` is the settings shell: without it the panel is reachable but the
-      // plugin has no page under 设置 → 插件, so every knob would stay a YAML edit.
+      // plugin has no page in 设置, so every knob would stay a YAML edit.
+      //
+      // The seat is `settings.section`: this build's settings panel lists one
+      // page per entry there (a whole page, unlike `settings.general.item`,
+      // which contributes a single row). `settings.plugins.tab` does not exist
+      // in this version — registering there silently mounts nothing.
       inject: ['betterSidebar', 'slots'],
       apply(ctx) {
         if (ctx.slots) {
-          ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
-            name: 'settings.plugins.tab',
+          ctx.slots.inject('settings.section', () => ctx.slots.register({
+            name: 'settings.section',
             id: 'analytics',
             order: 80,
             label: '统计分析',

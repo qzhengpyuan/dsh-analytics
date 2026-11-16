@@ -6,7 +6,7 @@
 
 现状：`registerTools`、`maxRows`、`timeoutMs`、`safer`、引擎路径只能改 `cordis.patch.yml` 再 disable→enable。
 
-做法：面板新增「设置」页（DSH 设置 → 插件 → 统计分析），宿主半新增 `GET/PUT api/settings`，落盘 `~/.dsh/analytics/settings.json`。
+做法：面板新增「设置」页（DSH 设置 → 统计分析，槽 `settings.section`），宿主半新增 `GET/PUT api/settings`，落盘 `~/.dsh/analytics/settings.json`。
 可调项与生效方式：
 
 | 项 | 默认 | 生效时机 |

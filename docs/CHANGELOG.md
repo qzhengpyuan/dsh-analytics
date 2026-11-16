@@ -1,8 +1,16 @@
+## 0.27.1
+
+修一个让 0.27.0 的设置页在本版 DSH 上**挂不出来**的错误：注册的槽名不对。
+
+- 0.27.0 照 `@linxin666/dsh-chime` 的写法把设置页注册到 `settings.plugins.tab`。本版 DSH 的槽目录里**没有**这个槽（`Slots.listSubTree` 返回 `available: false`），注册到不存在的槽是静默无效——面板照常打开，设置页却永远不出现。
+- 真正的座位是 **`settings.section`**（list，「One settings page per list entry」）；`settings.general.item` 只放单行开关，不是整页。已改成 `ctx.slots.inject('settings.section', …)`，页面出现在「设置 → 统计分析」。
+- `test/client.mjs` 的槽名断言同步改成 `settings.section`，以后抄错槽名会直接红。其余功能与 0.27.0 相同；已经装了 0.27.0 的升级到 0.27.1 即可。
+
 ## 0.27.0
 
 「像 SPSS 的成熟产品」缺的四件 + 一次视觉对齐。核心是：**不再需要改 profile 的 YAML 才能调参**，**对话框能像 SPSS 那样「粘贴」语法**，**统计层补上 PSPP 自己不做的三个量**，**装起来一条命令**，面板按 SPSS 的尺寸重画。
 
-### 设置面板（设置 → 插件 → 统计分析）
+### 设置面板（设置 → 统计分析）
 
 以前 `maxRows` / `timeoutMs` / `safer` 只能改 `cordis.patch.yml` 再停→启插件。现在有一页设置，写 `~/.dsh/analytics/settings.json`：
 
