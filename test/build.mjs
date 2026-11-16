@@ -1,6 +1,6 @@
 // Pure-function tests: syntax builders and chart models (no engine needed).
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { buildAnalysis, buildTransform, buildChart, analysisExtras, itemsForAgent } from '../lib/tools.js'
@@ -1008,3 +1008,25 @@ check('a string THRU range is refused instead of dropped', async () => {
 await Promise.all(pending)
 
 console.log(`\n${checks} checks passed${process.exitCode ? ' (with failures)' : ''}`)
+
+check('the reported version is re-read even when mtime does not change', async () => {
+  // Windows reaches the checkout over SMB, where the cached mtime can lag by
+  // minutes: a cache keyed only on mtime kept reporting the previous version
+  // after three hot reloads. The re-read is throttled by time instead.
+  const dir = mkdtempSync(join(tmpdir(), 'ap-version-'))
+  try {
+    const manifest = join(dir, 'package.json')
+    const written = new Date('2026-01-01T00:00:00Z')
+    writeFileSync(manifest, JSON.stringify({ name: 'dsh-analytics', version: '1.0.0' }))
+    utimesSync(manifest, written, written)
+    const { pluginInfo } = await import(`../lib/version.js?probe=${Date.now()}`)
+    assert.equal(pluginInfo(manifest).version, '1.0.0')
+    writeFileSync(manifest, JSON.stringify({ name: 'dsh-analytics', version: '1.0.1' }))
+    utimesSync(manifest, written, written)
+    assert.equal(pluginInfo(manifest).version, '1.0.0', 'the throttle keeps the value for a second')
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    assert.equal(pluginInfo(manifest).version, '1.0.1', 'a second later the new version is read with the old mtime')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
