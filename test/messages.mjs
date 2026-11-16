@@ -52,4 +52,17 @@ check('diagnostics carry the hint but keep the engine text', () => {
   assert.equal(diagnostics[0].severity, 'error')
 })
 
+// Windows puts a drive letter and backslashes in front of the file name, and a
+// non-greedy prefix used to stop at the drive colon: the whole line fell through
+// to `log` and reached the user with the plugin's own temp path in front of it.
+check('a Windows path still yields a diagnostic, not a raw log line', () => {
+  const { diagnostics, log } = parseDiagnostics(
+    'C:\\Users\\me\\.dsh\\analytics\\session-x\\runs\\3\\run.sps:1.1-1.11: error: Syntax error at end of line.\n'
+    + 'C:\\Users\\me\\.dsh\\analytics\\session-x\\runs\\3\\run.sps:2: error: Stopping syntax file processing here.',
+  )
+  assert.equal(diagnostics.length, 1, 'one diagnostic, got ' + diagnostics.length)
+  assert.equal(diagnostics[0].message, 'Syntax error at end of line.', 'the message has no path in it')
+  assert.equal(log.length, 0, 'and no unparsed line leaks into the log')
+})
+
 console.log(`messages: ${checks} checks passed`)
