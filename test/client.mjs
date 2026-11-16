@@ -833,6 +833,71 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   console.log('ok  poll asks the heartbeat first and only pulls state on change')
 }
 
+// A frequency table of a categorical variable is one row per category, and
+// people run those on 3000-case files: drawing every row made the panel slow and
+// the page unreadably large. The first screenful is what anyone reads, so the
+// panel draws 200 rows and offers the rest -- while CSV and exports stay whole.
+{
+  const bigHost = window.document.createElement('div')
+  window.document.body.appendChild(bigHost)
+  const bigRoot = createRoot(bigHost)
+  const bigRows = [['', 'N', 'Percent']]
+  for (let index = 1; index <= 300; index += 1) bigRows.push(['取值' + index, String(index), ((index / 300) * 100).toFixed(1)])
+  const bigState = {
+    id: 'session-test',
+    version: '0.29.0',
+    engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+    dataset: { sourcePath: '/tmp/big.sav', name: 'big.sav', caseCount: 300, variables: [] },
+    items: [{ id: 'run-1-0', kind: 'table', title: '大表', table: { caption: '大表', matrix: bigRows }, runId: 1 }],
+    importNotes: [],
+    log: [],
+    mrSets: [],
+    splitBy: [],
+    history: { undo: 0, redo: 0 },
+    tableStyle: 'three-line',
+    signal: { id: 'session-test', items: 1 },
+  }
+  window.fetch = async (url) => ({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify(String(url).includes('api/heartbeat') ? { ok: true, signal: bigState.signal } : { ok: true, state: bigState }),
+  })
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    bigRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  })
+  const outputTab = [...bigHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
+  await act(async () => {
+    outputTab.click()
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const table = bigHost.querySelector('.ap-table-block table')
+  assert.ok(table, 'the big table is drawn')
+  const drawnRows = table.querySelectorAll('tr').length
+  assert.equal(drawnRows, 201, 'a 300-row table draws 200 body rows plus the header, got ' + drawnRows)
+  const note = bigHost.querySelector('.ap-table-more')
+  assert.match(note.textContent, /共 300 行/, 'the note says how many rows the table really has')
+  assert.match(note.textContent, /先画前 200 行/, 'and that the panel drew only the first screenful')
+  const expand = [...note.querySelectorAll('button')].find((node) => node.textContent === '显示全部')
+  assert.ok(expand, 'the rest is one click away')
+  await act(async () => {
+    expand.click()
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const allRows = bigHost.querySelectorAll('.ap-table-block table tr').length
+  assert.equal(allRows, 301, '显示全部 draws every row, got ' + allRows)
+  const collapse = [...bigHost.querySelectorAll('.ap-table-more button')].find((node) => node.textContent === '只显示前 200 行')
+  assert.ok(collapse, 'and there is a way back to the short table')
+  await act(async () => {
+    collapse.click()
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.equal(bigHost.querySelectorAll('.ap-table-block table tr').length, 201, 'collapsing goes back to 200 rows')
+  await act(async () => { bigRoot.unmount() })
+  console.log('ok  a big table draws 200 rows and offers the rest')
+}
+
 // The settings page is what makes the knobs reachable without editing the
 // profile patch, so it has to render the values it read, say where they live,
 // and post a validated patch back.

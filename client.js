@@ -361,6 +361,11 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-doc td.ap-num { text-align:right; font-variant-numeric:tabular-nums; }
 .ap-doc img { max-width:100%; border:1px solid var(--ap-line); background:var(--ap-panel); }
 .ap-table-wrap { overflow-x:auto; max-width:100%; }
+/* 大表先画一屏：几千行的频率表全量渲染会让整页变慢，也让浏览器快照大到没法用 */
+.ap-table-block { display:flex; flex-direction:column; gap:2px; }
+.ap-table-more { display:flex; align-items:center; gap:8px; padding:2px 2px 4px;
+  color:var(--ap-text-3); font-size:11px; }
+.ap-table-more .ap-tool { font-size:11px; padding:1px 8px; }
 .ap-edit-table { display:flex; flex-direction:column; gap:6px; max-height:320px; overflow:auto; }
 .ap-edit-row { display:flex; align-items:center; gap:8px; }
 .ap-edit-index { width:64px; color:var(--ap-text-3); font-size:12px; }
@@ -579,13 +584,49 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     const isNumericCell = (text) => NUMERIC_CELL.test(String(text ?? '').trim())
 
     /** Draw a matrix as a table when the host could not render one. */
-    function matrixHtml(matrix, className = '', edits = null) {
-      const rows = Array.isArray(matrix) ? matrix : []
+    // A frequency table of a categorical variable is one row per category, and
+    // a real dataset has thousands. Drawing them all makes every scroll, DOM
+    // query and browser snapshot expensive for numbers nobody reads; the first
+    // screenful is enough to see the shape, and 显示全部 is one click away.
+    // Copying CSV and exporting always use the whole table, never this window.
+    const PREVIEW_ROWS = 200
+
+    /**
+     * Cut a rendered table down to `limit` body rows.
+     *
+     * PSPP's own HTML cannot be sliced safely by structure, so this counts the
+     * `<tr` starts and cuts before the first row over the limit. The head is
+     * left intact (thead, colgroup, the first rows) and the table is closed, and
+     * browsers auto-close whatever container was still open.
+     */
+    function truncateTableHtml(html, limit = PREVIEW_ROWS) {
+      const text = String(html ?? '')
+      const starts = (text.match(/<tr\b/gi) ?? []).length
+      // The first <tr> is the header row; the count people care about is body rows.
+      const total = Math.max(0, starts - 1)
+      if (limit <= 0 || total <= limit) return { html: text, total, shown: total }
+      const pattern = /<tr\b/gi
+      let seen = 0
+      let cut = text.length
+      let match
+      while ((match = pattern.exec(text)) !== null) {
+        if (seen === limit + 1) {
+          cut = match.index
+          break
+        }
+        seen += 1
+      }
+      return { html: `${text.slice(0, cut)}</table>`, total, shown: limit }
+    }
+
+    function matrixHtml(matrix, className = '', edits = null, limit = 0) {
+      const all = Array.isArray(matrix) ? matrix : []
+      const rows = limit > 0 && all.length > limit + 1 ? all.slice(0, limit + 1) : all
       if (rows.length === 0) return ''
       const escape = (text) => String(text ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
       const width = Array.isArray(edits?.widths) ? edits.widths : []
       const headers = Array.isArray(edits?.headers) ? edits.headers : []
-      const columns = Math.max(...rows.map((row) => (Array.isArray(row) ? row.length : 1)))
+      const columns = Math.max(...all.map((row) => (Array.isArray(row) ? row.length : 1)))
       const colgroup = width.some((value) => Number(value) > 0)
         ? `<colgroup>${Array.from({ length: columns }, (_, index) => {
           const value = Number(width[index])
@@ -3744,6 +3785,15 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       onExportItem = () => {},
     }) {
       const [active, setActive] = useState(null)
+      // Which big tables the user asked to see in full. View-only, like the
+      // collapse state: exports and copies always use the whole table.
+      const [expandedTables, setExpandedTables] = useState({})
+      const toggleTableRows = (id) => setExpandedTables((current) => {
+        const next = { ...current }
+        if (next[id]) delete next[id]
+        else next[id] = true
+        return next
+      })
       // Collapse is view-only state: the host keeps every item, so exporting
       // and the outline still see them.
       const [collapsed, setCollapsed] = useState(() => {
@@ -3953,21 +4003,51 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
                     },
                   }, '导出 CSV…'),
                 ]),
-                shut ? null : h('div', {
-                  className: 'ap-table-wrap',
+                shut ? null : (() => {
                   // The host renders PSPP's own tables; results computed here
                   // (multiple response frequencies and cross tabs) only have a
                   // matrix, so those are drawn from it. Once the user widens a
                   // column or rewrites a header we redraw from the matrix, since
                   // PSPP's own HTML cannot carry those edits.
-                  dangerouslySetInnerHTML: {
-                    __html: tableEdits[item.id]
-                      ? matrixHtml(item.table.matrix, `ap-tbl-${tableStyle}`, tableEdits[item.id])
-                      : item.table.html?.includes?.('<table')
-                        ? item.table.html.replace('<table', `<table class="ap-tbl-${tableStyle}"`)
-                        : matrixHtml(item.table.matrix, `ap-tbl-${tableStyle}`),
-                  },
-                }))
+                  const full = expandedTables[item.id] === true
+                  const limit = full ? 0 : PREVIEW_ROWS
+                  const edits = tableEdits[item.id]
+                  const matrix = item.table.matrix
+                  const matrixRows = Array.isArray(matrix) ? matrix.length : 0
+                  const bodyRows = Math.max(0, matrixRows - 1)
+                  const shownRows = limit > 0 ? Math.min(limit, bodyRows) : bodyRows
+                  const drawn = edits
+                    ? { html: matrixHtml(matrix, `ap-tbl-${tableStyle}`, edits, limit), total: bodyRows, shown: shownRows }
+                    : item.table.html?.includes?.('<table')
+                      ? (() => {
+                        const { html, total, shown } = truncateTableHtml(item.table.html, limit > 0 ? limit : 0)
+                        return { html: html.replace('<table', `<table class="ap-tbl-${tableStyle}"`), total, shown }
+                      })()
+                      : { html: matrixHtml(matrix, `ap-tbl-${tableStyle}`, null, limit), total: bodyRows, shown: shownRows }
+                  const hidden = Math.max(0, drawn.total - drawn.shown)
+                  return h('div', { className: 'ap-table-block' }, [
+                    h('div', {
+                      key: 'table',
+                      className: 'ap-table-wrap',
+                      dangerouslySetInnerHTML: { __html: drawn.html },
+                    }),
+                    hidden > 0
+                      ? h('div', { key: 'more', className: 'ap-table-more' }, [
+                        h('span', { key: 'note' }, `这张表共 ${drawn.total} 行，面板先画前 ${drawn.shown} 行（复制 CSV 与导出仍是全部）`),
+                        h('button', {
+                          key: 'toggle',
+                          className: 'ap-tool',
+                          onClick: () => toggleTableRows(item.id),
+                        }, '显示全部'),
+                      ])
+                      : full && drawn.total > PREVIEW_ROWS
+                        ? h('div', { key: 'less', className: 'ap-table-more' }, [
+                          h('span', { key: 'note' }, `正在显示全部 ${drawn.total} 行`),
+                          h('button', { key: 'toggle', className: 'ap-tool', onClick: () => toggleTableRows(item.id) }, '只显示前 200 行'),
+                        ])
+                        : null,
+                  ])
+                })())
             }
             if (item.kind === 'image') {
               const src = new URL(item.artifactUrl, document.baseURI).toString()
