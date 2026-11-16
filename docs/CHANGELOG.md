@@ -1,3 +1,13 @@
+## 0.28.2
+
+`runs/` 里的输出不再互相覆盖。
+
+- 病根：`runId` 是每个工作区从 1 开始的计数器，而**面板会话与工具会话是两个工作区**，两边都往 `runs/1`、`runs/2` 里写 `chart.svg`、`output.html`。两套同时用的时候，后跑的会把先跑的文件覆盖掉；表现是「刚才那张图点开变成另一张」。
+- 现在目录名是 `runs/<runId>-<6 位工作区id 哈希>`，`runId` 仍是那个数字（输出条目排序、图表归属、导出配对全按它，不变）。`runDir(runId)` 先找带后缀的目录，找不到再回落到旧的无后缀目录，所以升级前写下的运行仍然能读。
+- `artifactPath()`、`loadOutputImages()`、图表导出/编辑、`exportDocument`/`exportScript` 回取产物、`clearOutput()` 全部走同一个 `runDir()`。
+- 顺带补上「在飞请求」计数：`Workspace.inflight` 在读取产物文件时 +1，`release()` 与 `evictIdle()` 遇到 `>0` 一律跳过（此前只挡 `busyDepth` 与 mutex，跑完分析后正在读图的那一瞬间仍可能被回收）。
+- 测试：`test/smoke.mjs` 新增两条 —— 两个工作区各跑到同一个 runId、断言 `runDir` 不同且 `artifact()` 取到的是各自的图；旧的无后缀目录仍可读；`inflight=1` 时 `release()` 必须拒绝。全绿 312 条。
+
 ## 0.28.1
 
 把 0.28.0 只接了一半的样式收尾：**Word 与 Excel 导出也跟 `tableStyle` 走**。

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 
@@ -337,6 +337,44 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   const written = await guarded.save(allowedTarget)
   if (!(await stat(written.path)).size) throw new Error('a path inside the allowed roots still saves')
   console.log('paths outside the whitelist are refused, inside it still work')
+}
+
+// Two workspaces count their runs from 1, and the panel session and the tool
+// session are different workspaces. They used to write runs/1, runs/2 side by
+// side in the same shape, so the second chart overwrote the first one's file.
+{
+  const panel = new Workspace({ id: 'panel-run', engine, root, config: { timeoutMs: 60000 } })
+  const agent = new Workspace({ id: 'agent-run', engine, root, config: { timeoutMs: 60000 } })
+  const chartIds = []
+  for (const workspace of [panel, agent]) {
+    await workspace.init()
+    await workspace.createDataset({ variables: [{ name: 'x', type: 'numeric' }], rows: [[1], [2], [3]] })
+    await workspace.runSyntax('DESCRIPTIVES /VARIABLES=x.')
+    const chart = await workspace.addChart('bar', { variable: 'x', title: workspace.id })
+    chartIds.push(chart.runId)
+  }
+  // Both counters are at the same number on purpose: that is the collision.
+  if (chartIds[0] !== chartIds[1]) throw new Error('both workspaces must reach the same run number')
+  const first = await panel.artifact(chartIds[0], 'chart.svg')
+  const second = await agent.artifact(chartIds[1], 'chart.svg')
+  if (!first || !second) throw new Error('each workspace must find its own chart')
+  if (first.equals(second)) throw new Error('run 1 of two workspaces must not resolve to the same file')
+  if (panel.runDir(chartIds[0]) === agent.runDir(chartIds[1])) throw new Error('the run directories must differ')
+  if (!/^\d+-[0-9a-f]{6}$/.test(basename(panel.runDir(chartIds[0])))) throw new Error(`unexpected run directory name ${basename(panel.runDir(chartIds[0]))}`)
+  console.log('run directories are unique per workspace:', basename(panel.runDir(chartIds[0])), basename(agent.runDir(chartIds[1])))
+
+  // A run directory written by an older version (no suffix) still resolves.
+  const legacy = join(panel.dir, 'runs', '99')
+  await mkdir(legacy, { recursive: true })
+  await writeFile(join(legacy, 'chart.svg'), '<svg/>')
+  const old = await panel.artifact(99, 'chart.svg')
+  if (!old || old.toString() !== '<svg/>') throw new Error('a legacy run directory must still be readable')
+
+  // Eviction must leave a workspace alone while a read is in flight.
+  panel.inflight = 1
+  if (await panel.release()) throw new Error('release must refuse while a request is in flight')
+  panel.inflight = 0
+  console.log('in-flight work blocks eviction')
 }
 
 await rm(root, { recursive: true, force: true })
