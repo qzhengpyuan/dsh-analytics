@@ -5405,8 +5405,10 @@ let ITEM_CSV_PENDING = null
             const edits = tableEdits[item.id]
             const matrixRows = Array.isArray(item.table?.matrix) ? item.table.matrix.length : 0
             const bodyRows = Math.max(0, matrixRows - 1)
-            const clipBody = bodyRows > EXPORT_ROWS
-            const limit = clipBody ? EXPORT_ROWS : 0
+            // The cap the host exports use, so all three files agree (0.31.3).
+            const exportRows = Number(st?.maxExportRows) > 0 ? Number(st?.maxExportRows) : EXPORT_ROWS
+            const clipBody = bodyRows > exportRows
+            const limit = clipBody ? exportRows : 0
             const drawn = edits
               ? { html: matrixHtml(item.table?.matrix, `ap-tbl-${tableStyle}`, edits, limit), total: bodyRows, shown: limit > 0 ? Math.min(limit, bodyRows) : bodyRows }
               : item.table?.html?.includes?.('<table')
@@ -7073,7 +7075,7 @@ let ITEM_CSV_PENDING = null
         min: 100,
         max: 100000,
         step: 100,
-        hint: '频率表这类「一个取值一行」的表很容易几千行；超过上限的导出会在文档里注明只放了前 N 行。立即生效。',
+        hint: '导出上限立即生效（面板、Word、Excel、HTML 四个出口同一数值）：频率表这类「一个取值一行」的表很容易几千行，超过上限的导出会在文件里注明只放了前 N 行。',
       },
       {
         key: 'allowedDirs',

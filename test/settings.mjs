@@ -58,6 +58,8 @@ await check('validation names the field and the range', () => {
   assert.equal(mergeSettings({ ...SETTINGS_DEFAULTS }, { maxExportRows: 500 }).maxExportRows, 500)
   assert.throws(() => mergeSettings({ ...SETTINGS_DEFAULTS }, { maxExportRows: 50 }), /maxExportRows 必须在 100 到 100000 之间/)
   assert.throws(() => mergeSettings({ ...SETTINGS_DEFAULTS }, { maxExportRows: 'lots' }), /maxExportRows 必须是整数/)
+  // A blank box is "leave it alone", not zero: say that rather than "got 0".
+  assert.throws(() => mergeSettings({ ...SETTINGS_DEFAULTS }, { maxExportRows: '' }), /留空表示不改这一项/)
   assert.throws(() => mergeSettings({ ...SETTINGS_DEFAULTS }, [1]), /必须是一个对象/)
 })
 

@@ -1,6 +1,6 @@
 # dsh-analytics 功能说明
 
-> 版本 0.31.2 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 版本 0.31.3 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
 > 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
 > **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 23 个 agent 工具，让模型能在对话里直接分析、转换、画图。这些工具不再是「装了插件就有」，而是挂在插件自带的「数据分析」Agent 预设里（见 §9）。
 
@@ -110,7 +110,7 @@ SPSS 每打开一个文件就多一个数据编辑器窗口；这里对应「多
 频率表这类「一个取值一行」的表，3000 个取值就是 3000 行。整张塞进 Word 会得到几 MB 的文件：打得开、读不了，发邮件还要被拒。
 
 - 每张表只保留前 `maxExportRows` 行（默认 2000，表头不算），后面接一句 `表太长：这张表共 N 行，文档里只放了前 K 行；完整数据请用「导出为 CSV」。`
-- 三个出口都跟这条：`word/document.xml` 里一句小字、Excel 工作表里一行「注：…」、HTML 导出里一段 `.ap-export-note`。
+- 四个出口同一数值：`word/document.xml` 里一句小字、Excel 工作表里一行「注：…」、HTML 导出里一段 `.ap-export-note`，以及面板里那个上限本身（0.31.3 起 `api/state` 带上 `maxExportRows`，浏览器侧的 HTML 导出不再用写死的 2000）。
 - 实测（3001 行的频率表，含 PSPP 自己的 Total 行）：默认上限下 docx 4.04 MB、xlsx 790 KB；上限调到 500 后 docx 1.02 MB、xlsx 202 KB，正文里都是 500 行数据 + 表头、无尾部泄漏。
 - 面板屏幕内的截断是另一件事（`PREVIEW_ROWS = 200`，「显示全部」可展开），它只影响屏上渲染，复制 CSV 与导出一律按上限走。
 

@@ -580,6 +580,9 @@ console.log('settings on disk', reread.maxRows === 5000)
 // state; if the setting never reaches api/state the knob is dead weight.
 r = await call('GET', `${base}/api/state?sessionId=style01&cwd=${encodeURIComponent(home)}`)
 console.log('state carries the table style', r.code, r.json().state.tableStyle === 'grid')
+// The HTML export runs in the browser, so the cap has to travel with the state
+// too — otherwise that one file ignores a knob the other two honour.
+console.log('state carries the export cap', r.code, r.json().state.maxExportRows === 2000)
 r = await call('POST', `${base}/api/settings`, { patch: { maxRows: 10 } })
 console.log('settings refuses a bad value', r.code, /maxRows 必须在/.test(String(r.json().error)))
 r = await call('POST', `${base}/api/settings`, { patch: { tableStyle: 'fancy' } })
