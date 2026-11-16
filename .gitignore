@@ -4,3 +4,4 @@ engine/
 *.log
 .DS_Store
 build/
+SHA256SUMS
