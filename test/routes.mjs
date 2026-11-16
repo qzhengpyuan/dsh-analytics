@@ -557,6 +557,10 @@ settingsBody = r.json()
 console.log('settings saved', r.code, settingsBody.settings.maxRows === 5000, settingsBody.settings.tableStyle === 'grid')
 const reread = JSON.parse(await readFile(join(home, 'analytics', 'settings.json'), 'utf8'))
 console.log('settings on disk', reread.maxRows === 5000)
+// The panel draws every output table from the style it reads back with the
+// state; if the setting never reaches api/state the knob is dead weight.
+r = await call('GET', `${base}/api/state?sessionId=style01&cwd=${encodeURIComponent(home)}`)
+console.log('state carries the table style', r.code, r.json().state.tableStyle === 'grid')
 r = await call('POST', `${base}/api/settings`, { patch: { maxRows: 10 } })
 console.log('settings refuses a bad value', r.code, /maxRows 必须在/.test(String(r.json().error)))
 r = await call('POST', `${base}/api/settings`, { patch: { tableStyle: 'fancy' } })

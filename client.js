@@ -4250,12 +4250,18 @@ let ITEM_CSV_PENDING = null
       // keyed by output item id. They survive collapse and are used by the HTML
       // export; the Word/Excel export still writes PSPP's own numbers.
       const [tableEdits, setTableEdits] = useState({})
-      const [tableStyle, setTableStyle] = useState(() => {
+      // The 设置 page owns the persistent preset (`three-line` | `grid`) and it
+      // arrives with every state; the 视图 menu is a per-browser override on top
+      // of it, so a user who wants plain tables for one afternoon does not have
+      // to change the shared setting for everyone.
+      const settingStyle = st?.tableStyle === 'grid' ? 'grid' : st?.tableStyle === 'three-line' ? 'three' : null
+      const [styleOverride, setStyleOverride] = useState(() => {
         try {
           const stored = localStorage.getItem('ap.tableStyle')
-          return ['three', 'plain', 'grid'].includes(stored) ? stored : 'default'
-        } catch { return 'default' }
+          return ['three', 'plain', 'grid'].includes(stored) ? stored : null
+        } catch { return null }
       })
+      const tableStyle = styleOverride ?? settingStyle ?? 'default'
       // Frozen header row / first data column. SPSS freezes both by default;
       // the switch is here because a wide dataset sometimes wants the space.
       const [freezeRows, setFreezeRows] = useState(() => {
@@ -4274,8 +4280,11 @@ let ITEM_CSV_PENDING = null
         })
       }
       const chooseTableStyle = (value) => {
-        setTableStyle(value)
-        try { localStorage.setItem('ap.tableStyle', value) } catch { /* quota */ }
+        setStyleOverride(value)
+        try {
+          if (value) localStorage.setItem('ap.tableStyle', value)
+          else localStorage.removeItem('ap.tableStyle')
+        } catch { /* quota */ }
       }
       const [dragging, setDragging] = useState(false)
       const [convertPath, setConvertPath] = useState('')
@@ -5267,7 +5276,8 @@ let ITEM_CSV_PENDING = null
             { sep: true },
             { label: '在输出中查找…', action: () => setDialog({ kind: 'outputSearch', value: outputQuery }) },
             { label: '输出表格样式', sub: [
-              { label: `${tableStyle === 'default' ? '✓ ' : ''}当前样式`, action: () => chooseTableStyle('default') },
+              { label: `${styleOverride === null ? '✓ ' : ''}跟随设置（${settingStyle === 'grid' ? '全框线' : '三线表'}）`, action: () => chooseTableStyle(null) },
+              { label: `${tableStyle === 'default' ? '✓ ' : ''}引擎原样（不套样式）`, action: () => chooseTableStyle('default') },
               { label: `${tableStyle === 'three' ? '✓ ' : ''}三线表（论文用）`, action: () => chooseTableStyle('three') },
               { label: `${tableStyle === 'grid' ? '✓ ' : ''}全框线`, action: () => chooseTableStyle('grid') },
               { label: `${tableStyle === 'plain' ? '✓ ' : ''}无框线`, action: () => chooseTableStyle('plain') },

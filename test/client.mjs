@@ -758,6 +758,10 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     mrSets: [],
     splitBy: [],
     history: { undo: 0, redo: 0 },
+    // The 设置 page's table preset travels with the state; the panel must draw
+    // the output tables with it instead of ignoring it (it used to be a knob
+    // that wrote a file nothing read).
+    tableStyle: 'grid',
     signal: baseSignal,
   }
   window.fetch = async (url) => {
@@ -779,6 +783,16 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   const stateCalls = () => calls.filter((url) => url.includes('api/state')).length
   const beatCalls = () => calls.filter((url) => url.includes('api/heartbeat')).length
   assert.equal(stateCalls(), 1, 'the mount reads the full state once')
+  // The preset only matters where tables are drawn.
+  const styleTab = [...pollHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
+  await act(async () => {
+    styleTab.click()
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  assert.ok(
+    pollHost.querySelector('table.ap-tbl-grid'),
+    'the table preset from the settings reaches the drawn table',
+  )
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 3400)) })
   assert.ok(beatCalls() >= 1, 'the open panel polls the heartbeat')
   assert.equal(stateCalls(), 1, 'an unchanged signature does not pull the full state again')

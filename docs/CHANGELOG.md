@@ -1,3 +1,11 @@
+## 0.27.2
+
+修一个 Win10 复验抓到的「死开关」：设置页里的**输出表格样式存了但不生效**。
+
+- 病根是两套词汇：设置写 `three-line` / `grid`（`lib/settings.js`），面板画表用的是 `default` / `three` / `plain` / `grid` 且只读 `localStorage['ap.tableStyle']` —— 设置页改完，文件变了，表没变，谁也没读它。
+- 现在 `api/state` 带 `tableStyle`（和 `maxRows`），面板把它当默认样式，`视图 → 表格样式` 变成**浏览器内覆盖**（多一项「跟随设置（三线表/全框线）」清掉覆盖）。设置改一次，所有会话的表一起变；想临时看无框线的，不必改共享设置。
+- 测试：`test/routes.mjs` 断言 `api/state` 带回保存后的 `tableStyle`；`test/client.mjs` 断言状态里 `tableStyle: 'grid'` 时输出表格真带 `ap-tbl-grid` 类（此前这条完全没覆盖，正是它能静默失效的原因）。
+
 ## 0.27.1
 
 修一个让 0.27.0 的设置页在本版 DSH 上**挂不出来**的错误：注册的槽名不对。
