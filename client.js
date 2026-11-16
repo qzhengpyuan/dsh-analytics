@@ -4506,6 +4506,18 @@ let ITEM_CSV_PENDING = null
           .catch(() => { alive = false })
         return () => { alive = false }
       }, [locale])
+
+      // Saving the language in the settings page should not wait for the next
+      // heartbeat: that page lives in its own slot with no props from here, so it
+      // announces the change on the window and the panel adopts it at once.
+      useEffect(() => {
+        const onLocale = (event) => {
+          const next = event?.detail === 'en' ? 'en' : 'zh'
+          setSt((prev) => (prev && prev.locale !== next ? { ...prev, locale: next } : prev))
+        }
+        window.addEventListener('ap:locale', onLocale)
+        return () => window.removeEventListener('ap:locale', onLocale)
+      }, [])
       // The panel is asked for the session's own working directory, so 打开/保存
       // start where the conversation lives instead of the dsh server's cwd.
       const readSessionCwd = useCallback(() => {
@@ -7240,6 +7252,12 @@ let ITEM_CSV_PENDING = null
           })
           setData(payload)
           setStatus('已保存。界面语言、表格样式、允许的目录、导出上限立即生效；载入上限与超时在下一次使用生效。')
+          // The panel adopts the language without waiting for the 3 s heartbeat.
+          try {
+            window.dispatchEvent(new window.CustomEvent('ap:locale', { detail: form.uiLanguage }))
+          } catch {
+            // A host without CustomEvent keeps the heartbeat path, which still works.
+          }
         } catch (failure) {
           setError(failure.message)
         } finally {

@@ -1,6 +1,8 @@
 // Pure-function tests: syntax builders and chart models (no engine needed).
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { buildAnalysis, buildTransform, buildChart, analysisExtras, itemsForAgent } from '../lib/tools.js'
 import { computeBar, computeHistogram, computeScatter, computeBox, computeLine, computePie, computeDualLine, renderSvg, buildChartModel, tCritical95, studentTwoSidedP, welchTest, significanceLabel } from '../lib/charts.js'
 import { decodeText, guessDelimiter, importDelimited, parseMissingValues, writeSav } from '../lib/dataset.js'
@@ -981,7 +983,7 @@ check('a THRU range survives being written and read back', async () => {
     variables: [{ name: 'age', type: 'numeric', width: 8, decimals: 0, alignment: 'right', missing: [{ lo: 90, hi: 99 }, 999] }],
     rows: [[80], [95], [999]],
   }
-  await writeSav(run, dataset, '/tmp/range-test.sav')
+  await writeSav(run, dataset, join(tmpdir(), 'range-test.sav'))
   const declaration = scripts.join('\n').split('\n').find((line) => line.startsWith('MISSING VALUES'))
   assert.equal(declaration, 'MISSING VALUES age (90 THRU 99, 999).')
   // The dictionary hands the same declaration back with `;` separators.
@@ -999,7 +1001,7 @@ check('a string THRU range is refused instead of dropped', async () => {
     variables: [{ name: 'code', type: 'string', width: 8, alignment: 'left', missing: [{ lo: 'AA', hi: 'ZZ', text: true }] }],
     rows: [['AA'], ['MM']],
   }
-  await assert.rejects(writeSav(run, dataset, '/tmp/range-string.sav'), /字符串变量 code 的缺失值里有区间/)
+  await assert.rejects(writeSav(run, dataset, join(tmpdir(), 'range-string.sav')), /字符串变量 code 的缺失值里有区间/)
   assert.equal(scripts.length, 0, 'nothing is written before the refusal')
 })
 

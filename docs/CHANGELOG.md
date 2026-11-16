@@ -1,3 +1,13 @@
+## 0.32.2
+
+Win10 复验 0.32.0 抓到三条可以直接修的问题。
+
+- **切换语言不再等心跳**：设置页保存后立刻在窗口上广播 `ap:locale`，面板当场换语言（原来要等 3 秒一轮的心跳把 `state.locale` 带回来，实测 3 526 ms / 3 046 ms，超出「立即生效」的承诺）。心跳路径仍在，用于别处改设置的情形。
+- **两条测试不再写死 Linux 路径**：`test/build.mjs` 的 THRU 用例改用 `os.tmpdir()`，`test/paths.mjs` 用 `path.resolve('/mnt/F/a')` 算期望值。原先在 Windows 上分别报 `ENOENT: X:\tmp\range-test.sav.source.csv` 与 `['X:\mnt\F\a']`，是测试口径问题，不是产品行为。
+- **校验文案的期望值改由校验器自己产出**：`test/i18n.mjs` 原来手写「100 到 2000000」，而实现是 1000 到 5000000，导致复验单里出现一处并不存在的「文档与实现不一致」。
+
+全量 329 条断言 / 22 套件。
+
 ## 0.32.1
 
 - 导出文件里的「来源：… · N 例 · M 变量 · 打开于 …」也翻（英文下是 `Source: sixty.csv · 60 cases · 3 variables · opened at …`）；为此补了带空格的复数片段键（`例 · ` → `cases · `、` 变量` → ` variables`），避免「60  cases」「3 Variable」这种半吊子输出。

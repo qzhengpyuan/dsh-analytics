@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 
 import { dictionaryFor, localize, normalizeLang, translateText } from '../lib/i18n.js'
+import { normalizeSetting } from '../lib/settings.js'
 
 let checks = 0
 function check(name, run) {
@@ -37,8 +38,14 @@ check('an interpolated export line reads as english, with plurals that fit the s
 })
 
 check('a host validation message keeps its numbers and loses its chinese', () => {
-  const text = localize('maxRows 必须是 100 到 2000000 之间的整数，收到 10', 'en')
-  assert.equal(text, 'maxRows must be 100–2000000 as an integer; received 10')
+  // Taken from the validator itself: a copy written by hand drifted from the real
+  // 1000–5000000 range and made the verifier report a mismatch that did not exist.
+  let thrown = null
+  try { normalizeSetting('maxRows', 10) } catch (failure) { thrown = failure }
+  assert.ok(thrown, 'the validator rejects 10')
+  assert.equal(thrown.message, 'maxRows 必须在 1000 到 5000000 之间，收到 10')
+  const text = localize(thrown.message, 'en')
+  assert.equal(text, 'maxRows must be 1000–5000000; received 10')
   assert.equal(/[\u4e00-\u9fff]/.test(text), false)
 })
 

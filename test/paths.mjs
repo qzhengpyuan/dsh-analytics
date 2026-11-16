@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 import {
   HARD_DENY_HOME,
@@ -103,8 +103,12 @@ async function main() {
 
   await check('allowedDirs accepts lines or an array, and rejects relative entries', () => {
     assert.deepEqual(normalizeAllowedDirs('', home), [])
-    assert.deepEqual(normalizeAllowedDirs('/mnt/F/a\n/mnt/F/b', home), ['/mnt/F/a', '/mnt/F/b'])
-    assert.deepEqual(normalizeAllowedDirs(['/mnt/F/a', '', ' ', '/mnt/F/a'], home), ['/mnt/F/a'], 'duplicates collapse')
+    // Windows maps a leading slash onto the current drive, so the expectation has to
+  // be built instead of written out.
+  const POSIX_A = resolve('/mnt/F/a')
+  const POSIX_B = resolve('/mnt/F/b')
+  assert.deepEqual(normalizeAllowedDirs('/mnt/F/a\n/mnt/F/b', home), [POSIX_A, POSIX_B])
+    assert.deepEqual(normalizeAllowedDirs(['/mnt/F/a', '', ' ', '/mnt/F/a'], home), [POSIX_A], 'duplicates collapse')
     assert.throws(() => normalizeAllowedDirs(['relative/dir'], home), /绝对路径/)
     assert.throws(() => normalizeAllowedDirs(42, home), /字符串数组/)
   })

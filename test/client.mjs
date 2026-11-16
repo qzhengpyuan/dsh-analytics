@@ -1317,3 +1317,49 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   await act(async () => { fullRoot.unmount() })
   console.log('ok  the rendered english panel has no chinese text left in it')
 }
+
+// Saving the language in the settings page has to show up at once. Waiting for
+// the next heartbeat made the switch take 3.5 s, which the verifier called out.
+{
+  const dict = JSON.parse(readFileSync(join(root, 'locale', 'en.json'), 'utf8')).strings
+  const host = window.document.createElement('div')
+  window.document.body.appendChild(host)
+  const langRoot = createRoot(host)
+  const emptyState = {
+    id: 'session-lang',
+    version: '0.32.2',
+    engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+    dataset: null,
+    items: [],
+    importNotes: [],
+    log: [],
+    mrSets: [],
+    splitBy: [],
+    history: { undo: 0, redo: 0 },
+    tableStyle: 'three-line',
+    maxRows: null,
+    maxExportRows: null,
+    locale: 'zh',
+    signal: { id: 'session-lang', items: 0 },
+  }
+  window.fetch = async (url) => {
+    const target = String(url)
+    if (target.includes('api/locale')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, locale: 'en', strings: dict }) }
+    }
+    return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state: emptyState }) }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    langRoot.render(React.createElement(registered.tabs[0].component, { ...props, scope: { sessionId: 'session-lang', cwd: '/tmp' }, tab: null }))
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  })
+  assert.match(host.textContent, /尚未打开数据集/, 'the panel starts in chinese')
+  await act(async () => {
+    window.dispatchEvent(new window.CustomEvent('ap:locale', { detail: 'en' }))
+    await new Promise((resolve) => setTimeout(resolve, 300))
+  })
+  assert.match(host.textContent, /No dataset open/, 'the panel switches as soon as the setting is saved')
+  await act(async () => { langRoot.unmount() })
+  console.log('ok  the language announced by the settings page is adopted without waiting for the heartbeat')
+}
