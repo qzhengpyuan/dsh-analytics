@@ -100,7 +100,7 @@ async function main() {
   if (offline) {
     tgz = resolve(offline)
     if (!existsSync(tgz)) throw new Error(`找不到 ${tgz}`)
-    version = (basename(tgz).match(/dsh-analytics-(\d+\.\d+\.\d+)\.tgz/) ?? [])[1] ?? 'unknown'
+    version = (basename(tgz).match(/dsh-analytics-(\d+\.\d+\.\d+)(?:-[a-z0-9-]+)?\.tgz/) ?? [])[1] ?? 'unknown'
     console.log(`本地包：${tgz}（版本 ${version}）`)
     const digest = sha256(readFileSync(tgz))
     console.log(`sha256：${digest}`)
@@ -108,8 +108,13 @@ async function main() {
     const release = await api(`/repos/${REPO}/releases/latest`)
     version = release.tag_name.replace(/^v/, '')
     console.log(`最新发布：${release.tag_name}`)
-    const tarball = release.assets.find(asset => asset.name === `dsh-analytics-${version}.tgz`)
-    if (!tarball) throw new Error(`${release.tag_name} 没有挂 dsh-analytics-${version}.tgz（资产：${release.assets.map(a => a.name).join(', ') || '无'}）`)
+    // Releases carry one tarball per platform (`-linux-x64`, `-win32-x64`, …) and
+    // the older ones carried a single plain name: take this machine's build when
+    // it is there, and fall back to whatever the release does have.
+    const candidates = release.assets.filter((asset) => new RegExp(`^dsh-analytics-${version.replace(/\./g, '\\.')}(?:-[a-z0-9-]+)?\\.tgz$`).test(asset.name))
+    if (candidates.length === 0) throw new Error(`${release.tag_name} 没有挂 dsh-analytics-${version}*.tgz（资产：${release.assets.map(a => a.name).join(', ') || '无'}）`)
+    const platformSuffix = `-${process.platform}-${process.arch}`
+    const tarball = candidates.find((asset) => asset.name.endsWith(`${platformSuffix}.tgz`)) ?? candidates[0]
     tgz = join(work, tarball.name)
     const buffer = await download(tarball, tgz)
     const digest = sha256(buffer)

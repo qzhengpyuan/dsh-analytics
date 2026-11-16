@@ -18,14 +18,14 @@ npm 依赖：**无运行时 npm 依赖**。peer 只有 `@deepseek-ai/cordis` 与
 
 ## 安装（从 Release 的 .tgz 手工装）
 
-每个版本都挂了 `dsh-analytics-<版本>.tgz`（自带 `engine/linux-x64` 与 `engine/win32-x64`，约 34 MB）：
+每个版本都按平台挂 `dsh-analytics-<版本>-<平台>.tgz`（如 `-linux-x64`、`-win32-x64`，各自带对应平台的引擎，约 34 MB）；0.31.5 及更早只有一个不带平台后缀的 `dsh-analytics-<版本>.tgz`：
 
 ```bash
-# 1. 下载：到 releases/latest 页拿 dsh-analytics-<版本>.tgz（下文以 0.26.5 为例）
+# 1. 下载：到 releases/latest 页拿 dsh-analytics-<版本>-<平台>.tgz（下文以 0.32.0 的 linux-x64 为例）
 curl -L -O https://github.com/qzhengpyuan/dsh-analytics/releases/download/v0.26.5/dsh-analytics-0.26.5.tgz
 
 # 2. 装进目标 profile（<profile> = web / desktop …）
-dsh plugin --profile <profile> add file:$PWD/dsh-analytics-<版本>.tgz
+dsh plugin --profile <profile> add file:$PWD/dsh-analytics-<版本>-linux-x64.tgz
 
 # 3. 让 profile 把这个包当成 bundle，它的 cordis.patch.yml 才会被读入：
 #    编辑 ~/.dsh/profiles/<profile>/package.json，把 "dsh-analytics" 加进 dsh.profile.bundles
@@ -42,7 +42,7 @@ dsh plugin --profile <profile> add file:$PWD/dsh-analytics-<版本>.tgz
 
 ## 安装（一条命令，0.27.0 起）
 
-Release 现在同时挂 `dsh-analytics-<版本>.tgz` 与 `SHA256SUMS`。仓库里的安装脚本把「下载 → 校验 → 装包 → 登记 bundle」串起来：
+Release 现在同时挂平台 tarball 与 `SHA256SUMS`（脚本会挑当前平台的包，没有就退到唯一那个）。仓库里的安装脚本把「下载 → 校验 → 装包 → 登记 bundle」串起来：
 
 ```bash
 git clone https://github.com/qzhengpyuan/dsh-analytics.git && cd dsh-analytics
