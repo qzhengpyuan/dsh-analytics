@@ -958,7 +958,15 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     id: 'session-test',
     version: '0.30.0',
     engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
-    dataset: { sourcePath: '/tmp/a.sav', name: 'a.sav', caseCount: 5, variables: [] },
+    dataset: {
+      sourcePath: '/tmp/a.sav',
+      name: 'a.sav',
+      caseCount: 5,
+      variables: [
+        { name: 'x', label: '测试标签', type: 'numeric', width: 8, decimals: 2, measure: 'scale', alignment: 'right' },
+        { name: 'y', label: '', type: 'numeric', width: 8, decimals: 2, measure: 'scale', alignment: 'right' },
+      ],
+    },
     items: [
       { id: 'run-1-0', kind: 'table', title: '第一张', table: { caption: '第一张', matrix: [['', 'N'], ['x', '5']] }, runId: 1 },
       { id: 'run-2-0', kind: 'table', title: '第二张', table: { caption: '第二张', matrix: [['', 'N'], ['y', '5']] }, runId: 2 },
@@ -981,6 +989,12 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     menuRoot.render(React.createElement(registered.tabs[0].component, props))
     await new Promise((resolve) => setTimeout(resolve, 150))
   })
+  // SPSS prints the variable label under the name in the header; a sheet of
+  // x/y means nothing without it.
+  const headLabels = [...menuHost.querySelectorAll('.ap-grid thead th .ap-head-label')].map((node) => node.textContent)
+  assert.deepEqual(headLabels, ['测试标签'], 'only the labelled variable gets a second header line')
+  assert.ok([...menuHost.querySelectorAll('.ap-grid thead th .ap-head-name')].some((node) => node.textContent === 'x'),
+    'the variable name stays on the first line')
   const key = (name, init = {}) => new window.KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true, ...init })
   await act(async () => {
     window.dispatchEvent(key('f', { altKey: true }))
