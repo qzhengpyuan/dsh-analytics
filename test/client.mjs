@@ -793,6 +793,36 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     pollHost.querySelector('table.ap-tbl-grid'),
     'the table preset from the settings reaches the drawn table',
   )
+  // …and the same preset has to reach the HTML export, or the printed copy and
+  // the screen disagree (the settings page used to claim it did, and it did not).
+  const exportedFiles = []
+  const realCreate = window.URL.createObjectURL
+  const realGlobalUrl = globalThis.URL
+  globalThis.URL = window.URL
+  window.URL.createObjectURL = (blob) => {
+    exportedFiles.push(blob)
+    return 'blob:stub'
+  }
+  const realClick = window.HTMLAnchorElement.prototype.click
+  window.HTMLAnchorElement.prototype.click = function noop() {}
+  const fileMenu = [...pollHost.querySelectorAll('.ap-menu-button')].find((node) => node.textContent === '文件')
+  await act(async () => {
+    fileMenu.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const htmlEntry = [...pollHost.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent === '导出输出为 HTML…')
+  assert.ok(htmlEntry, 'the file menu offers an HTML export')
+  await act(async () => {
+    htmlEntry.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  window.URL.createObjectURL = realCreate
+  globalThis.URL = realGlobalUrl
+  window.HTMLAnchorElement.prototype.click = realClick
+  assert.equal(exportedFiles.length, 1, 'the export produced one file')
+  const exportedHtml = await exportedFiles[0].text()
+  assert.match(exportedHtml, /<table[^>]*class="[^"]*ap-tbl-grid/, 'the exported table carries the preset class')
+  assert.match(exportedHtml, /table\.ap-tbl-grid/, 'the exported stylesheet defines the preset')
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 3400)) })
   assert.ok(beatCalls() >= 1, 'the open panel polls the heartbeat')
   assert.equal(stateCalls(), 1, 'an unchanged signature does not pull the full state again')

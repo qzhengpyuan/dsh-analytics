@@ -5098,19 +5098,38 @@ let ITEM_CSV_PENDING = null
       const exportOutput = useCallback(() => {
         const list = st?.items ?? []
         if (list.length === 0) { notify('还没有输出'); return }
+        // PSPP's own HTML comes back with a bare `<table>`; the panel's tables
+        // carry a class. Both get the preset stamped on, so one stylesheet
+        // covers every table in the file.
+        const stampStyle = (html) => {
+          const text = String(html ?? '')
+          if (!text.includes('<table')) return text
+          return text.replace(/<table\b([^>]*)>/i, (match, attrs) => (
+            /class\s*=\s*"([^"]*)"/i.test(attrs)
+              ? match.replace(/class\s*=\s*"([^"]*)"/i, (whole, current) => `class="${current}${current ? ' ' : ''}ap-tbl-${tableStyle}"`)
+              : `<table${attrs} class="ap-tbl-${tableStyle}">`
+          ))
+        }
         const parts = [
           '<!doctype html><meta charset="utf-8"><title>PSPP 输出</title>',
           '<style>body{font:13px/1.6 "Segoe UI","Noto Sans CJK SC",sans-serif;padding:24px;color:#111}' +
           'table{border-collapse:collapse;margin:0 0 18px}caption{caption-side:top;text-align:left;font-weight:600;padding:2px 0 4px}' +
           'th,td{border:1px solid #9aa1ad;padding:3px 7px}th{background:#f0f2f6}img{max-width:100%;border:1px solid #d5d8dd}' +
+          // The preset travels with the export: a three-line table printed from
+          // the panel and the same table saved as HTML must not be two looks.
+          'table.ap-tbl-three{border-collapse:collapse;border-top:2px solid #222;border-bottom:2px solid #222}' +
+          'table.ap-tbl-three th,table.ap-tbl-three td{border:0;border-bottom:1px solid #e6e8ee;padding:4px 8px}' +
+          'table.ap-tbl-three tr:first-child th{border-bottom:1px solid #222}' +
+          'table.ap-tbl-grid th,table.ap-tbl-grid td{border:1px solid #9aa1ad}' +
+          'table.ap-tbl-plain th,table.ap-tbl-plain td{border-color:transparent;background:transparent}' +
           '.ap-export-note{font-style:italic;font-size:12px;color:#333;margin:-10px 0 18px}' +
           '.ap-export-source{font-size:11px;color:#555;margin:-12px 0 16px}</style>',
         ]
         for (const item of list) {
           if (item.kind === 'table') {
-            parts.push(tableEdits[item.id]
+            parts.push(stampStyle(tableEdits[item.id]
               ? matrixHtml(item.table?.matrix, `ap-tbl-${tableStyle}`, tableEdits[item.id])
-              : item.table?.html?.includes?.('<table') ? item.table.html : matrixHtml(item.table?.matrix))
+              : item.table?.html?.includes?.('<table') ? item.table.html : matrixHtml(item.table?.matrix)))
             // One line per table saying which data it came from: the block at
             // the bottom lists every source in the session, which does not tell
             // a reader handed a single table where its numbers came from.
@@ -6730,7 +6749,7 @@ let ITEM_CSV_PENDING = null
         label: '输出表格样式',
         kind: 'select',
         options: [['three-line', '三线表（SPSS 默认）'], ['grid', '网格（带竖线）']],
-        hint: '立即生效，也影响导出的 HTML。',
+        hint: '立即生效：面板与「导出输出为 HTML」都跟它走。Word/Excel 导出固定按三线表排版。',
       },
     ]
 
