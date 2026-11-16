@@ -115,6 +115,29 @@ check('an extending paste past the last variable creates the columns', () => {
 
 if (failed) process.exitCode = 1
 
+// 30 snapshots of a big dataset is not a count problem, it is a memory problem:
+// a step count alone let the stack reach gigabytes, and the process died with the
+// user's session inside it. The stack also has a cell budget now, and it says
+// when a step was dropped rather than pretending the history is complete.
+check('the undo stack keeps to a total cell budget, not just a step count', () => {
+  const workspace = make()
+  workspace.historyLimit = 30
+  workspace.historyBudgetCells = 9
+  workspace.pushHistory('第一次')
+  workspace.pushHistory('第二次')
+  workspace.pushHistory('第三次')
+  workspace.pushHistory('第四次')
+  // 4 rows x 4 columns = 16 cells per snapshot, so the budget of 9 keeps 1.
+  assert.equal(workspace.undoStack.length, 1, 'kept ' + workspace.undoStack.length + ' steps')
+  assert.equal(workspace.undoStack[0].label, '第四次', 'the newest step is the one kept')
+  assert.equal(workspace.historyInfo().dropped, 3, 'the panel can say how many steps went')
+  // A single cell edit counts as one cell, not as a whole snapshot: it can stay
+  // while a snapshot that would blow the budget is dropped.
+  workspace.pushCellHistory(0, 1, 10, 11)
+  assert.equal(workspace.undoStack.length, 1)
+  assert.equal(workspace.undoStack[0].label, '编辑单元格', 'the cheap step survives, the expensive one goes')
+})
+
 check('renaming a variable keeps its column and can be undone', () => {
   const workspace = make()
   assert.equal(workspace.updateVariable('Before', { name: 'pre' }).name, 'pre')

@@ -4746,6 +4746,13 @@ let ITEM_CSV_PENDING = null
             if ((fresh.items ?? []).length > (before?.items ?? []).length && viewRef.current !== 'output') {
               notify('PSPP 有新输出（切换到「输出」查看）')
             }
+            // The undo stack has a memory budget; when a step is dropped the next
+            // 撤销 goes further back than the user expects, so say it once.
+            const droppedBefore = Number(before?.history?.dropped ?? 0)
+            const droppedNow = Number(fresh.history?.dropped ?? 0)
+            if (droppedNow > droppedBefore) {
+              notify(`数据集较大，撤销记录超出内存预算：最早的 ${droppedNow - droppedBefore} 步已丢弃`)
+            }
             // The data sheet only has to reload when the data itself moved:
             // a new variable, a different case count or another file.
             const dataMoved = (before?.dataset?.caseCount ?? -1) !== (fresh.dataset?.caseCount ?? -1)

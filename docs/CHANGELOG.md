@@ -1,3 +1,12 @@
+## 0.31.5
+
+Win10 对 0.31.4 的第 2 项是「部分 PASS」：`diagnostics[].message` 干净了，但两处仍带引擎临时路径。
+
+- 「引擎没有产出任何表（…）」这条 400 的表单（`describeFailure`）现在也过 `stripEngineLocation`：用户看到的是「退出码 1：Unknown command \`FREQUENCIS'.」，不是 `C:\...\runs\6-8529db\run.sps:2.1-2.10: error: …`。
+- `describeEngineError` 的自由文本分支同样剥离位置前缀。
+- `diagnostics[].raw` **保留原文**（这是记录，导出/审计要用）；用户可见的 `message`、`hint`、400 文案都不带路径。
+- **撤销栈加了内存预算**：以前只限步数（30 步），30 份「半个百万格」的快照就能吃掉 1 GB 并把用户的会话一起拖死。现在除步数外还有总格数预算（默认 400 万格，`config.historyBudgetCells` 可调），超了丢最早的那步，并在面板弹一句「数据集较大，撤销记录超出内存预算：最早的 N 步已丢弃」，`state.history.dropped` 记着丢了几步。
+
 ## 0.31.4
 
 Win10 对 0.31.3 的四项复验全 PASS，它顺手报的两条我一起修了。

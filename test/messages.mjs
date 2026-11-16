@@ -7,6 +7,7 @@ import assert from 'node:assert/strict'
 
 import { explainMessage } from '../lib/messages.js'
 import { parseDiagnostics } from '../lib/html.js'
+import { stripEngineLocation } from '../lib/fserr.js'
 
 let checks = 0
 const check = (name, fn) => {
@@ -63,6 +64,19 @@ check('a Windows path still yields a diagnostic, not a raw log line', () => {
   assert.equal(diagnostics.length, 1, 'one diagnostic, got ' + diagnostics.length)
   assert.equal(diagnostics[0].message, 'Syntax error at end of line.', 'the message has no path in it')
   assert.equal(log.length, 0, 'and no unparsed line leaks into the log')
+})
+
+// The path the engine names is the plugin's own temp file. `message` was fixed
+// by parsing, but the "no tables produced" 400 and the free-form fallback went
+// out with it, which is the text a user actually reads.
+check('the engine location is stripped from any message that leaves the host', () => {
+  assert.equal(
+    stripEngineLocation('C:\\Users\\q\\.dsh\\analytics\\c2\\runs\\6-8529db\\run.sps:2.1-2.10: error: Unknown command `FREQUENCIS\'.'),
+    'Unknown command `FREQUENCIS\'.',
+  )
+  assert.equal(stripEngineLocation('/home/q/.dsh/analytics/s/runs/3/run.sps:1.1-1.4: error: bad'), 'bad')
+  assert.equal(stripEngineLocation('error: the moon is made of cheese'), 'the moon is made of cheese')
+  assert.equal(stripEngineLocation('run.sps:1: 警告: 未知命令'), '警告: 未知命令', 'a warning keeps its own label')
 })
 
 console.log(`messages: ${checks} checks passed`)
