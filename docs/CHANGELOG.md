@@ -1,3 +1,13 @@
+## 0.26.3
+
+三件同源的事，都是「这张表的数字来自哪份数据」在离开面板之后就断了。
+
+- **新建的数据集不再冒充文件**。`pspp_new` 建的数据集把调用方给的名字写进了 `dataset.sourcePath`，于是 `provenance` 报成 `{sourcePath: "prov-probe"}`，面板标签画成 `prov-probe · 3 例 · 1 变量` —— 看起来像个磁盘文件。现在 `createDataset()` 写 `sourcePath: null` + `origin: 'new'` + 创建时刻 `openedAt`，面板标签改成 `新建数据集（prov-probe，未保存） · 3 例 · 1 变量`，悬停说明「这份数据没有对应的磁盘文件」。拖入的副本另有 `origin: 'upload'`。
+- **导出文件带上来源**。`buildDocx` / `buildXlsx` 新增 `docProps/core.xml`：`dc:subject` 写「数据来源：<路径> · N 例 · M 变量，size · 打开于 …」，`dc:description` 逐行列出来源并说明「改动数据后请重新运行分析」；Word 文档末尾还会**可见地**印一段「数据来源：」（9pt），因为没人会为了看来源去翻文件属性。HTML 导出同样在末尾追加来源块。实测：导出的 docx 用 LibreOffice 转 PDF，末页能抽出「数据来源：· /mnt/.../big.csv · 3000 例 · 3 变量，45.4 KB · 打开于 2026-11-16 12:43」。PDF 输出由 PSPP 自己渲染，本版未覆盖（见「已知限制」）。
+- **来源文件有了实体指纹**。打开文件时记 `sourceSize`（字节）与 `sourceMtime`（毫秒时间戳），随 `provenance` 走出，并写进 `dataset.json` 一起挺过宿主重启。用途：同名、同例数、同变量数的另一版文件，现在能从「读入时 45.4 KB / 磁盘修改时间 2026-11-16 12:43」分辨出来。
+
+测试：`test/office.mjs` 新增 3 条（`describeSources()` 对三种 origin 的措辞、docx 的 docProps 与正文档来源行、xlsx 的 docProps），`test/smoke.mjs` 新增 4 条真引擎断言（打开的文件 `origin/sourceSize/sourceMtime`、恢复后三者不丢、`createDataset()` 的 `origin: 'new'` 与 `sourcePath: null`），`test/client.mjs` 新增一条 jsdom 断言（新建数据集的标签不再像文件名）。合计 271 条 ok。
+
 ## 0.26.2
 
 - **从 `work.sav` 恢复的会话不再丢 `openedAt`**：数据集指纹里的「什么时候读的这份文件」以前只活在内存里，宿主重启后 `provenance.openedAt` 变成 `null` —— 表还能说出源文件、例数、会话，却说不出是什么时候的那一份。现在 `openedAt` 写进 `dataset.json`，`restore()` 读回（`lib/workspace.js` 的 `rememberDataset()` 与恢复壳子），旧工作区读不到就仍是 `null`，不会伪造时间。

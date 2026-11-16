@@ -78,6 +78,13 @@ console.log('missing values round-trip:', JSON.stringify(gapAfter))
 
 const back = await workspace.open(join(root, 'demo.sav'))
 console.log('reopened cases:', back.caseCount)
+// Where the numbers came from: a file the user opened, and the identity of that
+// file (size + mtime) so a replaced file with the same name is distinguishable.
+const fileStamp = workspace.provenance()
+assert.equal(fileStamp.origin, 'file', 'an opened path is a file origin')
+assert.ok(fileStamp.sourceSize > 0, `opened file should report its size, got ${fileStamp.sourceSize}`)
+assert.ok(typeof fileStamp.sourceMtime === 'number' && fileStamp.sourceMtime > 0, 'opened file should report its mtime')
+assert.equal(fileStamp.sourcePath, join(root, 'demo.sav'), 'the stamp names the file')
 console.log('variables:', back.variables.map((variable) => `${variable.name}:${variable.type}:${variable.label}:${JSON.stringify(variable.valueLabels)}`))
 
 // 值标签往返：更新 -> 存盘 -> 重开，标签必须原样回来
@@ -136,7 +143,28 @@ assert.equal(
   workspace.dataset.openedAt,
   'the restored workspace keeps the moment its file was read',
 )
+// The size/mtime travel with it: a table restored from work.sav still says which
+// version of the file it was computed from.
+assert.equal(again.dataset?.sourceSize, workspace.dataset.sourceSize, 'the restored workspace keeps the source size')
+assert.equal(again.dataset?.sourceMtime, workspace.dataset.sourceMtime, 'the restored workspace keeps the source mtime')
+assert.equal(again.dataset?.origin, 'file', 'the restored workspace keeps its origin')
 console.log('restored dataset:', again.dataset.rows.length, again.dataset.sourcePath, again.dataset.openedAt)
+
+// A dataset built in the panel (pspp_new) has no file. Its name is a label, not
+// a path: provenance used to report  sourcePath: "prov-probe"  for it, so the
+// panel drew a chip that read like a file name.
+await workspace.createDataset({
+  name: 'built-in-panel',
+  variables: [{ name: 'score', type: 'numeric' }],
+  rows: [[1], [2], [3]],
+})
+const builtStamp = workspace.provenance()
+assert.equal(builtStamp.origin, 'new', 'a dataset built from nothing is origin new')
+assert.equal(builtStamp.sourcePath, null, 'a built dataset must not claim a source path')
+assert.equal(builtStamp.sourceSize, null, 'a built dataset has no source size')
+assert.equal(builtStamp.name, 'built-in-panel', 'the name is kept as a label')
+assert.ok(typeof builtStamp.openedAt === 'number', 'a built dataset still records when it was created')
+await workspace.open(join(root, 'demo.sav'))
 
 // A dropped file is only a copy: its workspace must come back empty instead of
 // silently opening a file the user did not ask for.

@@ -4,7 +4,7 @@ import { inflateRawSync } from 'node:zlib'
 import assert from 'node:assert'
 
 import { buildZip, xmlEscape } from '../lib/zip.js'
-import { buildDocx, buildXlsx, cellRuns, escapeSheetName, formulaMap, imageExtent, pairCharts, pngSize, sheetName, sheetXml, tableXml } from '../lib/office.js'
+import { buildDocx, buildXlsx, cellRuns, describeSources, escapeSheetName, formulaMap, imageExtent, pairCharts, pngSize, sheetName, sheetXml, tableXml } from '../lib/office.js'
 
 let checks = 0
 const failures = []
@@ -721,4 +721,52 @@ await check('docx cell properties stay inside tcPr', () => {
   assert.ok(/<w:tcPr><w:tcBorders>[^]*?<\/w:tcBorders><\/w:tcPr><w:p>/.test(xml), 'tcPr precedes the paragraph')
 })
 
-console.log(`\n${checks} checks passed${process.exitCode ? ' (with failures)' : ''}`)
+// A printed table has to say where its numbers came from. docProps is what a
+// reader finds under 文件 → 属性; the Word body also carries a visible line,
+// because nobody opens file properties on paper.
+const fromFile = {
+  sessionId: 'session-a',
+  origin: 'file',
+  sourcePath: '/data/a.sav',
+  name: 'a.sav',
+  caseCount: 60,
+  varCount: 5,
+  sourceSize: 2048,
+  sourceMtime: 1794700000000,
+  openedAt: 1794700001000,
+}
+const builtInPanel = { sessionId: 'session-b', origin: 'new', sourcePath: null, name: 'prov-probe', caseCount: 3, varCount: 1, openedAt: null }
+
+await check('describeSources names a built dataset as data, not as a file', () => {
+  const [fileLine, builtLine] = describeSources([fromFile, builtInPanel])
+  assert.match(fileLine, /^\/data\/a\.sav · 60 例 · 5 变量，2\.0 KB · 打开于 /)
+  // The old label printed "prov-probe · 3 例 · 1 变量", which reads like a path.
+  assert.match(builtLine, /^新建数据集（prov-probe，未保存） · 3 例 · 1 变量$/)
+  assert.ok(!builtLine.includes('/data/'), 'a built dataset must not invent a path')
+})
+
+await check('docx carries the sources in docProps and in the body', () => {
+  const files = unzip(buildDocx({ items: [], sources: [fromFile, builtInPanel] }))
+  const core = files['docProps/core.xml'].toString('utf8')
+  assert.match(core, /<dc:subject>数据来源：/u)
+  assert.ok(core.includes('/data/a.sav'), 'the subject names the file')
+  assert.ok(files['[Content_Types].xml'].toString('utf8').includes('docProps/core.xml'), 'content types list core props')
+  assert.ok(files['_rels/.rels'].toString('utf8').includes('docProps/core.xml'), 'package root relates to core props')
+  const body = files['word/document.xml'].toString('utf8')
+  assert.ok(body.includes('数据来源：'), 'the body prints the source line')
+  assert.ok(body.includes('新建数据集（prov-probe，未保存）'), 'a built dataset is described as such')
+})
+
+await check('xlsx carries the sources in docProps', () => {
+  const files = unzip(buildXlsx({ items: [], sources: [fromFile] }))
+  const core = files['docProps/core.xml'].toString('utf8')
+  assert.ok(core.includes('/data/a.sav'), 'the workbook records its source')
+  assert.ok(files['[Content_Types].xml'].toString('utf8').includes('docProps/core.xml'))
+  assert.ok(files['_rels/.rels'].toString('utf8').includes('docProps/core.xml'))
+})
+
+if (failures.length > 0) {
+  console.error(`${failures.length} failed, ${checks - failures.length} passed`)
+} else {
+  console.log(`${checks} checks passed`)
+}

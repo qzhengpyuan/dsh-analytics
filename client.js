@@ -3666,12 +3666,27 @@ table .ap-footnote { border-top:1px solid #9aa1ad; text-align:left; color:#444; 
               if (!from) return null
               const name = from.name ?? (from.sourcePath ? basenameOf(from.sourcePath) : null)
               const opened = from.openedAt ? new Date(from.openedAt).toLocaleString('zh-CN', { hour12: false }) : null
-              const label = name
-                ? `${name} · ${from.caseCount} 例 · ${from.varCount} 变量`
-                : `未命名数据 · ${from.caseCount} 例 · ${from.varCount} 变量`
+              // A dataset built in the panel has no file, so its name must not be
+              // printed as if it were one ("prov-probe · 3 例" reads like a path).
+              const built = from.origin === 'new'
+              const dropped = from.origin === 'upload' || from.temporary === true
+              const label = built
+                ? `新建数据集${name ? `（${name}，未保存）` : '（未保存）'} · ${from.caseCount} 例 · ${from.varCount} 变量`
+                : name
+                  ? `${name} · ${from.caseCount} 例 · ${from.varCount} 变量`
+                  : `未命名数据 · ${from.caseCount} 例 · ${from.varCount} 变量`
+              const size = typeof from.sourceSize === 'number'
+                ? (from.sourceSize < 1024 ? `${from.sourceSize} B` : `${(from.sourceSize / 1024).toFixed(1)} KB`)
+                : null
+              const modified = from.sourceMtime ? new Date(from.sourceMtime).toLocaleString('zh-CN', { hour12: false }) : null
               const detail = [
-                name ? `数据文件：${name}` : '这份数据没有对应的磁盘文件（在面板里新建或刚拖入的副本）',
+                built
+                  ? '这份数据没有对应的磁盘文件（在面板里新建的）'
+                  : dropped
+                    ? '这份数据是浏览器拖进来的副本，不是磁盘上的那份'
+                    : name ? `数据文件：${name}` : '这份数据没有对应的磁盘文件',
                 from.sourcePath ? `来源路径：${from.sourcePath}` : null,
+                from.sourcePath && size ? `读入时文件 ${size}${modified ? `，磁盘修改时间 ${modified}` : ''}` : null,
                 `计算时 ${from.caseCount} 个个案、${from.varCount} 个变量`,
                 opened ? `打开于 ${opened}` : null,
                 `会话：${from.sessionId}`,
@@ -4909,6 +4924,30 @@ let ITEM_CSV_PENDING = null
           }
           else if (item.kind === 'image') parts.push(`<h3>${escapeForExport(item.title ?? '')}</h3><img src="${new URL(item.artifactUrl, document.baseURI)}" alt="${escapeForExport(item.alt ?? '')}">`)
           else parts.push(`<h3>${escapeForExport(item.title ?? '')}</h3>`)
+        }
+        // Same rule as the Word export: an HTML file that leaves the panel has to
+        // say which data its tables were computed from.
+        const seenSources = new Map()
+        for (const item of list) {
+          const from = item.provenance
+          if (!from) continue
+          const key = [from.sessionId, from.origin ?? '', from.sourcePath ?? '', from.openedAt ?? ''].join('|')
+          if (!seenSources.has(key)) seenSources.set(key, from)
+        }
+        if (seenSources.size > 0) {
+          const band = (value) => (typeof value === 'number'
+            ? (value < 1024 ? `${value} B` : `${(value / 1024).toFixed(1)} KB`)
+            : null)
+          const lines = [...seenSources.values()].map((from) => {
+            const when = from.openedAt ? new Date(from.openedAt).toLocaleString('zh-CN', { hour12: false }) : null
+            const which = from.origin === 'new'
+              ? `新建数据集${from.name ? `（${from.name}，未保存）` : '（未保存）'}`
+              : (from.sourcePath ?? from.name ?? '未命名数据')
+            const size = band(from.sourceSize)
+            return `${escapeForExport(which)} · ${from.caseCount} 例 · ${from.varCount} 变量${size ? ` · ${size}` : ''}${when ? ` · 打开于 ${escapeForExport(when)}` : ''}`
+          })
+          parts.push('<hr><p class="ap-export-note"><b>数据来源：</b><br>' + lines.join('<br>') + '</p>')
+          parts.push('<p class="ap-export-note">（由 dsh-analytics 生成，引擎 GNU PSPP；改动数据后请重新运行分析。）</p>')
         }
         const blob = new Blob([parts.join('\n')], { type: 'text/html;charset=utf-8' })
         const url = URL.createObjectURL(blob)

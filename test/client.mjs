@@ -702,6 +702,30 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   const noteModal = stateHost.querySelector('.ap-modal')
   assert.ok(noteModal && /原表头保留为标签/.test(noteModal.textContent), 'the dialog lists why each column was renamed')
   await act(async () => { stateRoot.unmount() })
+
+  // A dataset built in the panel has no file: the chip must not print its label
+  // as if it were a path ("prov-probe · 3 例" read like a file name).
+  payload.state.items[0].provenance = { sessionId: 'session-test', origin: 'new', sourcePath: null, name: 'prov-probe', caseCount: 3, varCount: 1, openedAt: null, at: 1794740000002 }
+  window.fetch = async () => ({ ok: true, status: 200, text: async () => JSON.stringify(payload) })
+  globalThis.fetch = window.fetch
+  const builtHost = window.document.createElement('div')
+  window.document.body.appendChild(builtHost)
+  const builtRoot = createRoot(builtHost)
+  await act(async () => {
+    builtRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+  })
+  const builtTab = [...builtHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
+  await act(async () => {
+    builtTab.click()
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const builtChip = builtHost.querySelector('.ap-prov')
+  assert.ok(builtChip, 'a table from a built dataset still carries a chip')
+  assert.match(builtChip.textContent, /新建数据集（prov-probe，未保存） · 3 例 · 1 变量/, 'a built dataset is named as data, not as a file')
+  assert.equal((builtChip.textContent.match(/prov-probe · /) ?? []).length, 0, 'the old file-looking label is gone')
+  assert.match(builtChip.getAttribute('title'), /没有对应的磁盘文件/, 'the tooltip explains why there is no path')
+  await act(async () => { builtRoot.unmount() })
   console.log('ok  provenance chip and import-notes list')
 }
 
