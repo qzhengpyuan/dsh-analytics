@@ -5103,6 +5103,11 @@ let ITEM_CSV_PENDING = null
         // notice: the column the user is looking for now carries a different
         // name, and its original heading is only in the variable label.
         const renamed = value?.result?.notes ?? []
+        // The grid shows fewer rows than the file has, and looks exactly like a
+        // smaller file. Only the panel knows why, so it says so once per open.
+        if (renamed.length === 0 && value?.state?.dataset?.truncated === true) {
+          notify(`已按「数据视图最多载入个案数」只显示前 ${value.state.dataset.caseCount} 例；分析、保存与导出仍在完整数据上跑`)
+        }
         if (renamed.length > 0) {
           notify(`${renamed.length} 列的表头不符合 PSPP 变量名规则，已改名（原表头保留为标签）：${renamed[0]}${renamed.length > 1 ? ` 等 ${renamed.length} 条，细节见状态栏「导入说明」` : ''}`)
         }
@@ -5794,9 +5799,13 @@ let ITEM_CSV_PENDING = null
       // SPSS puts the open dataset's shape at the left of the status bar and
       // the engine/status chatter at the right. Keeping the two strings apart
       // is what lets the bar pin them to opposite edges.
+      // A truncated dataset looks exactly like a small one: the case count is the
+      // only number that would tell, and nobody knows how many rows the file had.
+      // Say it, and say that the analysis still runs on everything.
+      const clipped = st?.dataset?.truncated === true
       const caseText = st
         ? (st.dataset
-          ? `${st.dataset.caseCount} 个个案 · ${st.dataset.variables.length} 个变量${st.dataset.dirty ? ' · 未保存' : ''}`
+          ? `${st.dataset.caseCount} 个个案${clipped ? '+' : ''} · ${st.dataset.variables.length} 个变量${st.dataset.dirty ? ' · 未保存' : ''}`
           : '未打开数据集')
         : '正在连接分析引擎…'
       const sourceText = st?.dataset ? describeSource(st.dataset) : ''
@@ -6174,6 +6183,12 @@ let ITEM_CSV_PENDING = null
         // 状态栏 22px：左边是数据的形状（个案/变量），右边是来源、引擎与告警。
         h('div', { className: 'ap-status' },
           h('span', { className: 'ap-status-cases', title: status }, caseText),
+          clipped
+            ? h('span', {
+              className: 'ap-chip',
+              title: `数据视图按「数据视图最多载入个案数」只载入了前 ${st.dataset.caseCount} 例（设置 → 统计分析 可改）。分析、保存与导出仍在完整数据上跑。`,
+            }, `截断显示 ${st.dataset.caseCount} 例`)
+            : null,
           sessionChips.length > 0
             ? h('span', { style: { display: 'flex', gap: 6, alignItems: 'center' } },
               ...sessionChips.map((chip) => h('span', { className: 'ap-chip', title: chip.title },

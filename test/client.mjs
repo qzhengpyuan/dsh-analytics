@@ -894,8 +894,49 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     await new Promise((resolve) => setTimeout(resolve, 40))
   })
   assert.equal(bigHost.querySelectorAll('.ap-table-block table tr').length, 201, 'collapsing goes back to 200 rows')
+  assert.equal(Boolean(bigHost.querySelector('.ap-status .ap-chip')), false, 'a full dataset gets no truncation chip')
   await act(async () => { bigRoot.unmount() })
   console.log('ok  a big table draws 200 rows and offers the rest')
+}
+
+// A truncated dataset (more cases than "数据视图最多载入个案数") looks exactly
+// like a small one, so the panel has to say it, and say that the numbers below
+// were computed on everything.
+{
+  const cutHost = window.document.createElement('div')
+  window.document.body.appendChild(cutHost)
+  const cutRoot = createRoot(cutHost)
+  const cutState = {
+    id: 'session-test',
+    version: '0.31.2',
+    engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+    dataset: { sourcePath: '/tmp/huge.sav', name: 'huge.sav', caseCount: 200000, truncated: true, variables: [{ name: 'x', type: 'numeric' }] },
+    items: [],
+    importNotes: [],
+    log: [],
+    mrSets: [],
+    splitBy: [],
+    history: { undo: 0, redo: 0 },
+    tableStyle: 'three-line',
+    signal: { id: 'session-test', items: 0 },
+    cwd: '/tmp',
+  }
+  window.fetch = async (url) => ({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify(String(url).includes('api/heartbeat') ? { ok: true, signal: cutState.signal } : { ok: true, state: cutState }),
+  })
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    cutRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  })
+  const chip = cutHost.querySelector('.ap-status .ap-chip')
+  assert.ok(chip, 'a truncated dataset gets a chip in the status bar')
+  assert.match(chip.textContent, /截断显示 200000 例/, 'the chip says how many cases are on screen')
+  assert.match(chip.title, /分析、保存与导出仍在完整数据上跑/, 'and that the analysis used everything')
+  await act(async () => { cutRoot.unmount() })
+  console.log('ok  a truncated dataset says so in the status bar')
 }
 
 // The other half of the big-table cap: PSPP hands us the table as HTML, and it
