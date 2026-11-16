@@ -990,6 +990,16 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   globalThis.fetch = window.fetch
   assert.throws(() => hooks.stateOf({ ok: true }), /形状不认识/, 'an unrecognisable answer is reported')
   assert.equal(hooks.stateOf({ ok: true, state: bareState }).id, 'session-test', 'the wrapped shape still wins')
+  // Several PSPP tabs each hold their own dataset, so a tab has to be named
+  // after the file it loaded; the primary tab keeps the plugin's own title.
+  const renamed = []
+  const service = { updateTab: (id, patch) => { renamed.push([id, patch.title]) } }
+  assert.equal(hooks.renameDocTab(service, 'session-test~7', 'session-test', 'sixty.csv'), true)
+  assert.deepEqual(renamed, [['analytics:session-test~7', 'sixty.csv']], 'the tab carries the dataset name')
+  assert.equal(hooks.renameDocTab(service, 'session-test', 'session-test', 'sixty.csv'), false, 'the primary tab is left alone')
+  assert.equal(hooks.renameDocTab(service, 'session-test~8', 'session-test', null), false, 'no dataset name, no rename')
+  assert.equal(hooks.renameDocTab({ updateTab: () => { throw new Error('tab strip broke') } }, 'session-test~9', 'session-test', 'a.sav'), false,
+    'a tab strip that throws must not fail the open')
   await act(async () => { bareRoot.unmount() })
   console.log('ok  the state envelope is read either way and refuses anything else')
 }

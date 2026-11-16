@@ -74,6 +74,24 @@ window.__ModuleLoader__.load({
 
     // Sidebar tabs mint their own workspace ids; a module-level counter keeps
     // two tabs from picking the same suffix.
+    /**
+     * Give a bottom-workbench PSPP tab the name of the file it loaded.
+     *
+     * Several tabs each own a dataset, so four tabs called "PSPP" is how a user
+     * edits the wrong one. The primary tab keeps the plugin's own title, and a
+     * failure here must never fail the open: the tab strip is decoration.
+     */
+    function renameDocTab(service, docId, baseSessionId, datasetName) {
+      if (!datasetName || docId === baseSessionId) return false
+      if (typeof service?.updateTab !== 'function') return false
+      try {
+        service.updateTab(`analytics:${docId}`, { title: String(datasetName) })
+        return true
+      } catch {
+        return false
+      }
+    }
+
     let DOC_SEQ = 1
 
     const CSS = `.ap-prov {
@@ -4269,6 +4287,8 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       // covered directly instead of through a rendered dialog.
       globalThis.__AP_TEST_HOOKS__.pathDirname = pathDirname
       globalThis.__AP_TEST_HOOKS__.pathJoin = pathJoin
+      globalThis.__AP_TEST_HOOKS__.renameDocTab = renameDocTab
+      globalThis.__AP_TEST_HOOKS__.stateOf = stateOf
     }
 
     function FileBrowser({ onPick, onClose, initialPath, extra = null, title = '选择文件' }) {
@@ -5074,6 +5094,11 @@ let ITEM_CSV_PENDING = null
         }
         if (value?.state) setSt(stateOf(value))
         setView('data')
+        // A tab that just loaded a file should say which file: several PSPP
+        // tabs each hold their own dataset, and four tabs all called "PSPP"
+        // is how a user edits the wrong one. Only bottom-workbench tabs have a
+        // title to change; an in-panel document already carries its own name.
+        renameDocTab(ctx?.betterSidebar, docId, baseSessionId, value?.state?.dataset?.name)
         // Column headings that had to be renamed for PSPP's rules are worth a
         // notice: the column the user is looking for now carries a different
         // name, and its original heading is only in the variable label.
@@ -5082,7 +5107,7 @@ let ITEM_CSV_PENDING = null
           notify(`${renamed.length} 列的表头不符合 PSPP 变量名规则，已改名（原表头保留为标签）：${renamed[0]}${renamed.length > 1 ? ` 等 ${renamed.length} 条，细节见状态栏「导入说明」` : ''}`)
         }
         return 'data'
-      }, [docId, setSyntax, notify])
+      }, [docId, baseSessionId, ctx, setSyntax, notify])
 
       const openPath = useCallback(async (path, options = {}) => {
         // options.seed   - path the sidebar may show (omit for a dropped copy)
