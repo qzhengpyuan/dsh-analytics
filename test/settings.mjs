@@ -124,6 +124,12 @@ await check('an open workspace follows a settings change instead of keeping the 
   assert.equal(workspace.state().tableStyle, 'grid', 'the promise is 立即生效, not 重开会话生效')
   assert.equal(workspace.maxRows, 5000)
   assert.equal(workspace.state().maxRows, 5000)
+  // The panel only re-reads state when the heartbeat moves. A drawing setting
+  // that stays out of the signature therefore looked "not applied" until the
+  // tab was reopened (the Windows verifier hit exactly this with 导出上限).
+  store.update({ maxExportRows: 500 })
+  assert.equal(workspace.signature().view.maxExportRows, 500, 'the heartbeat sees the new export cap')
+  assert.equal(workspace.state().maxExportRows, 500, 'and the state it triggers carries it')
 })
 
 await check('writing leaves no .tmp file behind', () => {
