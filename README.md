@@ -11,6 +11,8 @@ PSPP 作为 DeepSeek Harness 插件自带引擎的统计分析工作台：**不�
 - 一个带 `dsh-better-sidebar` 的 profile：侧栏页签靠它的 `registerTab` 注册，`peerDependencies` 里是可选依赖
 - 引擎：插件自带预编译 PSPP，**不需要**系统装 PSPP；本机平台没有 `engine/<platform>-<arch>/` 时按 `npm run engine:fetch` 从 `engine-v*` Release 拉，或回退到系统 `pspp`
 
+面板支持中文与英文两套界面（设置 → 统计分析 → 界面语言），分析输出的表头与数据值保持原样。
+
 ## 安装
 
 包自带 `engine/linux-x64` 与 `engine/win32-x64`（约 34 MB），一条命令装（0.27.0 起）：

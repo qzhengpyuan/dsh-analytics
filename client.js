@@ -9,7 +9,70 @@ window.__ModuleLoader__.load({
   factory(require) {
     const React = require('react')
     const { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } = React
-    const h = React.createElement
+
+    // ── language ───────────────────────────────────────────────────────────────
+    // The panel is written in Chinese, and every Chinese string it shows doubles
+    // as its own translation key. The English dictionary arrives from the host
+    // (`api/locale`) and is applied inside the element factory below: that is the
+    // one place all text passes through, so the ~750 strings did not each need a
+    // t() call at the call site.
+    //
+    // Substring replacement covers the templates too: `3000 个个案` is not a key,
+    // but `个个案` is, and the longest keys are tried first. Strings without a
+    // Chinese character (numbers, PSPP's own English output, paths) return
+    // untouched, and results are memoised because a data grid asks a few thousand
+    // times per frame.
+    let DICT = null
+    let DICT_KEYS = []
+    let LANG = 'zh'
+    const TR_CACHE = new Map()
+    const TRANSLATED_PROPS = ['title', 'placeholder', 'aria-label', 'alt']
+
+    function setDictionary(strings) {
+      DICT = strings && typeof strings === 'object' ? strings : null
+      DICT_KEYS = DICT
+        ? Object.keys(DICT).filter((key) => key.length >= 2).sort((a, b) => b.length - a.length)
+        : []
+      TR_CACHE.clear()
+    }
+
+    function tr(text) {
+      if (!DICT || typeof text !== 'string' || text === '') return text
+      const cached = TR_CACHE.get(text)
+      if (cached !== undefined) return cached
+      let out = DICT[text]
+      if (typeof out !== 'string') {
+        if (!/[\u4e00-\u9fff]/.test(text) || text.length > 600) return text
+        out = text
+        for (const key of DICT_KEYS) {
+          if (out.includes(key)) out = out.split(key).join(DICT[key])
+        }
+      }
+      TR_CACHE.set(text, out)
+      return out
+    }
+
+    function mapText(child) {
+      if (typeof child === 'string') return tr(child)
+      if (Array.isArray(child)) return child.map(mapText)
+      return child
+    }
+
+    // Wrapper, not an alias: text children and the handful of text props are
+    // translated on the way in, everything else goes to React unchanged.
+    function h(type, props, ...children) {
+      let next = props
+      if (props && DICT) {
+        for (const key of TRANSLATED_PROPS) {
+          if (typeof props[key] === 'string') {
+            if (next === props) next = { ...props }
+            next[key] = tr(props[key])
+          }
+        }
+      }
+      if (children.length === 0) return React.createElement(type, next)
+      return React.createElement(type, next, ...children.map(mapText))
+    }
 
     const API_BASE = '/analytics/'
     const apiUrl = (path) => new URL(API_BASE + path, document.baseURI).toString()
@@ -802,6 +865,9 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       globalThis.__AP_TEST_HOOKS__.truncateTableHtml = truncateTableHtml
       globalThis.__AP_TEST_HOOKS__.PREVIEW_ROWS = PREVIEW_ROWS
       globalThis.__AP_TEST_HOOKS__.stateOf = stateOf
+      globalThis.__AP_TEST_HOOKS__.tr = tr
+      globalThis.__AP_TEST_HOOKS__.setDictionary = setDictionary
+      globalThis.__AP_TEST_HOOKS__.h = h
     }
 
     /**
@@ -4417,6 +4483,29 @@ let ITEM_CSV_PENDING = null
       const sessionId = docId
       const tabPath = typeof tab?.path === 'string' ? tab.path : (typeof tab?.meta?.openPath === 'string' ? tab.meta.openPath : '')
       const [st, setSt] = useState(null)
+      // Language travels with the state (the host reads it from settings.json),
+      // so an open panel follows a switch in the panel's own settings page.
+      const locale = st?.locale === 'en' ? 'en' : 'zh'
+      useEffect(() => {
+        if (locale === LANG) return undefined
+        let alive = true
+        const apply = (strings) => {
+          if (!alive) return
+          setDictionary(strings)
+          LANG = locale
+          // Pictures the new text: the dictionary is module state, so a re-render
+          // has to be asked for explicitly.
+          setSt((prev) => (prev ? { ...prev } : prev))
+        }
+        if (locale === 'zh') {
+          apply(null)
+          return () => { alive = false }
+        }
+        api(`api/locale?lang=${locale}`)
+          .then((payload) => apply(payload?.strings ?? null))
+          .catch(() => { alive = false })
+        return () => { alive = false }
+      }, [locale])
       // The panel is asked for the session's own working directory, so 打开/保存
       // start where the conversation lives instead of the dsh server's cwd.
       const readSessionCwd = useCallback(() => {
@@ -5423,7 +5512,7 @@ let ITEM_CSV_PENDING = null
                 : { html: matrixHtml(item.table?.matrix, `ap-tbl-${tableStyle}`, null, limit), total: bodyRows, shown: limit > 0 ? Math.min(limit, bodyRows) : bodyRows }
             parts.push(stampStyle(drawn.html))
             if (clipBody && drawn.total > drawn.shown) {
-              parts.push(`<div class="ap-export-note">表太长：这张表共 ${drawn.total} 行，这个文件里只放了前 ${drawn.shown} 行；完整数据请用「导出表格为 CSV」。</div>`)
+              parts.push(`<div class="ap-export-note">${tr(`表太长：这张表共 ${drawn.total} 行，这个文件里只放了前 ${drawn.shown} 行；完整数据请用「导出表格为 CSV」。`)}</div>`)
             }
             // One line per table saying which data it came from: the block at
             // the bottom lists every source in the session, which does not tell
@@ -5472,8 +5561,8 @@ let ITEM_CSV_PENDING = null
             const size = band(from.sourceSize)
             return `${escapeForExport(which)} · ${from.caseCount} 例 · ${from.varCount} 变量${size ? ` · ${size}` : ''}${when ? ` · 打开于 ${escapeForExport(when)}` : ''}`
           })
-          parts.push('<hr><p class="ap-export-note"><b>数据来源：</b><br>' + lines.join('<br>') + '</p>')
-          parts.push('<p class="ap-export-note">（由 dsh-analytics 生成，引擎 GNU PSPP；改动数据后请重新运行分析。）</p>')
+          parts.push(`<hr><p class="ap-export-note"><b>${tr('数据来源：')}</b><br>` + lines.map((line) => tr(line)).join('<br>') + '</p>')
+          parts.push(`<p class="ap-export-note">${tr('（由 dsh-analytics 生成，引擎 GNU PSPP；改动数据后请重新运行分析。）')}</p>`)
         }
         const blob = new Blob([parts.join('\n')], { type: 'text/html;charset=utf-8' })
         const url = URL.createObjectURL(blob)
@@ -7069,6 +7158,13 @@ let ITEM_CSV_PENDING = null
         hint: '处理来路不明的数据时打开。下一次运行生效。',
       },
       {
+        key: 'uiLanguage',
+        label: '界面语言',
+        kind: 'select',
+        options: [['zh', '中文'], ['en', 'English']],
+        hint: '立即生效：面板与它给出的错误提示都换成这个语言。分析结果的表头、变量名、数据值仍是数据本来的样子。工具（agent 侧）的说明始终是英文。',
+      },
+      {
         key: 'tableStyle',
         label: '输出表格样式',
         kind: 'select',
@@ -7108,6 +7204,7 @@ let ITEM_CSV_PENDING = null
             maxRows: payload.settings.maxRows,
             timeoutMs: Math.round(payload.settings.timeoutMs / 1000),
             safer: payload.settings.safer === true,
+            uiLanguage: payload.settings.uiLanguage ?? 'zh',
             tableStyle: payload.settings.tableStyle,
             // Falls back to the shipped default so a settings file written before
             // this field existed still shows a number instead of an empty box.
@@ -7133,6 +7230,7 @@ let ITEM_CSV_PENDING = null
               maxRows: Number(form.maxRows),
               timeoutMs: Number(form.timeoutMs) * 1000,
               safer: form.safer === true,
+              uiLanguage: form.uiLanguage,
               tableStyle: form.tableStyle,
               // A blank box means "leave the current value alone": sending an
               // empty string would make the host reject the whole patch.
@@ -7141,7 +7239,7 @@ let ITEM_CSV_PENDING = null
             },
           })
           setData(payload)
-          setStatus('已保存。表格样式、允许的目录、导出上限立即生效；载入上限与超时在下一次使用生效。')
+          setStatus('已保存。界面语言、表格样式、允许的目录、导出上限立即生效；载入上限与超时在下一次使用生效。')
         } catch (failure) {
           setError(failure.message)
         } finally {
@@ -7252,6 +7350,17 @@ let ITEM_CSV_PENDING = null
       // in this version — registering there silently mounts nothing.
       inject: ['betterSidebar', 'slots'],
       apply(ctx) {
+        // The tab label and the data-file viewer title are drawn by the sidebar,
+        // not by the panel's element factory, so the dictionary is loaded up
+        // front instead of waiting for a panel to mount.
+        api('api/settings')
+          .then((payload) => (payload?.settings?.uiLanguage === 'en'
+            ? api('api/locale?lang=en').then((dict) => {
+              setDictionary(dict?.strings ?? null)
+              LANG = 'en'
+            })
+            : null))
+          .catch(() => { /* the panel will ask again when it opens */ })
         if (ctx.slots) {
           ctx.slots.inject('settings.section', () => ctx.slots.register({
             name: 'settings.section',
@@ -7263,7 +7372,7 @@ let ITEM_CSV_PENDING = null
         if (!ctx.betterSidebar) return
         ctx.effect(() => ctx.betterSidebar.registerFileViewer({
           id: 'analytics:data',
-          title: () => '统计分析',
+          title: () => tr('统计分析'),
           icon: (size) => ICON(size),
           exts: DATA_VIEWER_EXTS,
           priority: 5,
@@ -7280,8 +7389,8 @@ let ITEM_CSV_PENDING = null
         }))
         ctx.effect(() => ctx.betterSidebar.registerTab({
           id: 'analytics',
-          title: () => '统计分析',
-          description: () => '统计分析工作台（内置 GNU PSPP 引擎）：数据视图、语法、输出与常用过程',
+          title: () => tr('统计分析'),
+          description: () => tr('统计分析工作台（内置 GNU PSPP 引擎）：数据视图、语法、输出与常用过程'),
           icon: (size) => ICON(size),
           // One tab per open data file (SPSS opens a Data Editor per file);
           // the primary tab is deduped under 'primary'.

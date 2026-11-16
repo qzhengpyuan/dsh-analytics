@@ -588,5 +588,22 @@ console.log('settings refuses a bad value', r.code, /maxRows 必须在/.test(Str
 r = await call('POST', `${base}/api/settings`, { patch: { tableStyle: 'fancy' } })
 console.log('settings refuses an unknown style', r.code === 400)
 
+// The English panel needs the dictionary from the host, and the failure text it
+// shows has to be in the same language as the rest of the panel.
+r = await call('GET', `${base}/api/locale?lang=en`)
+let localeBody = r.json()
+console.log('api/locale serves the english dictionary', r.code, localeBody.locale === 'en', Object.keys(localeBody.strings ?? {}).length > 500)
+r = await call('GET', `${base}/api/locale`)
+console.log('api/locale defaults to chinese with an empty dictionary', r.code, r.json().locale === 'zh', Object.keys(r.json().strings ?? {}).length === 0)
+r = await call('POST', `${base}/api/settings`, { patch: { uiLanguage: 'en' } })
+console.log('settings accepts the language', r.code, r.json().settings.uiLanguage === 'en')
+r = await call('GET', `${base}/api/state?sessionId=locale01&cwd=${encodeURIComponent(home)}`)
+console.log('state carries the language', r.code, r.json().state.locale === 'en')
+r = await call('POST', `${base}/api/settings`, { patch: { maxRows: 10 } })
+const englishError = String(r.json().error ?? '')
+console.log('the error text follows the language', r.code === 400, !/[\u4e00-\u9fff]/.test(englishError), englishError.length > 0)
+r = await call('POST', `${base}/api/settings`, { patch: { uiLanguage: 'zh' } })
+console.log('settings accepts the language back', r.code, r.json().settings.uiLanguage === 'zh')
+
 r = await call('POST', `${base}/api/close`, { sessionId: sid })
 console.log('closed ->', r.code, r.json().state.dataset)

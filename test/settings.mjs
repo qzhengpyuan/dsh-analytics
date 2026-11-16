@@ -60,6 +60,10 @@ await check('validation names the field and the range', () => {
   assert.throws(() => mergeSettings({ ...SETTINGS_DEFAULTS }, { maxExportRows: 'lots' }), /maxExportRows 必须是整数/)
   // A blank box is "leave it alone", not zero: say that rather than "got 0".
   assert.throws(() => mergeSettings({ ...SETTINGS_DEFAULTS }, { maxExportRows: '' }), /留空表示不改这一项/)
+  // The panel's own language: two values, no autodetect, because a wrong guess
+  // is a panel the reader cannot read their way out of.
+  assert.equal(mergeSettings({ ...SETTINGS_DEFAULTS }, { uiLanguage: 'en' }).uiLanguage, 'en')
+  assert.throws(() => mergeSettings({ ...SETTINGS_DEFAULTS }, { uiLanguage: 'fr' }), /uiLanguage 只能是 zh 或 en/)
   assert.throws(() => mergeSettings({ ...SETTINGS_DEFAULTS }, [1]), /必须是一个对象/)
 })
 
@@ -130,6 +134,10 @@ await check('an open workspace follows a settings change instead of keeping the 
   store.update({ maxExportRows: 500 })
   assert.equal(workspace.signature().view.maxExportRows, 500, 'the heartbeat sees the new export cap')
   assert.equal(workspace.state().maxExportRows, 500, 'and the state it triggers carries it')
+  store.update({ uiLanguage: 'en' })
+  assert.equal(workspace.signature().view.locale, 'en', 'the heartbeat sees the language switch')
+  assert.equal(workspace.state().locale, 'en', 'and the state the panel redraws from carries it')
+  store.update({ uiLanguage: 'zh' })
 })
 
 await check('writing leaves no .tmp file behind', () => {

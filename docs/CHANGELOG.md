@@ -1,3 +1,14 @@
+## 0.32.0
+
+英文界面（用户选「做，但要完整一轮」）。做法不是给 ~750 条文案逐个加 `t()`，而是把翻译塞进元素工厂：
+
+- **`client.js` 的 `h()` 变成包装器**：`h` 原来是 `React.createElement` 的别名，现在在创建元素时翻译字符串子元素与 `title`/`placeholder`/`aria-label`/`alt` 四个文本属性。所以「菜单、工具栏、对话框、输出面板、状态栏、提示」一起换语言，调用点一个没改。
+- **key = 中文原文**：先整串命中，命中不了再按最长键做子串替换，于是 `3000 个个案` 这种插值文案靠键 `个个案` → `cases` 也能换；纯 ASCII、路径、超过 600 字符的块直接原样返回，结果进 `TR_CACHE`（数据网格一帧要问几千次）。数据值（`男`/`女`）、变量名、PSPP 自己的表头都不进字典，不会被误翻。
+- **词典 `locale/en.json`：929 条**（客户端 + 宿主错误与表注）。宿主侧新增 `lib/i18n.js`（`dictionaryFor`/`translateText`/`localize`），`lib/routes.js` 的 `sendJson` 在 `uiLanguage === 'en'` 时翻译 `error` 字段 ⇒ 英文界面不会弹中文报错。`GET api/locale?lang=en` 单独发词典（66 KB，不搭在每次 state 上）。
+- **设置页新增「界面语言」（中文 / English）**，`settings.json` 的 `uiLanguage`（默认 `zh`）；`state.locale` 与心跳签名的 `view.locale` 都带它，所以开着的面板改完立刻跟着换，不用重开。
+- 侧栏页签标题与数据文件查看器标题由宿主绘制、不走 `h()`，改为 `tr()` 并在 `apply()` 时按 `api/settings` 预载词典。
+- 刻意没翻：工具描述（本来就是英文）、PSPP 输出的表头与统计量名、用户数据值。
+
 ## 0.31.5
 
 Win10 对 0.31.4 的第 2 项是「部分 PASS」：`diagnostics[].message` 干净了，但两处仍带引擎临时路径。
