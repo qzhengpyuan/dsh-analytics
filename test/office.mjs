@@ -218,6 +218,22 @@ await check('docx keeps table notes as italic paragraphs under the table', () =>
   assert.ok(document.indexOf('注：') > document.indexOf('</w:tbl>'), 'notes follow their table')
 })
 
+await check('each table carries its own source line, not just the document footer', () => {
+  // P21's neighbour: a reader handed one table needs its source next to it.
+  const docx = buildDocx({
+    sources: [{ origin: 'file', sourcePath: '/data/a.sav', name: 'a.sav', caseCount: 60, openedAt: 1794804225859 }],
+    items: [{
+      kind: 'table',
+      table: { caption: 'Descriptives', matrix: [['', 'score'], ['Mean', '60']] },
+      provenance: { origin: 'file', name: 'a.sav', caseCount: 60, varCount: 3, openedAt: 1794804225859, sourceSize: 46462 },
+    }],
+  })
+  const document = unzip(docx)['word/document.xml'].toString('utf8')
+  assert.match(document, /来源：a\.sav · 60 例 · 45\.4 KB · 打开于 /, 'the table names its own source')
+  assert.ok(document.indexOf('来源：a.sav') > document.indexOf('</w:tbl>'), 'the stamp follows the table')
+  assert.match(document, /数据来源：/, 'the document footer is still there')
+})
+
 await check('docx puts a chart inside the table it belongs to', () => {
   const docx = buildDocx({
     items: [

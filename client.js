@@ -4906,13 +4906,28 @@ let ITEM_CSV_PENDING = null
           '<style>body{font:13px/1.6 "Segoe UI","Noto Sans CJK SC",sans-serif;padding:24px;color:#111}' +
           'table{border-collapse:collapse;margin:0 0 18px}caption{caption-side:top;text-align:left;font-weight:600;padding:2px 0 4px}' +
           'th,td{border:1px solid #9aa1ad;padding:3px 7px}th{background:#f0f2f6}img{max-width:100%;border:1px solid #d5d8dd}' +
-          '.ap-export-note{font-style:italic;font-size:12px;color:#333;margin:-10px 0 18px}</style>',
+          '.ap-export-note{font-style:italic;font-size:12px;color:#333;margin:-10px 0 18px}' +
+          '.ap-export-source{font-size:11px;color:#555;margin:-12px 0 16px}</style>',
         ]
         for (const item of list) {
           if (item.kind === 'table') {
             parts.push(tableEdits[item.id]
               ? matrixHtml(item.table?.matrix, `ap-tbl-${tableStyle}`, tableEdits[item.id])
               : item.table?.html?.includes?.('<table') ? item.table.html : matrixHtml(item.table?.matrix))
+            // One line per table saying which data it came from: the block at
+            // the bottom lists every source in the session, which does not tell
+            // a reader handed a single table where its numbers came from.
+            if (item.provenance) {
+              const from = item.provenance
+              const which = from.origin === 'new'
+                ? `新建数据集${from.name ? `（${from.name}）` : ''}`
+                : (from.name ?? from.sourcePath ?? '未命名数据')
+              const when = from.openedAt ? new Date(from.openedAt).toLocaleString('zh-CN', { hour12: false }) : null
+              const size = typeof from.sourceSize === 'number'
+                ? (from.sourceSize < 1024 ? `${from.sourceSize} B` : `${(from.sourceSize / 1024).toFixed(1)} KB`)
+                : null
+              parts.push(`<p class="ap-export-source">${escapeForExport(`来源：${which} · ${from.caseCount} 例${size ? ` · ${size}` : ''}${when ? ` · 打开于 ${when}` : ''}`)}</p>`)
+            }
             // The caveats (separation, skipped variables) are part of the table:
             // an HTML copy without them reads as if nothing was wrong.
             for (const note of item.notes ?? []) {

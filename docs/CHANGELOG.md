@@ -1,3 +1,14 @@
+## 0.26.5
+
+Win10 复验 0.26.3 时抓到的 P21：**元数据不落盘**，重载后表会把「新建数据集」标成上一份文件。
+
+- `createDataset()` 只写 `work.sav`，没写 `dataset.json`。于是 `pspp_new` 之后重启宿主，`dataset.json` 还描述着上一次打开的那个 `.csv`，恢复出来的数据集把 3 例新数据的表标成「60 例的 sixty.csv」，连 `sourceSize` 都是旧文件的 —— 来源与数据对不上，比没有来源更糟。现在 `workSav()` 写盘后同步 `rememberDataset()`，侧车文件跟着数据走；`dirty` 也一并记进去。
+- 新建的数据集**重启后能回来**了：以前 `restore()` 只认 `sourcePath` 是字符串的工作区，`origin: 'new'` 的工作区一律当空面板（数据还在 `work.sav` 里，但用户看不到）。现在它也恢复，标签仍是「新建数据集（…，未保存）」。
+- 保存数据（另存为）后指纹跟着走：原来 `save()` 只改 `sourcePath`/`name`，`origin` 还是 `new`、`sourceSize`/`sourceMtime` 还是 `null` 或上一份文件的。现在写完就 `stat` 目标文件，刷新 `origin: 'file'` + 真实大小与修改时间。
+- 导出改成**每张表自带一行来源**（docx 小字一行、HTML 一段小字）：会话级的那段「数据来源：」保留，但它只说明这个会话碰过哪些数据，被单独拿走一张表的人需要的是那张表自己的答案。`sourceStamp()` 是新增的导出函数。xlsx 仍只有 `docProps`（Excel 里没有合适的可见位置）。
+
+测试：`test/office.mjs` 新增「每张表带自己的来源行」，`test/smoke.mjs` 新增「侧车跟着数据走」与「新建数据集重启后回来（`origin` 仍是 new、`sourcePath` 仍是 null）」，合计 272 条 ok。
+
 ## 0.26.4
 
 一个发版事故，只影响**从 .tgz 安装的人**（用 `link:` 装本仓库目录的不受影响）。

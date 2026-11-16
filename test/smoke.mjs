@@ -164,6 +164,17 @@ assert.equal(builtStamp.sourcePath, null, 'a built dataset must not claim a sour
 assert.equal(builtStamp.sourceSize, null, 'a built dataset has no source size')
 assert.equal(builtStamp.name, 'built-in-panel', 'the name is kept as a label')
 assert.ok(typeof builtStamp.openedAt === 'number', 'a built dataset still records when it was created')
+// P21: createDataset() wrote work.sav but left dataset.json describing the file
+// that had been open before, so a restart stamped the new rows with the old
+// file (and its size). The sidecar must follow the data.
+const savedMeta = JSON.parse(await readFile(join(workspace.dir, 'dataset.json'), 'utf8'))
+assert.equal(savedMeta.origin, 'new', 'the sidecar records a built dataset as built')
+assert.equal(savedMeta.sourcePath, null, 'the sidecar must not carry the previous file')
+const restarted = new Workspace({ id: workspace.id, engine, root, config: { timeoutMs: 60000 } })
+const restoredBuilt = await restarted.restore()
+assert.equal(restoredBuilt?.rows?.length, 3, 'a built dataset comes back from work.sav')
+assert.equal(restarted.provenance().origin, 'new', 'and it still calls itself built, not a file')
+assert.equal(restarted.provenance().sourcePath, null, 'with no file path')
 await workspace.open(join(root, 'demo.sav'))
 
 // A dropped file is only a copy: its workspace must come back empty instead of
