@@ -4,7 +4,7 @@ import { inflateRawSync } from 'node:zlib'
 import assert from 'node:assert'
 
 import { buildZip, xmlEscape } from '../lib/zip.js'
-import { buildDocx, buildXlsx, cellRuns, describeSources, escapeSheetName, formulaMap, imageExtent, pairCharts, pngSize, sheetName, sheetXml, tableXml } from '../lib/office.js'
+import { buildDocx, buildXlsx, cellRuns, clipMatrix, describeSources, escapeSheetName, formulaMap, imageExtent, pairCharts, pngSize, sheetName, sheetXml, tableXml } from '../lib/office.js'
 
 let checks = 0
 const failures = []
@@ -807,6 +807,38 @@ await check('the picked table style decides the borders in Word and Excel', () =
   const plainBook = sheets('three-line')
   assert.match(plainBook['xl/styles.xml'].toString('utf8'), /<borders count="1">/)
   assert.match(plainBook['xl/worksheets/sheet1.xml'].toString('utf8'), /<c r="A2" t="inlineStr" s="2">/, 'the plain workbook keeps the old indices')
+})
+
+// A frequency table of a continuous variable is one row per value: 3000 of them
+// made a 7 MB Word file nobody would open. Exports now keep the first
+// `maxExportRows` body rows and say so, because dropping rows silently is worse
+// than the size.
+await check('a very long table is clipped in the document, with a note that says so', async () => {
+  const matrix = [['', 'Frequency', 'Percent']]
+  for (let index = 1; index <= 3000; index += 1) matrix.push([`取值${index}`, String(index), '0.0'])
+
+  const clip = clipMatrix(matrix, 500)
+  assert.equal(clip.total, 3000, 'the header is not one of the body rows')
+  assert.equal(clip.kept, 500)
+  assert.equal(clip.dropped, 2500)
+  assert.equal(clip.matrix.length, 501, 'header plus the kept rows')
+  assert.equal(clipMatrix(matrix, 5000).dropped, 0, 'a table under the limit is untouched')
+  assert.deepEqual(clipMatrix(matrix, 0).matrix, matrix, 'a zero limit means no clipping at all')
+
+  const items = [{ kind: 'table', table: { caption: '取值', matrix } }]
+  const docx = unzip(buildDocx({ items, maxRows: 500 }))['word/document.xml'].toString('utf8')
+  const rowsInDocx = (docx.match(/<w:tr[ >]/g) ?? []).length
+  assert.equal(rowsInDocx, 501, `the document carries 500 body rows plus the header, got ${rowsInDocx}`)
+  assert.match(docx, /表太长：这张表共 3000 行，文档里只放了前 500 行/, 'the note names the real size')
+  assert.match(docx, /导出为 CSV/, 'and points at the way to get everything')
+  assert.equal(docx.includes('取值501'), false, 'nothing past the limit leaks into the document')
+
+  const small = unzip(buildDocx({ items: [{ kind: 'table', table: { caption: '取值', matrix: matrix.slice(0, 11) } }], maxRows: 500 }))['word/document.xml'].toString('utf8')
+  assert.equal(/表太长/.test(small), false, 'a short table gets no note')
+
+  const sheet = unzip(buildXlsx({ items, maxRows: 500 }))['xl/worksheets/sheet1.xml'].toString('utf8')
+  assert.match(sheet, /注：表太长：这张表共 3000 行/, 'the Excel sheet carries the same note')
+  assert.equal(sheet.includes('取值501'), false, 'and the same cut')
 })
 
 if (failures.length > 0) {

@@ -1,3 +1,27 @@
+## 0.31.0
+
+两件：导出不再无限膨胀，面板读状态不再把一种合法形状当成「没有数据」。
+
+### 导出体积上限
+
+频率表这类「一个取值一行」的表，3000 个取值就是 3000 行，整张塞进 Word 得到 4 MB 的文件（多张表叠加能到 7 MB 以上）：打得开、读不了。现在每张表只写前 `maxExportRows` 行（默认 2000，表头不计），后面跟一句 `表太长：这张表共 N 行，文档里只放了前 K 行；完整数据请用「导出为 CSV」。`
+
+- 三个出口一致：`word/document.xml` 一句小字、Excel 工作表一行「注：…」、HTML 导出一段 `.ap-export-note`。
+- 上限可调：设置 → 统计分析 → 「导出时每张表最多放多少行」（`maxExportRows`，100–100000，立即生效）；留空表示不改。
+- 实测（3001 行频率表，含 PSPP 自己的 Total 行）：默认上限 docx 4.04 MB / xlsx 790 KB；调成 500 后 docx 1.02 MB / xlsx 202 KB，正文 500 行 + 表头、无尾部泄漏、注文在。
+- 屏幕内的 200 行预览与导出是两套数：预览只影响屏上渲染，「显示全部」可以展开；复制 CSV 与导出按 `maxExportRows` 走。
+- `lib/office.js` 新增 `EXPORT_ROW_LIMIT`、`clipMatrix()`、`clipNote()`；`buildDocx`/`buildXlsx` 都收 `maxRows`；`exportOffice()` 从 `liveConfig().maxExportRows` 传入。
+
+### 面板与宿主的数据契约
+
+宿主回 `{ ok: true, state: {…} }`，面板各处直接取 `value.state`。任何给裸状态对象的调用方（自建测试台、换了 envelope 的宿主）都会拿到 `undefined`，于是请求 200、面板却永远显示「尚未打开数据集」。
+
+- 新增 `stateOf(value)`：`value.state` 是对象就用它；只要对象里有 `items` 数组与 `dataset` 就按状态本身处理；两者都不是就抛 `宿主返回的数据形状不认识：需要 { ok:true, state:{…} }，或者直接给状态对象`。
+- 全部状态读取（首次载入、轮询、各操作后的刷新）都改走它；轮询里比较 items 增长与 `dataMoved` 也用规整后的对象。
+- 宁可报一句能看懂的话，也不再把空面板伪装成「没有数据」。
+
+测试：314 → 316 条（导出裁剪 1 条、裸状态契约 1 条；`test/settings.mjs` 补 `maxExportRows` 的三条校验）。
+
 ## 0.30.1
 
 大表截断的两处判断题改对了。

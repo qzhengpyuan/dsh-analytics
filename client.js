@@ -56,6 +56,22 @@ window.__ModuleLoader__.load({
       return value
     }
 
+    /**
+     * The workspace state out of an API answer.
+     *
+     * The host wraps it (`{ ok: true, state: {…} }`). A panel driven from a test
+     * stub, or a host that grows a different envelope, may hand the state itself;
+     * accepting both costs one line and stops a whole panel from painting
+     * "尚未打开数据集" while the data was right there in the response.
+     */
+    function stateOf(value) {
+      if (value && typeof value === 'object') {
+        if (value.state && typeof value.state === 'object') return value.state
+        if (Array.isArray(value.items) && value.dataset) return value
+      }
+      throw new Error('宿主返回的数据形状不认识：需要 { ok:true, state:{…} }，或者直接给状态对象')
+    }
+
     // Sidebar tabs mint their own workspace ids; a module-level counter keeps
     // two tabs from picking the same suffix.
     let DOC_SEQ = 1
@@ -602,6 +618,11 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     // screenful is enough to see the shape, and 显示全部 is one click away.
     // Copying CSV and exporting always use the whole table, never this window.
     const PREVIEW_ROWS = 200
+    // Exports keep far more rows than the screen does, but still not everything:
+    // a 3000-row frequency table produced a 7 MB document. Host exports read
+    // this from settings (maxExportRows); the browser-side HTML export has no
+    // host round trip, so it uses the same default.
+    const EXPORT_ROWS = 2000
 
     /**
      * Cut a rendered table down to `limit` body rows.
@@ -762,6 +783,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       globalThis.__AP_TEST_HOOKS__.matrixHtml = matrixHtml
       globalThis.__AP_TEST_HOOKS__.truncateTableHtml = truncateTableHtml
       globalThis.__AP_TEST_HOOKS__.PREVIEW_ROWS = PREVIEW_ROWS
+      globalThis.__AP_TEST_HOOKS__.stateOf = stateOf
     }
 
     /**
@@ -4580,8 +4602,9 @@ let ITEM_CSV_PENDING = null
 
       const refresh = useCallback(async () => {
         const value = await api(stateUrl(sessionId))
-        setSt(value.state)
-        return value.state
+        const state = stateOf(value)
+        setSt(state)
+        return state
       }, [sessionId, stateUrl])
 
       const loadRows = useCallback(async (offset, limit) => {
@@ -4620,13 +4643,13 @@ let ITEM_CSV_PENDING = null
         }
         if (action === 'insertCase') return run3('已在第 ' + (row + 1) + ' 行插入个案', async () => {
           const value = await api('api/case', { sessionId, action: 'insert', row })
-          setSt(value.state)
+          setSt(stateOf(value))
           const page = await loadRows(0, 500)
           setRows(page.rows); setTotal(page.total)
         })
         if (action === 'deleteCase') return run3('已删除第 ' + (row + 1) + ' 行', async () => {
           const value = await api('api/case', { sessionId, action: 'delete', row })
-          setSt(value.state)
+          setSt(stateOf(value))
           const page = await loadRows(0, 500)
           setRows(page.rows); setTotal(page.total)
         })
@@ -4639,7 +4662,7 @@ let ITEM_CSV_PENDING = null
           if (!variable) { notify('这个格子还没有变量，无法清空'); return }
           return run3('已清空', async () => {
             const value = await api('api/cell', { sessionId, row, variable, value: '' })
-            setSt(value.state)
+            setSt(stateOf(value))
             const page = await loadRows(0, 500)
             setRows(page.rows); setTotal(page.total)
           })
@@ -4648,7 +4671,7 @@ let ITEM_CSV_PENDING = null
           if (!variable || target.numeric !== true) { notify('只有数值变量可以设为系统缺失值'); return }
           return run3('已设为系统缺失值', async () => {
             const value = await api('api/cell', { sessionId, row, variable, value: 'SYSMIS' })
-            setSt(value.state)
+            setSt(stateOf(value))
             const page = await loadRows(0, 500)
             setRows(page.rows); setTotal(page.total)
           })
@@ -4657,7 +4680,7 @@ let ITEM_CSV_PENDING = null
           if (!variable) { notify('这个格子还没有变量，无法排序'); return }
           return run3(action === 'sortAsc' ? `已按 ${variable} 升序排序` : `已按 ${variable} 降序排序`, async () => {
             const value = await api('api/sort', { sessionId, keys: [{ name: variable, order: action === 'sortAsc' ? 'a' : 'd' }] })
-            setSt(value.state)
+            setSt(stateOf(value))
             const page = await loadRows(0, 500)
             setRows(page.rows); setTotal(page.total)
           })
@@ -4698,15 +4721,16 @@ let ITEM_CSV_PENDING = null
             const value = await api(stateUrl(sessionId))
             if (stopped) return
             const before = current
-            setSt(value.state)
-            if ((value.state.items ?? []).length > (before?.items ?? []).length && viewRef.current !== 'output') {
+            const fresh = stateOf(value)
+            setSt(fresh)
+            if ((fresh.items ?? []).length > (before?.items ?? []).length && viewRef.current !== 'output') {
               notify('PSPP 有新输出（切换到「输出」查看）')
             }
             // The data sheet only has to reload when the data itself moved:
             // a new variable, a different case count or another file.
-            const dataMoved = (before?.dataset?.caseCount ?? -1) !== (value.state.dataset?.caseCount ?? -1)
-              || (before?.dataset?.sourcePath ?? null) !== (value.state.dataset?.sourcePath ?? null)
-              || (before?.dataset?.variables ?? []).length !== (value.state.dataset?.variables ?? []).length
+            const dataMoved = (before?.dataset?.caseCount ?? -1) !== (fresh.dataset?.caseCount ?? -1)
+              || (before?.dataset?.sourcePath ?? null) !== (fresh.dataset?.sourcePath ?? null)
+              || (before?.dataset?.variables ?? []).length !== (fresh.dataset?.variables ?? []).length
               || (next?.dataset?.vars ?? null) !== (previous?.dataset?.vars ?? null)
             if (dataMoved) {
               const page = await loadRows(0, 500)
@@ -4774,7 +4798,7 @@ let ITEM_CSV_PENDING = null
         setBusy(true)
         try {
           const value = await api('api/run', { sessionId, syntax: text, persist, pairwise, regression, roc })
-          setSt(value.state)
+          setSt(stateOf(value))
           const items = value.result.items ?? []
           // A data transform (sort/filter/compute) produces no tables: stay in
           // the data editor and refresh the rows the host just rewrote.
@@ -4808,7 +4832,7 @@ let ITEM_CSV_PENDING = null
         setBusy(true)
         try {
           const value = await api('api/mrset', { sessionId, ...extra, action, name })
-          if (value.state) setSt(value.state)
+          if (value.state) setSt(stateOf(value))
           if (action === 'frequency' || action === 'crosstab') {
             // The new table is appended to the output, so pull the items again.
             await refresh()
@@ -4829,7 +4853,7 @@ let ITEM_CSV_PENDING = null
         setBusy(true)
         try {
           const value = await api('api/publication', { sessionId, ...payload })
-          setSt(value.state)
+          setSt(stateOf(value))
           setView('output')
           const notes = value.result?.notes ?? []
           notify(`已生成：${value.result?.item?.title ?? '表格'}${notes.length ? `（${notes.length} 条提示）` : ''}`)
@@ -4845,7 +4869,7 @@ let ITEM_CSV_PENDING = null
         setBusy(true)
         try {
           const value = await api('api/pairwise', { sessionId, options: payload })
-          setSt(value.state)
+          setSt(stateOf(value))
           setView('output')
           const count = (value.result?.matrix?.length ?? 1) - 1
           notify(`两两比较：${count} 对${value.result?.notes?.length ? `（${value.result.notes.length} 条提示）` : ''}`)
@@ -4861,7 +4885,7 @@ let ITEM_CSV_PENDING = null
         setBusy(true)
         try {
           const value = await api('api/partial', { sessionId, options: payload })
-          setSt(value.state)
+          setSt(stateOf(value))
           setView('output')
           const count = (value.result?.matrix?.length ?? 1) - 1
           notify(`偏相关：${count} 对变量${value.result?.notes?.length ? `（${value.result.notes.length} 条提示）` : ''}`)
@@ -4877,7 +4901,7 @@ let ITEM_CSV_PENDING = null
         setBusy(true)
         try {
           const value = await api('api/flip', { sessionId, force: force === true })
-          setSt(value.state)
+          setSt(stateOf(value))
           const page = await loadRows(0, 500)
           setRows(page.rows)
           setTotal(page.total)
@@ -4895,7 +4919,7 @@ let ITEM_CSV_PENDING = null
         try {
           rememberChartTarget(chart.tableId ?? '')
           const value = await api('api/chart', { sessionId, kind: chart.kind, options: chart })
-          setSt(value.state)
+          setSt(stateOf(value))
           setView('output')
           notify(`已生成图表：${value.result?.chart?.title ?? '图表'}`)
           setDialog(null)
@@ -4937,7 +4961,7 @@ let ITEM_CSV_PENDING = null
         setBusy(true)
         try {
           const value = await api('api/history', { sessionId, action })
-          setSt(value.state)
+          setSt(stateOf(value))
           const page = await loadRows(0, 500)
           setRows(page.rows)
           setTotal(page.total)
@@ -5048,7 +5072,7 @@ let ITEM_CSV_PENDING = null
           setView('syntax')
           return 'syntax'
         }
-        if (value?.state) setSt(value.state)
+        if (value?.state) setSt(stateOf(value))
         setView('data')
         // Column headings that had to be renamed for PSPP's rules are worth a
         // notice: the column the user is looking for now carries a different
@@ -5273,7 +5297,7 @@ let ITEM_CSV_PENDING = null
       const [pendingClose, setPendingClose] = useState(null)
       const closeSession = useCallback(async () => {
         const value = await api('api/close', { sessionId })
-        setSt(value.state)
+        setSt(stateOf(value))
         setRows([])
         setTotal(0)
         setSelected(null)
@@ -5346,9 +5370,22 @@ let ITEM_CSV_PENDING = null
         ]
         for (const item of list) {
           if (item.kind === 'table') {
-            parts.push(stampStyle(tableEdits[item.id]
-              ? matrixHtml(item.table?.matrix, `ap-tbl-${tableStyle}`, tableEdits[item.id])
-              : item.table?.html?.includes?.('<table') ? item.table.html : matrixHtml(item.table?.matrix)))
+            // Same cap as the Word/Excel writers: a saved HTML file has to stay
+            // openable, and the note below says what was left out.
+            const edits = tableEdits[item.id]
+            const matrixRows = Array.isArray(item.table?.matrix) ? item.table.matrix.length : 0
+            const bodyRows = Math.max(0, matrixRows - 1)
+            const clipBody = bodyRows > EXPORT_ROWS
+            const limit = clipBody ? EXPORT_ROWS : 0
+            const drawn = edits
+              ? { html: matrixHtml(item.table?.matrix, `ap-tbl-${tableStyle}`, edits, limit), total: bodyRows, shown: limit > 0 ? Math.min(limit, bodyRows) : bodyRows }
+              : item.table?.html?.includes?.('<table')
+                ? truncateTableHtml(item.table.html, limit)
+                : { html: matrixHtml(item.table?.matrix, `ap-tbl-${tableStyle}`, null, limit), total: bodyRows, shown: limit > 0 ? Math.min(limit, bodyRows) : bodyRows }
+            parts.push(stampStyle(drawn.html))
+            if (clipBody && drawn.total > drawn.shown) {
+              parts.push(`<div class="ap-export-note">表太长：这张表共 ${drawn.total} 行，这个文件里只放了前 ${drawn.shown} 行；完整数据请用「导出表格为 CSV」。</div>`)
+            }
             // One line per table saying which data it came from: the block at
             // the bottom lists every source in the session, which does not tell
             // a reader handed a single table where its numbers came from.
@@ -5468,7 +5505,7 @@ let ITEM_CSV_PENDING = null
       const menus = ([
         {
           label: '文件', items: [
-            { label: '新建数据', action: async () => { const value = await api('api/new', { sessionId }); setSt(value.state); setView('data') } },
+            { label: '新建数据', action: async () => { const value = await api('api/new', { sessionId }); setSt(stateOf(value)); setView('data') } },
             { label: '打开数据…', action: () => setBrowser({ mode: 'open' }) },
             { label: '保存数据', action: saveAs },
             { label: '另存为…', action: () => setBrowser({ mode: 'save' }) },
@@ -5528,7 +5565,7 @@ let ITEM_CSV_PENDING = null
             { label: '批量导入值标签…', action: () => setDialog({ kind: 'valueLabels' }) },
             { label: '插入个案', action: async () => {
               const value = await api('api/case', { sessionId, action: 'append', values: {} })
-              setSt(value.state)
+              setSt(stateOf(value))
               const page = await loadRows(0, 500)
               setRows(page.rows)
               setTotal(page.total)
@@ -5536,7 +5573,7 @@ let ITEM_CSV_PENDING = null
             { label: '删除个案', action: async () => {
               if (!selected) { notify('先在数据视图里选中一个单元格'); return }
               const value = await api('api/case', { sessionId, action: 'delete', row: selected.row })
-              setSt(value.state)
+              setSt(stateOf(value))
               const page = await loadRows(0, 500)
               setRows(page.rows)
               setTotal(page.total)
@@ -5960,7 +5997,7 @@ let ITEM_CSV_PENDING = null
                 onPaste: async (cells, options) => {
                   try {
                     const value = await api('api/paste', { sessionId, cells, extend: options?.extend === true })
-                    setSt(value.state)
+                    setSt(stateOf(value))
                     const added = []
                     if (value.result?.addedCases) added.push(`新增 ${value.result.addedCases} 个个案`)
                     if (value.result?.addedVariables) added.push(`新增 ${value.result.addedVariables} 个变量`)
@@ -5997,7 +6034,7 @@ let ITEM_CSV_PENDING = null
                 onMoveVariable: async (name, position) => {
                   try {
                     const value = await api('api/variable', { sessionId, action: 'move', name, position })
-                    setSt(value.state)
+                    setSt(stateOf(value))
                   } catch (error) {
                     notify(error.message)
                   }
@@ -6013,7 +6050,7 @@ let ITEM_CSV_PENDING = null
                   onUpdate: async (name, patch) => {
                     try {
                       const value = await api('api/variable', { sessionId, action: 'update', name, patch })
-                      setSt(value.state)
+                      setSt(stateOf(value))
                     } catch (error) {
                       notify(error.message)
                     }
@@ -6021,7 +6058,7 @@ let ITEM_CSV_PENDING = null
                   onAdd: async (name) => {
                     try {
                       const value = await api('api/variable', { sessionId, action: 'add', spec: { name } })
-                      setSt(value.state)
+                      setSt(stateOf(value))
                     } catch (error) {
                       notify(error.message)
                     }
@@ -6029,7 +6066,7 @@ let ITEM_CSV_PENDING = null
                   onRename: async (from, to) => {
                     try {
                       const value = await api('api/variable', { sessionId, action: 'update', name: from, patch: { name: to } })
-                      setSt(value.state)
+                      setSt(stateOf(value))
                     } catch (error) {
                       notify(error.message)
                     }
@@ -6037,14 +6074,14 @@ let ITEM_CSV_PENDING = null
                   onMove: async (name, position) => {
                     try {
                       const value = await api('api/variable', { sessionId, action: 'move', name, position })
-                      setSt(value.state)
+                      setSt(stateOf(value))
                     } catch (error) {
                       notify(error.message)
                     }
                   },
                   onDelete: async (name) => {
                     const value = await api('api/variable', { sessionId, action: 'delete', name })
-                    setSt(value.state)
+                    setSt(stateOf(value))
                   },
                   onEditLabels: (variable) => setLabelsDialog({
                     name: variable.name,
@@ -6098,7 +6135,7 @@ let ITEM_CSV_PENDING = null
                   onReportExport: () => setBrowser({ mode: 'report', format: 'pdf' }),
                   onRemove: async (id) => {
                     const value = await api('api/output', { sessionId, action: 'remove', id })
-                    setSt(value.state)
+                    setSt(stateOf(value))
                   },
                 })),
         // SPSS 的 Data Editor 与 Viewer 都把视图页签放在内容区下方，
@@ -6198,7 +6235,7 @@ let ITEM_CSV_PENDING = null
               setDialog(null)
               try {
                 const value = await api('api/chart/update', { sessionId, runId: dialog.runId, ...patch })
-                setSt(value.state)
+                setSt(stateOf(value))
                 notify('图表已更新')
               } catch (error) {
                 notify(error.message)
@@ -6254,7 +6291,7 @@ let ITEM_CSV_PENDING = null
               setDialog(null)
               try {
                 const value = await api('api/mrset', { sessionId, action: 'define', set: setDefinition })
-                setSt(value.state)
+                setSt(stateOf(value))
                 notify(`已定义多选题 ${setDefinition.name}`)
               } catch (error) { notify(error.message) }
             },
@@ -6275,7 +6312,7 @@ let ITEM_CSV_PENDING = null
               try {
                 for (const entry of targets) {
                   const value = await api('api/valuelabels', { sessionId, name: entry, labels, merge })
-                  setSt(value.state)
+                  setSt(stateOf(value))
                 }
                 const count = Object.keys(labels).length
                 notify(targets.length > 1
@@ -6326,7 +6363,7 @@ let ITEM_CSV_PENDING = null
             onReplace: async (spec) => {
               try {
                 const value = await api('api/replace', { sessionId, find: spec.find, replace: spec.replace, options: spec })
-                setSt(value.state)
+                setSt(stateOf(value))
                 const page = await loadRows(0, 500)
                 setRows(page.rows)
                 setTotal(page.total)
@@ -6370,7 +6407,7 @@ let ITEM_CSV_PENDING = null
               setBusy(true)
               try {
                 const value = await api('api/merge', { sessionId, kind: dialog.mode, path: spec.path, by: spec.by })
-                setSt(value.state)
+                setSt(stateOf(value))
                 const page = await loadRows(0, 500)
                 setRows(page.rows)
                 setTotal(page.total)
@@ -6397,7 +6434,7 @@ let ITEM_CSV_PENDING = null
                 labels[line.slice(0, at).trim()] = line.slice(at + 1).trim()
               }
               const value = await api('api/variable', { sessionId, action: 'update', name: labelsDialog.name, patch: { valueLabels: labels } })
-              setSt(value.state)
+              setSt(stateOf(value))
               setLabelsDialog(null)
               notify(`已更新 ${labelsDialog.name} 的 ${Object.keys(labels).length} 个值标签`)
             },
@@ -6990,6 +7027,15 @@ let ITEM_CSV_PENDING = null
         hint: '立即生效：面板、导出的 HTML、Word 与 Excel 都跟它走。',
       },
       {
+        key: 'maxExportRows',
+        label: '导出时每张表最多放多少行',
+        kind: 'number',
+        min: 100,
+        max: 100000,
+        step: 100,
+        hint: '频率表这类「一个取值一行」的表很容易几千行；超过上限的导出会在文档里注明只放了前 N 行。立即生效。',
+      },
+      {
         key: 'allowedDirs',
         label: '允许读写哪些目录（每行一个）',
         kind: 'lines',
@@ -7014,6 +7060,9 @@ let ITEM_CSV_PENDING = null
             timeoutMs: Math.round(payload.settings.timeoutMs / 1000),
             safer: payload.settings.safer === true,
             tableStyle: payload.settings.tableStyle,
+            // Falls back to the shipped default so a settings file written before
+            // this field existed still shows a number instead of an empty box.
+            maxExportRows: payload.settings.maxExportRows ?? payload.defaults?.maxExportRows ?? '',
             allowedDirs: (payload.settings.allowedDirs ?? []).join('\n'),
           })
           setError('')
@@ -7036,11 +7085,14 @@ let ITEM_CSV_PENDING = null
               timeoutMs: Number(form.timeoutMs) * 1000,
               safer: form.safer === true,
               tableStyle: form.tableStyle,
+              // A blank box means "leave the current value alone": sending an
+              // empty string would make the host reject the whole patch.
+              ...(String(form.maxExportRows ?? '').trim() === '' ? {} : { maxExportRows: Number(form.maxExportRows) }),
               allowedDirs: String(form.allowedDirs ?? '').split('\n').map((line) => line.trim()).filter(Boolean),
             },
           })
           setData(payload)
-          setStatus('已保存。表格样式、允许的目录立即生效；载入上限与超时在下一次使用生效。')
+          setStatus('已保存。表格样式、允许的目录、导出上限立即生效；载入上限与超时在下一次使用生效。')
         } catch (failure) {
           setError(failure.message)
         } finally {

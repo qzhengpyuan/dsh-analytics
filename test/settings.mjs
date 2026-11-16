@@ -53,6 +53,11 @@ await check('validation names the field and the range', () => {
   assert.throws(() => mergeSettings({ ...SETTINGS_DEFAULTS }, { safer: 'yes' }), /safer 只能是 true 或 false/)
   assert.throws(() => mergeSettings({ ...SETTINGS_DEFAULTS }, { tableStyle: 'fancy' }), /tableStyle 只能是/)
   assert.throws(() => mergeSettings({ ...SETTINGS_DEFAULTS }, { nope: 1 }), /未知的设置项 "nope"/)
+  // The export cap is a per-table row count: too low would maim every document,
+  // too high is what we were fixing in the first place.
+  assert.equal(mergeSettings({ ...SETTINGS_DEFAULTS }, { maxExportRows: 500 }).maxExportRows, 500)
+  assert.throws(() => mergeSettings({ ...SETTINGS_DEFAULTS }, { maxExportRows: 50 }), /maxExportRows 必须在 100 到 100000 之间/)
+  assert.throws(() => mergeSettings({ ...SETTINGS_DEFAULTS }, { maxExportRows: 'lots' }), /maxExportRows 必须是整数/)
   assert.throws(() => mergeSettings({ ...SETTINGS_DEFAULTS }, [1]), /必须是一个对象/)
 })
 

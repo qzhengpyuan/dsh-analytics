@@ -947,6 +947,53 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.equal((twoCut.html.match(/<tr\b/gi) ?? []).length, 202, 'and both are drawn')
 }
 
+// The host wraps state as { ok, state }, but a stub (or a host that grows a
+// different envelope) may hand the state itself. Refusing that shape painted an
+// empty panel while the data sat right there in the response -- the Windows
+// verifier hit exactly this and could not tell whether the panel was broken.
+{
+  const bareHost = window.document.createElement('div')
+  window.document.body.appendChild(bareHost)
+  const bareRoot = createRoot(bareHost)
+  const bareState = {
+    id: 'session-test',
+    version: '0.31.0',
+    engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+    dataset: { sourcePath: '/tmp/bare.sav', name: 'bare.sav', caseCount: 7, variables: [
+      { name: 'score', label: '得分', type: 'numeric', width: 8, decimals: 2, measure: 'scale', alignment: 'right' },
+    ] },
+    items: [{ id: 'run-1-0', kind: 'table', title: '裸状态', table: { caption: '裸状态', matrix: [['', 'N'], ['score', '7']] }, runId: 1 }],
+    importNotes: [],
+    log: [],
+    mrSets: [],
+    splitBy: [],
+    history: { undo: 0, redo: 0 },
+    tableStyle: 'three-line',
+    signal: { id: 'session-test', items: 1 },
+  }
+  // No envelope at all: the state object is the whole body.
+  window.fetch = async (url) => ({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify(String(url).includes('api/heartbeat') ? { ok: true, signal: bareState.signal } : bareState),
+  })
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    bareRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  })
+  assert.match(bareHost.textContent, /7 个个案/, 'a bare state object is accepted, not painted as an empty panel')
+  assert.ok([...bareHost.querySelectorAll('.ap-grid thead th .ap-head-label')].some((node) => node.textContent === '得分'),
+    'and its variables reach the header')
+  // A body that is neither shape must fail loudly rather than silently empty.
+  window.fetch = async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ ok: true }) })
+  globalThis.fetch = window.fetch
+  assert.throws(() => hooks.stateOf({ ok: true }), /形状不认识/, 'an unrecognisable answer is reported')
+  assert.equal(hooks.stateOf({ ok: true, state: bareState }).id, 'session-test', 'the wrapped shape still wins')
+  await act(async () => { bareRoot.unmount() })
+  console.log('ok  the state envelope is read either way and refuses anything else')
+}
+
 // SPSS's menu bar works without the mouse. Two Windows users hit this trying to
 // drive the panel from a screenshot: there was no keyboard path into the menus
 // at all, so a miscalculated click meant nothing happened.
@@ -1058,7 +1105,7 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.match(text, /下面这些值没被采用/, 'a broken field is reported instead of silently reverted')
   assert.match(text, /工具挂载（registerTools）：关/, 'the deployment-only switch is shown with its value')
   const numbers = [...root.querySelectorAll('input[type="number"]')].map((input) => input.value)
-  assert.deepEqual(numbers, ['5000', '90'], 'cases and timeout (in seconds) come back from the file')
+  assert.deepEqual(numbers, ['5000', '90', ''], 'cases and timeout (in seconds) come back from the file; the export cap shows the file value or blank')
   const checkbox = root.querySelector('input[type="checkbox"]')
   assert.equal(checkbox.checked, true)
   const select = root.querySelector('select')
