@@ -2117,6 +2117,49 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
           }
         },
       },
+      missing: {
+        title: '缺失值分析',
+        hint: 'PSPP 2.1.3 没有实现 MVA，这两张表由插件自己从当前数据集算（与其它表的缺失口径一致：空白与 MISSING VALUES 声明的码都算缺失）。',
+        fields: [
+          { key: 'variables', kind: 'multi', label: '变量', required: true },
+        ],
+        groups: [
+          { key: 'tables', title: '表格', items: [
+            { key: 'univariate', label: '单变量统计量', default: true },
+            { key: 'patterns', label: '缺失模式（哪些变量同时缺）', default: true },
+          ] },
+        ],
+        build: (v, flags) => ({
+          missing: {
+            variables: v.variables,
+            univariate: flags?.tables?.univariate !== false,
+            patterns: flags?.tables?.patterns !== false,
+          },
+        }),
+      },
+      replaceMissing: {
+        title: '替换缺失值',
+        hint: 'PSPP 2.1.3 没有 RMV。三种方法都只用这个变量自己的值，不引入外部数据；替换会作为一步撤销记录，跑下一次分析时才写回文件。',
+        fields: [
+          { key: 'variables', kind: 'multi', label: '要替换的变量', required: true, accept: 'numeric' },
+        ],
+        groups: [
+          { key: 'method', title: '方法', items: [
+            { key: 'method', label: '替换方法', kind: 'select', default: 'mean', options: [
+              ['mean', '序列平均值'],
+              ['linear', '线性趋势（相邻值内插）'],
+              ['nearby', '临近点'],
+            ] },
+          ] },
+        ],
+        build: (v, flags) => ({
+          missing: {
+            mode: 'replace',
+            variables: v.variables,
+            method: String(flags?.method?.method ?? 'mean'),
+          },
+        }),
+      },
       logistic: {
         title: '二元 Logistic 回归',
         fields: [
@@ -5114,6 +5157,35 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId, loadRows])
 
+      // MVA 与 RMV 都由宿主从当前数据集算，不经过语法；两者共用一条路由，
+      // 用 mode 区分。替换是改数据的操作，完成后必须把数据视图重画一次。
+      const runMissing = useCallback(async (payload, title) => {
+        setBusy(true)
+        try {
+          const value = await api('api/missing', { sessionId, ...payload })
+          setSt(stateOf(value))
+          const result = value.result ?? {}
+          if (payload.mode === 'replace') {
+            const page = await loadRows(0, 500)
+            setRows(page.rows)
+            setTotal(page.total)
+            setSelected(null)
+            setView('data')
+            const names = (result.variables ?? []).join('、')
+            notify(result.filled > 0
+              ? `${title ?? '替换缺失值'}完成：在 ${names} 上补了 ${result.filled} 个格子（${result.method === 'mean' ? '序列平均值' : result.method === 'linear' ? '线性趋势' : '临近点'}），一次撤销可以整批退回`
+              : `${names} 没有缺失值，什么也没改`)
+          } else {
+            notify(`${title ?? '缺失值分析'}完成：${result.tables ?? 0} 张表，基于 ${result.cases ?? 0} 个个案`)
+          }
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId, loadRows])
+
       // SPSS's 粘贴变量 pastes names into a dialog box; our dialogs take clicks,
       // so the same clipboard is read as a list of names and the variable view
       // jumps to the first one that exists.
@@ -5951,6 +6023,7 @@ let ITEM_CSV_PENDING = null
             { label: '汇总…', action: () => runAnalysis('aggregate') },
             { label: '计数…', action: () => runAnalysis('count') },
             { label: '排秩…', action: () => runAnalysis('rank') },
+            { label: '替换缺失值…', action: () => runAnalysis('replaceMissing') },
             { label: '定义多选题…', action: () => { setMrOpen(true); setDialog({ kind: 'mrsets' }) } },
             { label: '多选题面板…', action: () => setMrOpen(true) },
           ],
@@ -6014,10 +6087,12 @@ let ITEM_CSV_PENDING = null
             ] },
             { label: 'ROC 曲线…', action: () => runAnalysis('roc') },
             { sep: true },
+            { label: '缺失值分析…', action: () => runAnalysis('missing') },
+            { sep: true },
             { label: '受引擎限制的功能', sub: [
               { label: '生存分析（KM / Cox）', action: () => notify('PSPP 2.1.3 没有实现生存分析（not yet implemented）。替代：把数据导出 CSV，用 R 的 survival 包（KM 曲线、Cox 回归都在那里）。') },
               { label: '复杂抽样', action: () => notify('PSPP 2.1.3 没有实现复杂抽样（CSDESCRIPTIVES / CSTABULATE）。替代：用「数据 → 加权个案」近似分层权重，或导出后用 R 的 survey 包。') },
-              { label: '多重插补', action: () => notify('PSPP 2.1.3 根本不认识 MULTIPLE IMPUTATION（Unknown command）。替代：用「数据 → 选择个案」排除缺失，或用「计算变量」做均值/中位数填补（会低估方差，需在限制里写明）。') },
+              { label: '多重插补', action: () => notify('PSPP 2.1.3 根本不认识 MULTIPLE IMPUTATION（Unknown command）。插件给了两件替代：分析 → 缺失值分析（看缺失集中在哪些变量、哪些模式）与 转换 → 替换缺失值（序列平均值 / 线性趋势 / 临近点）。这两件都不是多重插补，会低估方差，写限制时要说明。') },
               { label: '协方差分析（ANCOVA）', action: () => notify('PSPP 2.1.3 的 GLM 不接受 WITH 协变量子句。替代：用「回归 → 线性」把分组变量当哑变量、协变量当预测变量，等价于 ANCOVA 的模型。') },
               { label: '曲线估计（CURVEFIT）', action: () => notify('PSPP 2.1.3 返回「CURVEFIT 尚未实现」。替代：用「转换 → 计算变量」造 x²、ln(x)、1/x 等项，再跑「回归 → 线性」。') },
               { label: '多选题直接进 CROSSTABS 等过程', action: () => notify('PSPP 不认 $ 变量。替代：多选题的频数与交叉表由本插件自己算——「转换 → 多选题面板」；要进其他过程，先把选项拆成二分变量。') },
@@ -6621,6 +6696,10 @@ let ITEM_CSV_PENDING = null
               if (built?.error) { notify(built.error); return }
               if (built?.restructure) {
                 await runRestructure(built.restructure, spec?.title)
+                return
+              }
+              if (built?.missing) {
+                await runMissing(built.missing, spec?.title)
                 return
               }
               if (built.chart) {

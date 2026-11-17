@@ -1,6 +1,6 @@
 {
   "name": "dsh-analytics",
-  "version": "0.35.0",
+  "version": "0.36.0",
   "private": true,
   "description": "dsh-analytics: AI-assisted statistics workbench for DeepSeek Harness, built on a bundled GNU PSPP engine with an SPSS-style interface — data editor, syntax editor, output viewer, charts, agent tools, and multi-format import (.sav/.por/.xlsx/.ods/.dta/.csv).",
   "type": "module",
@@ -57,7 +57,7 @@
   "icon": "./icon.svg",
   "scripts": {
     "bundle-engine": "node scripts/bundle-engine.mjs",
-    "test": "node test/build.mjs && node test/order.mjs && node test/raster.mjs && node test/office.mjs && node test/xlsx.mjs && node test/ods.mjs && node test/dta.mjs && node test/engine.mjs && node test/stage.mjs && node test/messages.mjs && node test/mrsets.mjs && node test/tables.mjs && node test/regression.mjs && node test/client.mjs && node test/smoke.mjs && node test/routes.mjs && node test/poll.mjs && node test/settings.mjs && node test/i18n.mjs && node test/install.mjs && node test/paths.mjs && node test/preset.mjs && node test/pdf-notes.mjs",
+    "test": "node test/build.mjs && node test/order.mjs && node test/raster.mjs && node test/office.mjs && node test/xlsx.mjs && node test/ods.mjs && node test/dta.mjs && node test/engine.mjs && node test/stage.mjs && node test/messages.mjs && node test/mrsets.mjs && node test/tables.mjs && node test/regression.mjs && node test/client.mjs && node test/smoke.mjs && node test/routes.mjs && node test/poll.mjs && node test/settings.mjs && node test/i18n.mjs && node test/mva.mjs && node test/install.mjs && node test/paths.mjs && node test/preset.mjs && node test/pdf-notes.mjs",
     "pack": "node scripts/pack.mjs --with-engine",
     "engine:fetch": "node scripts/fetch-engine.mjs",
     "pack:portable": "node scripts/pack.mjs",

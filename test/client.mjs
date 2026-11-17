@@ -1622,3 +1622,20 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.ok(!/CI/.test(noCi.syntax), 'turning the interval off leaves no CI keyword')
   console.log('ok  the regression dialog carries the interval level and the coefficient matrix')
 }
+
+// 缺失值分析 / 替换缺失值：两个对话框都不产出语法（引擎没有 MVA 与 RMV），
+// 它们交给宿主算，所以这里断言的是交给谁、带什么参数。
+{
+  const specs = hooks.ANALYSIS_SPECS
+  assert.ok(specs?.missing?.build, 'the missing-value dialog exists')
+  const analysed = specs.missing.build({ variables: ['age', 'score'] }, { tables: { univariate: true, patterns: false } })
+  assert.deepEqual(analysed, { missing: { variables: ['age', 'score'], univariate: true, patterns: false } })
+  const defaults = specs.missing.build({ variables: ['age'] }, undefined)
+  assert.deepEqual(defaults.missing, { variables: ['age'], univariate: true, patterns: true }, 'both tables are on by default')
+  const filled = specs.replaceMissing.build({ variables: ['score'] }, { method: { method: 'linear' } })
+  assert.deepEqual(filled, { missing: { mode: 'replace', variables: ['score'], method: 'linear' } })
+  assert.equal(specs.replaceMissing.fields[0].accept, 'numeric', 'the replace dialog only offers numeric variables')
+  const fallback = specs.replaceMissing.build({ variables: ['score'] }, undefined)
+  assert.equal(fallback.missing.method, 'mean', 'the method falls back to the series mean')
+  console.log('ok  the missing-value dialogs hand the work to the host, not the engine')
+}

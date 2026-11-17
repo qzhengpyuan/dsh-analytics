@@ -651,6 +651,38 @@ console.log('varsToCases refuses mixed types with a readable error', r.code === 
 r = await call('POST', `${base}/api/restructure`, { sessionId: 'pivot02', kind: 'casesToVars', id: ['g'], index: 'nope', variables: ['score_1'] })
 console.log('casesToVars names the variable it cannot find', r.code === 400, /没有这个变量/.test(String(r.json().error)))
 
+// Missing-value analysis: PSPP has no MVA, so the host computes both tables
+// from the same rows every other table uses. The declared code 999 must count
+// as missing here exactly as it does in DESCRIPTIVES.
+await seed('mva01', [
+  { g: 'M', wave: 1, score: 70 }, { g: 'M', wave: 2, score: null },
+  { g: 'F', wave: 1, score: 90 }, { g: 'F', wave: 2, score: 999 },
+])
+r = await call('POST', `${base}/api/missing`, { sessionId: 'mva01', variables: ['score'] })
+let mva = r.json()
+console.log('missing analysis returns both tables', r.code === 200, mva.result?.tables === 2, mva.result?.cases === 4)
+let mvaTitles = (mva.state?.items ?? []).map((item) => item.title ?? item.table?.caption)
+console.log('the tables reach the output panel', mvaTitles.includes('单变量统计量') && mvaTitles.includes('缺失模式'))
+let univariate = (mva.state?.items ?? []).find((item) => (item.title ?? '') === '单变量统计量')
+let univariateRow = (univariate?.table?.matrix ?? []).find((row) => row[0] === 'score') ?? []
+console.log('a blank cell counts as missing, like every other table', univariateRow[6] === '1', univariateRow[1] === '3', JSON.stringify(univariateRow))
+
+// Only one of the two tables can be asked for, and an unknown variable is named.
+r = await call('POST', `${base}/api/missing`, { sessionId: 'mva01', variables: ['score'], patterns: false, univariate: true })
+console.log('the table set can be narrowed', r.code === 200, r.json().result?.tables === 1)
+r = await call('POST', `${base}/api/missing`, { sessionId: 'mva01', variables: ['nope'] })
+console.log('an unknown variable is named, not crashed on', r.code === 400, /没有这些变量/.test(String(r.json().error)))
+
+// Replacing: the fill is one undo step and it reaches the grid's rows.
+r = await call('POST', `${base}/api/missing`, { sessionId: 'mva01', mode: 'replace', variables: ['score'], method: 'linear' })
+let fill = r.json()
+let filledRow = (fill.state?.dataset?.variables ?? []).find((variable) => variable.name === 'score')
+// 999 was never declared a missing code here, so it is data: only the blank goes.
+console.log('replace missing values fills and reports the count', r.code === 200, fill.result?.filled === 1,
+  fill.state?.dataset?.dirty === true, filledRow?.name === 'score')
+
+for (const id of ['mva01']) await call('POST', `${base}/api/close`, { sessionId: id })
+
 for (const id of ['pivot01', 'pivot02']) await call('POST', `${base}/api/close`, { sessionId: id })
 
 r = await call('POST', `${base}/api/close`, { sessionId: 'pivot01' })
