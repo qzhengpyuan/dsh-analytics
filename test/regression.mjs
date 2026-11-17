@@ -1,6 +1,6 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
-import { collinearityTable } from '../lib/regression.js'
+import { collinearityTable, durbinWatsonTable } from '../lib/regression.js'
 import { annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
@@ -624,6 +624,48 @@ check('requested statistics come out of the syntax, not out of thin air', () => 
   const asked = requestedCrosstabStatistics('CROSSTABS /TABLES=a BY b /STATISTICS=CHISQ PHI RISK ETA /CELLS=COUNT.')
   assert.deepEqual(asked, ['CHISQ', 'PHI', 'RISK', 'ETA'])
   assert.deepEqual(requestedCrosstabStatistics('FREQUENCIES /VARIABLES=x.'), [])
+})
+
+check('Durbin-Watson is worked out from residuals in case order', () => {
+  const dataset = {
+    variables: [{ name: 'y', type: 'numeric' }, { name: 'x', type: 'numeric' }],
+    // A zig-zag around the line y = x: residuals alternate, so DW lands high.
+    rows: [[2.1, 1], [1.9, 2], [3.2, 3], [2.8, 4], [5.1, 5], [4.9, 6]],
+  }
+  const table = durbinWatsonTable(dataset, { dependent: 'y', independents: ['x'] })
+  assert.equal(table.title, 'Durbin-Watson（插件计算）')
+  const rows = table.matrix.slice(1)
+  assert.equal(rows[1][0], '个案数')
+  assert.equal(rows[1][1], '6')
+  assert.equal(rows[2][0], '预测变量数')
+  const dw = Number(rows[0][1])
+  assert.ok(dw > 2 && dw < 4, `alternating residuals give DW above 2, got ${dw}`)
+  // Hand-checked: residuals e = (-.09, .19, -.11, .21, -.09, .19) around the fit
+  // give sum((e_t - e_t-1)^2) / sum(e^2) = 3.234.
+  assert.equal(rows[0][1], '3.234')
+  // n = 6 is below the bounds table, so the note must say so instead of quoting it.
+  assert.ok(table.notes.some((note) => note.includes('小于 15')), 'small samples do not get the bounds sentence')
+
+  // A model that fits exactly has no residual variance to divide by.
+  const exact = durbinWatsonTable({
+    variables: [{ name: 'y', type: 'numeric' }, { name: 'x', type: 'numeric' }],
+    rows: [[1, 1], [2, 2], [3, 3], [4, 4]],
+  }, { dependent: 'y', independents: ['x'] })
+  assert.equal(exact, null, 'a perfect fit has no DW')
+
+  // The missing-value codes the tables honour are dropped here too.
+  const withCodes = durbinWatsonTable({
+    variables: [{ name: 'y', type: 'numeric' }, { name: 'x', type: 'numeric', missing: [999] }],
+    rows: [[2.1, 1], [1.9, 2], [3.2, 999], [2.8, 4], [5.1, 5], [4.9, 6]],
+  }, { dependent: 'y', independents: ['x'] })
+  assert.equal(withCodes.matrix[2][1], '5', 'the missing code is excluded, so n drops to 5')
+
+  // Twenty cases clear the bounds table.
+  const big = { variables: [{ name: 'y', type: 'numeric' }, { name: 'x', type: 'numeric' }], rows: [] }
+  for (let i = 1; i <= 20; i += 1) big.rows.push([i + (i % 3 === 0 ? 0.4 : -0.2), i])
+  const bigTable = durbinWatsonTable(big, { dependent: 'y', independents: ['x'] })
+  assert.ok(bigTable.notes.some((note) => note.includes('5% 界限')), 'a big sample gets the bounds verdict')
+  assert.equal(durbinWatsonTable(big, { dependent: 'y', independents: [] }), null, 'no predictors, no DW')
 })
 
 console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)

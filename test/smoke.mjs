@@ -499,4 +499,31 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('glm post-hoc rides on oneway:', ran.items.map((item) => item.title).join(' | ').slice(0, 120))
 }
 
+// ---- the Durbin-Watson table that PSPP never prints ------------------------
+{
+  const ws = new Workspace({ id: 'smoke39', engine, root, config: { timeoutMs: 60000 } })
+  await ws.init()
+  const rows = []
+  for (let i = 1; i <= 20; i += 1) rows.push([i + (i % 3 === 0 ? 0.6 : -0.3), i])
+  await ws.createDataset({
+    variables: [
+      { name: 'y', type: 'numeric', width: 8, decimals: 2 },
+      { name: 'x', type: 'numeric', width: 8, decimals: 1 },
+    ],
+    rows,
+  })
+  await ws.runSyntax('EXECUTE.')
+  const ran = await ws.runSyntax('REGRESSION /DEPENDENT=y /METHOD=ENTER x /STATISTICS=COEFF R ANOVA CI(95).', {
+    regression: { dependent: 'y', independents: ['x'] },
+  })
+  assert.equal(ran.diagnostics.filter((entry) => entry.severity === 'error').length, 0, 'the regression runs')
+  const dw = ran.items.find((item) => item.title === 'Durbin-Watson（插件计算）')
+  assert.ok(dw, 'the DW table is appended even though PSPP prints none')
+  const value = Number(dw.table.matrix[1][1])
+  assert.ok(value >= 0 && value <= 4, `DW stays in range, got ${value}`)
+  assert.ok(dw.table.notes.some((note) => note.includes('5% 界限')), 'with n = 20 the bounds verdict is printed')
+  assert.equal(ran.items.some((item) => item.title === '共线性诊断（插件计算）'), true, 'the collinearity table is still there')
+  console.log('durbin-watson table, n = 20:', dw.table.matrix[1][1])
+}
+
 await rm(root, { recursive: true, force: true })

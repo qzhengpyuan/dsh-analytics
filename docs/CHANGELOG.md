@@ -1,3 +1,10 @@
+## 0.39.0
+
+- **线性回归追加 Durbin-Watson**：PSPP 的 `REGRESSION` 根本不打印这个统计量（`/STATISTICS` 只有 `R COEFF ANOVA BCOV TOL CI ALL DEFAULTS`），所以插件在回归跑完后按残差在数据行序上自算，追加一张「Durbin-Watson（插件计算）」表：DW 值、个案数、预测变量数，加两条判读（数值含义 + n ≥ 15 时的 5% 界限区间；n < 15 时明说不引用界限表）。缺失值口径与其它表一致（`MISSING VALUES` 声明的码、空白都剔除）。完美拟合（残差方差为 0）时不出这张表，而不是印一个 `Infinity`。顺序按数据文件当前行序，表注里写明了「刚做过排序的话，这个数字描述的是排序后的顺序」。
+- 测试：`test/regression.mjs` 加一条（手算 DW = 3.234 的锯齿残差、完美拟合返回 null、缺失码剔除后 n 变化、n = 20 时给界限判读、无预测变量返回 null）；`test/smoke.mjs` 加真引擎一条（20 例回归 → 断言 DW 表存在、值在 0–4、有界限判读、共线性表仍在）。
+
+全量 `npm test` exit 0 / **355 条断言 / 24 套件**（`test/regression.mjs` 35 条）。
+
 ## 0.38.0
 
 - **一般线性模型（单变量）加事后检验**：LSD / Bonferroni / Sidak / Tukey HSD / Scheffé。PSPP 的 `GLM` 不接受 `/POSTHOC`（探针原文 `expecting MISSING, INTERCEPT, CRITERIA, METHOD, or DESIGN`），所以勾了之后插件在 GLM 之后另发一条 `ONEWAY … /STATISTICS=DESCRIPTIVES HOMOGENEITY /POSTHOC=<法> ALPHA(0.05)` —— 单因子设计下拟合的是同一个模型，事后表（`Multiple Comparisons`、方差齐性检验、描述统计）就是 SPSS 那几张。两个因子以上的设计直接拒绝并说明原因，不假装能算。工具侧 `pspp_analyze` 的 `glm` 收 `posthoc`。
