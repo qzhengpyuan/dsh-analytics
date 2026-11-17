@@ -1,3 +1,12 @@
+## 0.33.1
+
+0.33.0 发出去之后自查抓到的自我回归：数据视图只在挂载时发布一次命令表（`GRID_COMMANDS`），而表里的 `copy/cut/clear` 闭包指向**首次渲染**的那份 `selection`（`null`）与 `rows`（空），于是 编辑 → 复制/剪切/清除 在真实面板里**点了没反应**（`clearSelection()` 闭包里看到的选区是 null，直接返回 false）。
+
+- 修法：命令表只保留转发层，每次渲染把真正的实现挂到 `liveRef.current`（`copy/cut/paste/clear` 都读当前 `selection`），挂载时注册的 `commands` 调用 `liveRef.current.*`。
+- 测试：`test/client.mjs` 加「发布出去的命令表看得到当前选区」——`Ctrl+A` 选中全部后调 `hooks.gridCommand('clear')`，断言返回 true、并且真的发出 `POST api/paste` 且 `cells` 全是 `null`（旧代码这里会返回 true 但一个请求都不发，所以这条能抓住它）。
+
+全量 `npm test` exit 0 / 330 条断言 / 22 套件。
+
 ## 0.33.0
 
 用户点名的两件事：**数据 → 重构**（长宽互转）与**编辑/视图菜单的低成本补齐**。

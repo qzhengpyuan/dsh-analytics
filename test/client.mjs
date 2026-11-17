@@ -336,6 +336,7 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
       }
     }
     if (String(url).includes('api/run')) globalThis.__lastRunBody = body
+    if (String(url).includes('api/paste')) globalThis.__lastPasteBody = body
     if (String(url).includes('api/partial')) {
       if (body) globalThis.__lastPartialBody = body
       return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { matrix: [['变量对'], ['age × score']], notes: [] }, state: globalThis.__sheetPayload?.state ?? null }) }
@@ -700,6 +701,25 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     viewButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
     await new Promise((resolve) => setTimeout(resolve, 20))
   })
+  // The grid publishes its command table once at mount, so it has to forward
+  // to the newest closures: a stale one would make 复制/清除 silently do
+  // nothing after the second render (which is what the menu always sees).
+  const gridWrap = container.querySelector('.ap-grid-wrap')
+  assert.ok(gridWrap, 'the data grid is on screen')
+  await act(async () => {
+    gridWrap.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  let cleared = false
+  await act(async () => {
+    cleared = globalThis.__AP_TEST_HOOKS__.gridCommand('clear')
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.equal(cleared, true, 'the published command table sees the live selection')
+  const pasteBody = globalThis.__lastPasteBody
+  assert.ok(pasteBody && Array.isArray(pasteBody.cells) && pasteBody.cells.length > 0, 'clearing goes through api/paste')
+  assert.ok(pasteBody.cells.every((cell) => cell.value === null), 'every cleared cell is sent as null')
+
   const gridEntryOff = [...container.querySelectorAll('.ap-menu-pop button')].find((button) => button.textContent.trim() === '网格线')
   assert.ok(gridEntryOff, 'reopening shows it off')
   await act(async () => {

@@ -882,6 +882,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       globalThis.__AP_TEST_HOOKS__.tr = tr
       globalThis.__AP_TEST_HOOKS__.setDictionary = setDictionary
       globalThis.__AP_TEST_HOOKS__.h = h
+      globalThis.__AP_TEST_HOOKS__.gridCommand = gridCommand
     }
 
     /**
@@ -3089,33 +3090,35 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       // Two things the 编辑 menu needs from this component: the selected
       // rectangle (to copy or clear) and the paste entry point. The rest of the
       // grid state stays private.
+      // The functions themselves are rebuilt every render (they read that
+      // render's selection and rows); the published table only forwards, so the
+      // one registered at mount always calls the newest closure.
       const liveRef = useRef({})
-      liveRef.current = { selection, rows, variables, total }
+      liveRef.current = {
+        selection,
+        copy: () => {
+          if (!selection) return false
+          copyText(selectionText()).catch(() => { /* clipboard blocked */ })
+          return true
+        },
+        cut: async () => {
+          if (!selection) return false
+          await copyText(selectionText()).catch(() => { /* clipboard blocked */ })
+          return clearSelection()
+        },
+        paste: async () => {
+          if (!selection) return false
+          await pasteFromClipboard()
+          return true
+        },
+        clear: () => clearSelection(),
+      }
       useEffect(() => {
         const commands = {
-          copy: () => {
-            const { selection: box } = liveRef.current
-            if (!box) return false
-            copyText(selectionText()).catch(() => { /* clipboard blocked */ })
-            return true
-          },
-          cut: async () => {
-            const { selection: box } = liveRef.current
-            if (!box) return false
-            await copyText(selectionText()).catch(() => { /* clipboard blocked */ })
-            clearSelection()
-            return true
-          },
-          paste: async () => {
-            if (!liveRef.current.selection) return false
-            await pasteFromClipboard()
-            return true
-          },
-          clear: () => {
-            if (!liveRef.current.selection) return false
-            clearSelection()
-            return true
-          },
+          copy: () => liveRef.current.copy(),
+          cut: () => liveRef.current.cut(),
+          paste: () => liveRef.current.paste(),
+          clear: () => liveRef.current.clear(),
           hasSelection: () => Boolean(liveRef.current.selection),
         }
         GRID_COMMANDS = commands
