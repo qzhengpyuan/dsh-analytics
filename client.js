@@ -877,6 +877,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       globalThis.__AP_TEST_HOOKS__.summarizeTable = summarizeTable
       globalThis.__AP_TEST_HOOKS__.matrixHtml = matrixHtml
       globalThis.__AP_TEST_HOOKS__.truncateTableHtml = truncateTableHtml
+      globalThis.__AP_TEST_HOOKS__.parseContrasts = parseContrasts
       globalThis.__AP_TEST_HOOKS__.PREVIEW_ROWS = PREVIEW_ROWS
       globalThis.__AP_TEST_HOOKS__.stateOf = stateOf
       globalThis.__AP_TEST_HOOKS__.tr = tr
@@ -1456,7 +1457,33 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
      * understood, so every tuple select (confidence level, ntiles, post-hoc
      * method, outlier band) rendered as blank rows.
      */
-    function normalizeChoices(list) {
+    function parseContrasts(text) {
+  // Same rules as lib/tools.js: one coefficient per factor level, a semicolon
+  // between contrasts. Returning { error } lets the dialog show the reason
+  // instead of shipping a statement the engine will silently ignore.
+  const raw = String(text ?? '').trim()
+  if (raw === '') return { list: [] }
+  const list = []
+  for (const chunk of raw.split(/[;；\n]+/)) {
+    const body = chunk.trim()
+    if (body === '') continue
+    const coeffs = []
+    for (const token of body.split(/[\s,，]+/).filter(Boolean)) {
+      const value = Number(token)
+      if (!Number.isFinite(value)) return { error: `对比系数要是数字，收到「${token}」` }
+      coeffs.push(value)
+    }
+    if (coeffs.length < 2) return { error: '一个对比至少要两个系数（每个因子水平一个数）' }
+    list.push(coeffs)
+  }
+  if (list.length === 0) return { list: [] }
+  const width = list[0].length
+  const odd = list.find((coeffs) => coeffs.length !== width)
+  if (odd) return { error: `每个对比的系数个数要一样（第一个有 ${width} 个，这一组有 ${odd.length} 个）` }
+  return { list }
+}
+
+function normalizeChoices(list) {
       return (Array.isArray(list) ? list : []).map((option) => {
         if (Array.isArray(option)) return { value: String(option[0] ?? ''), label: String(option[1] ?? option[0] ?? '') }
         if (typeof option === 'string') return { value: option, label: option }
@@ -2118,6 +2145,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         ],
         groups: [
           { key: 'options', title: '选项', items: [
+            { key: 'contrasts', label: '对比系数（每个水平一个数，多个对比用分号隔开）', kind: 'text', hint: '例如三个水平、想让「第 1 组对其余两组」就写 2 -1 -1；两个对比写 2 -1 -1; 0 1 -1。系数个数必须等于因子水平数，否则引擎会忽略这一条（插件会在表下注明）。' },
             { key: 'posthoc', label: '事后检验', kind: 'select', default: '0', options: [
               ['0', '不做'],
               ['LSD', 'LSD（最小显著差）'],
@@ -2131,10 +2159,17 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         build: (v, flags) => {
           const posthoc = String(flags?.options?.posthoc ?? '0')
           const usePosthoc = posthoc !== '0'
+          const parsed = parseContrasts(flags?.options?.contrasts)
+          if (parsed.error) return { error: parsed.error }
           const glm = `GLM ${v.vars.join(' ')} BY ${v.by} /DESIGN=${v.by}.`
-          const syntax = usePosthoc
-            ? `${glm}\nONEWAY ${v.vars.join(' ') || v.vars[0]} BY ${v.by} /STATISTICS=DESCRIPTIVES HOMOGENEITY /POSTHOC=${posthoc} ALPHA(0.05).`
-            : glm
+          const dependent = v.vars.join(' ') || v.vars[0]
+          let syntax = glm
+          if (usePosthoc || parsed.list.length > 0) {
+            const parts = [`ONEWAY ${dependent} BY ${v.by}`]
+            if (usePosthoc) parts.push('/STATISTICS=DESCRIPTIVES HOMOGENEITY', `/POSTHOC=${posthoc} ALPHA(0.05)`)
+            parsed.list.forEach((coeffs) => parts.push(`/CONTRAST=${coeffs.join(' ')}`))
+            syntax = `${glm}\n${parts.join(' ')}.`
+          }
           return { syntax, pairwise: { group: v.by, variables: v.vars } }
         },
       },

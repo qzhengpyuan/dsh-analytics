@@ -573,4 +573,33 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('outlier indicators survive work.sav:', report.created.join(', '))
 }
 
+// ---- GLM contrasts, which ONEWAY carries as well ---------------------------
+{
+  const ws = new Workspace({ id: 'smoke0430', engine, root, config: { timeoutMs: 60000 } })
+  await ws.init()
+  await ws.createDataset({
+    variables: [
+      { name: 'score', type: 'numeric', width: 8, decimals: 2 },
+      { name: 'g', type: 'string', width: 4 },
+    ],
+    rows: [[10, '1'], [12, '1'], [11, '1'], [13, '1'], [20, '2'], [21, '2'], [19, '2'], [22, '2'], [30, '3'], [29, '3'], [31, '3'], [28, '3']],
+  })
+  await ws.runSyntax('EXECUTE.')
+  const ran = await ws.runSyntax('GLM score BY g /DESIGN=g.\nONEWAY score BY g /CONTRAST=2 -1 -1 /CONTRAST=0 1 -1.')
+  const errors = ran.diagnostics.filter((entry) => entry.severity === 'error')
+  assert.equal(errors.length, 0, `the contrast syntax has to run: ${JSON.stringify(errors)}`)
+  const flat = ran.items.map((item) => item.table?.html ?? JSON.stringify(item.table?.matrix ?? '')).join('\n')
+  assert.ok(/Contrast Tests/.test(flat), 'ONEWAY writes a Contrast Tests table')
+  assert.ok(/-27\.00/.test(flat), 'the first contrast is -27.00 for this fixture')
+  assert.ok(/-9\.00/.test(flat), 'and the second is -9.00')
+  console.log('glm contrasts ride on oneway:', ran.items.map((item) => item.title).join(' | ').slice(0, 140))
+
+  // A contrast whose length misses the level count is dropped by the engine;
+  // the workspace has to say so instead of returning a clean-looking run.
+  const dropped = await ws.runSyntax('ONEWAY score BY g /CONTRAST=1 -1.')
+  const notes = dropped.items.flatMap((item) => item.notes ?? [])
+  assert.ok(notes.some((note) => /对比被引擎忽略了/.test(note)), `the dropped contrast is named: ${JSON.stringify(notes).slice(0, 200)}`)
+  console.log('a dropped contrast is named in the notes')
+}
+
 await rm(root, { recursive: true, force: true })

@@ -1763,4 +1763,18 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   const off = glm.build({ vars: ['score'], by: 'g' }, { options: { posthoc: '0' } })
   assert.equal(off.syntax.includes('ONEWAY'), false, 'picking 不做 leaves GLM alone')
   console.log('ok  the GLM dialog can ask for post-hoc, and it goes through ONEWAY')
+  // 对比系数：面板里是一个文本框，解析规则与工具侧一致（0.43.0）。
+  const one = glm.build({ vars: ['score'], by: 'g' }, { options: { contrasts: '2 -1 -1' } })
+  assert.equal(one.syntax, 'GLM score BY g /DESIGN=g.\nONEWAY score BY g /CONTRAST=2 -1 -1.')
+  const both = glm.build({ vars: ['score'], by: 'g' }, { options: { posthoc: 'LSD', contrasts: '2 -1 -1; 0 1 -1' } })
+  assert.equal(
+    both.syntax,
+    'GLM score BY g /DESIGN=g.\nONEWAY score BY g /STATISTICS=DESCRIPTIVES HOMOGENEITY /POSTHOC=LSD ALPHA(0.05) /CONTRAST=2 -1 -1 /CONTRAST=0 1 -1.',
+  )
+  assert.deepEqual(hooks.parseContrasts('2 -1 -1; 0,1,-1'), { list: [[2, -1, -1], [0, 1, -1]] })
+  assert.deepEqual(hooks.parseContrasts('  '), { list: [] })
+  assert.match(hooks.parseContrasts('2 x -1').error, /要是数字/)
+  assert.match(hooks.parseContrasts('2 -1; 0 1 -1').error, /系数个数要一样/)
+  assert.match(glm.build({ vars: ['score'], by: 'g' }, { options: { contrasts: '2' } }).error, /至少要两个系数/)
+  console.log('ok  the GLM contrast box parses coefficients the same way the tool does')
 }

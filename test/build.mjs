@@ -1039,6 +1039,25 @@ check('glm asks for post-hoc through ONEWAY, which is the only place PSPP has it
   assert.throws(() => buildAnalysis('glm', { variables: ['y1', 'y2'], factors: ['a', 'b'], posthoc: 'LSD' }), /只做单因子设计/)
 })
 
+check('glm contrasts ride on ONEWAY too, and can bring the post-hoc along', () => {
+  assert.equal(
+    buildAnalysis('glm', { variables: ['score'], by: 'g', contrasts: [[2, -1, -1]] }),
+    'GLM score BY g /DESIGN=g.\nONEWAY score BY g /CONTRAST=2 -1 -1.',
+  )
+  assert.equal(
+    buildAnalysis('glm', { variables: ['score'], by: 'g', posthoc: 'LSD', contrasts: [[2, -1, -1], [0, 1, -1]] }),
+    'GLM score BY g /DESIGN=g.\nONEWAY score BY g /STATISTICS=DESCRIPTIVES HOMOGENEITY /POSTHOC=LSD ALPHA(0.05) /CONTRAST=2 -1 -1 /CONTRAST=0 1 -1.',
+  )
+  // The string form is what a human types; both spellings have to agree.
+  assert.equal(
+    buildAnalysis('glm', { variables: ['score'], by: 'g', contrasts: '2 -1 -1; 0 1 -1' }),
+    buildAnalysis('glm', { variables: ['score'], by: 'g', contrasts: [[2, -1, -1], [0, 1, -1]] }),
+  )
+  assert.throws(() => buildAnalysis('glm', { variables: ['score'], by: 'g', contrasts: [[2, -1], [0, 1, -1]] }), /系数个数要一样/)
+  assert.throws(() => buildAnalysis('glm', { variables: ['score'], by: 'g', contrasts: [[2, 'x', -1]] }), /要是数字/)
+  assert.throws(() => buildAnalysis('glm', { variables: ['score'], factors: ['a', 'b'], contrasts: [[1, -1]] }), /只做单因子设计/)
+})
+
 check('descriptives can save the standardized values alongside the table', () => {
   assert.equal(
     buildAnalysis('descriptives', { variables: ['x', 'y'], save: true }),
