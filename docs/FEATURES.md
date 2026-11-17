@@ -706,7 +706,7 @@ npm run bundle-engine   # 从系统 PSPP 重新打包 engine/<本机平台>/
 node scripts/bundle-engine.mjs --from-prefix out --platform linux-x64   # 从容器里编好的 prefix 导入
 ```
 
-- 测试：`npm test` 依次跑 31 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/flow/poll、设置存储、路径白名单、预设挂载、缺失值、重复个案、异常个案、精确检验与风险差、分层卡方、多因子对比、引擎崩溃文案），全绿时共 445 条 ok 断言（没有 pdftotext 的机器少 1 条） —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」，`crash` 覆盖引擎缺陷 banner 的中文文案（Linux 139 与 Windows 3 同一条分支、不泄露 build_system、普通语法错误不被误判）。
+- 测试：`npm test` 依次跑 31 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/flow/poll、设置存储、路径白名单、预设挂载、缺失值、重复个案、异常个案、精确检验与风险差、分层卡方、多因子对比、引擎崩溃文案），全绿时共 446 条 ok 断言（没有 pdftotext 的机器少 1 条） —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」，`crash` 覆盖引擎缺陷 banner 的中文文案（Linux 139 与 Windows 3 同一条分支、不泄露 build_system、普通语法错误不被误判）。
 - smoke：真实引擎跑一遍打开 → 分析 → 保存。
 - routes：43 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收、`api/heartbeat`、新增的 `api/settings`）。
 
