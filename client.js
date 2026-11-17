@@ -1450,6 +1450,20 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         h('span', null, '我明白字符串列的内容会丢失')))
     }
 
+    /**
+     * A dialog select writes its options one of three ways: a bare string, a
+     * {value,label} object, or a [value, label] tuple. Only the first two were
+     * understood, so every tuple select (confidence level, ntiles, post-hoc
+     * method, outlier band) rendered as blank rows.
+     */
+    function normalizeChoices(list) {
+      return (Array.isArray(list) ? list : []).map((option) => {
+        if (Array.isArray(option)) return { value: String(option[0] ?? ''), label: String(option[1] ?? option[0] ?? '') }
+        if (typeof option === 'string') return { value: option, label: option }
+        return option
+      })
+    }
+
     function AnalysisDialog({ spec, variables, rows, onRun, onClose, onPaste, initial = null }) {
       const fields = spec.fields ?? []
       const groups = spec.groups ?? []
@@ -1591,7 +1605,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             field.hint ? h('div', { className: 'ap-hint' }, field.hint) : null)
         }
         if (field.kind === 'text' || field.kind === 'number' || field.kind === 'select') {
-          const options = (field.options ?? []).map((option) => (typeof option === 'string' ? { value: option, label: option } : option))
+          const options = normalizeChoices(field.options)
           const control = field.kind === 'select'
             ? h('select', {
               value: values[field.key] ?? options[0]?.value,
@@ -1665,7 +1679,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         }, (sheetGroup.items ?? []).map((item) => {
           const current = (flags[sheetGroup.key] ?? {})[item.key]
           if (item.kind === 'select') {
-            const options = (item.options ?? []).map((option) => (typeof option === 'string' ? { value: option, label: option } : option))
+            const options = normalizeChoices(item.options)
             return h('label', { key: item.key, className: 'ap-check ap-check-row' },
               h('span', null, item.label),
               h('select', {
@@ -1840,6 +1854,10 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             // Turning it on also keeps CHISQ on, because the Cramér's V line and
             // the small-sample Fisher hint hang off the chi-square table.
             { key: 'kappa', label: 'Kappa（方表一致性）' },
+            // PSPP prints Fisher only for 2×2 and rejects /METHOD=EXACT, so the
+            // exact p for a bigger table is computed in the plugin and written
+            // as a note on the crosstab the engine prints.
+            { key: 'exact', label: '精确检验（插件按边际枚举）' },
           ] },
           { key: 'cells', title: '单元格', items: [
             { key: 'count', label: '计数', default: true },
@@ -1856,6 +1874,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
           const stats = mapKeys(onKeys(flags, 'statistics'), {
             chisq: 'CHISQ', phi: 'PHI', cc: 'CC', lambda: 'LAMBDA', gamma: 'GAMMA', kappa: 'KAPPA',
             uc: 'UC', btau: 'BTAU', ctau: 'CTAU', somersd: 'D', eta: 'ETA', corr: 'CORR', risk: 'RISK',
+            exact: 'EXACT',
           })
           // Kappa also implies the chi-square table: the Cramér's V line and the
           // small-sample "look at Fisher's Exact Test" note are written onto it.
@@ -1871,10 +1890,14 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             asresid: 'ASRESID',
           })
           const layer = (v.layer ?? '').trim()
+          // 精确检验不写进语法（PSPP 的 /METHOD=EXACT 是语法错误），而是让宿主
+          // 在引擎那张交叉表上补一条注：所以它单独作为标志返回。
+          const exact = onKeys(flags, 'statistics').includes('exact')
           const parts = [`CROSSTABS /TABLES=${v.row} BY ${v.col}${layer ? ` BY ${layer}` : ''}`]
-          if (stats.length) parts.push(`/STATISTICS=${stats.join(' ')}`)
+          const printable = stats.filter((name) => name !== 'EXACT')
+          if (printable.length) parts.push(`/STATISTICS=${printable.join(' ')}`)
           parts.push(`/CELLS=${(cells.length ? cells : ['COUNT']).join(' ')}`)
-          return { syntax: `${parts.join(' ')}.` }
+          return { syntax: `${parts.join(' ')}.`, exact }
         },
       },
       explore: {
@@ -2545,7 +2568,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         ],
         groups: [
           { key: 'options', title: '选项', items: [
-            { key: 'percentiles', label: '界值（百分位带）', kind: 'select', default: '5,95', choices: [
+            { key: 'percentiles', label: '界值（百分位带）', kind: 'select', default: '5,95', options: [
               ['5,95', '第 5 与第 95 百分位（默认）'],
               ['10,90', '第 10 与第 90 百分位'],
               ['2.5,97.5', '第 2.5 与第 97.5 百分位'],
@@ -5210,10 +5233,10 @@ let ITEM_CSV_PENDING = null
         }, 60)
       }, [total, loadRows])
 
-      const run = useCallback(async (text, persist, title, pairwise, regression, roc) => {
+      const run = useCallback(async (text, persist, title, pairwise, regression, roc, exact) => {
         setBusy(true)
         try {
-          const value = await api('api/run', { sessionId, syntax: text, persist, pairwise, regression, roc })
+          const value = await api('api/run', { sessionId, syntax: text, persist, pairwise, regression, roc, exact: exact === true })
           setSt(stateOf(value))
           const items = value.result.items ?? []
           // A data transform (sort/filter/compute) produces no tables: stay in
@@ -6866,7 +6889,7 @@ let ITEM_CSV_PENDING = null
                 await runChart(built.chart)
                 return
               }
-              await run(built.syntax, built.persist === true, spec?.title, built.pairwise, built.regression, built.roc)
+              await run(built.syntax, built.persist === true, spec?.title, built.pairwise, built.regression, built.roc, built.exact)
             },
           })
           : null,

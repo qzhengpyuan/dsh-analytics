@@ -421,8 +421,8 @@ check('a rectangular table says why Kappa is missing instead of showing a number
   const note = items[2].notes.find((text) => text.includes('Kappa'))
   assert.match(note, /2×3/)
   assert.match(note, /方表/)
-  // 2×3 没有 Fisher 可换，但仍然要说清楚卡方近似不可靠。
-  assert.match(items[1].notes.find((text) => text.includes('期望频数')), /没有确切检验/)
+  // 2×3 没有 Fisher，但插件自己能算精确检验：卡片近似不可靠的话要说清楚出口。
+  assert.match(items[1].notes.find((text) => text.includes('期望频数')), /精确检验（插件按边际枚举）/)
 })
 
 check('a 2×2 Kappa row is explained but not recomputed', () => {

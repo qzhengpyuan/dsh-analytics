@@ -751,7 +751,31 @@ console.log('replace missing values fills and reports the count', r.code === 200
 
 for (const id of ['mva01']) await call('POST', `${base}/api/close`, { sessionId: id })
 
-for (const id of ['pivot01', 'pivot02', 'dup01', 'out01']) await call('POST', `${base}/api/close`, { sessionId: id })
+// 精确检验：交叉表勾上以后，注文由宿主侧枚举算出（PSPP 只给 2×2 的 Fisher）
+await seed('ex01', [
+  { g: 'M', wave: 1, score: 1 }, { g: 'M', wave: 1, score: 1 }, { g: 'M', wave: 1, score: 1 },
+  { g: 'M', wave: 2, score: 1 }, { g: 'F', wave: 1, score: 1 }, { g: 'F', wave: 2, score: 1 },
+  { g: 'F', wave: 2, score: 1 }, { g: 'F', wave: 2, score: 1 },
+])
+r = await call('POST', `${base}/api/run`, {
+  sessionId: 'ex01',
+  syntax: 'CROSSTABS /TABLES=g BY wave /STATISTICS=CHISQ /CELLS=COUNT.',
+  exact: true,
+})
+let exactItems = r.json().result?.items ?? []
+let exactNotes = exactItems.flatMap((item) => item.table?.notes ?? item.notes ?? [])
+console.log('the exact test reaches the crosstab note', r.code === 200,
+  exactNotes.some((note) => note.includes('精确检验（插件计算）')), JSON.stringify(exactNotes.slice(-1)))
+// Without the flag the same run carries no exact note: it is opt-in.
+r = await call('POST', `${base}/api/run`, {
+  sessionId: 'ex01',
+  syntax: 'CROSSTABS /TABLES=g BY wave /STATISTICS=CHISQ /CELLS=COUNT.',
+})
+let plainNotes = (r.json().result?.items ?? []).flatMap((item) => item.table?.notes ?? item.notes ?? [])
+console.log('without the flag there is no exact note', r.code === 200,
+  !plainNotes.some((note) => note.includes('精确检验（插件计算）')))
+
+for (const id of ['pivot01', 'pivot02', 'dup01', 'out01', 'ex01']) await call('POST', `${base}/api/close`, { sessionId: id })
 
 r = await call('POST', `${base}/api/close`, { sessionId: 'pivot01' })
 

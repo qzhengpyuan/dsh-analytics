@@ -755,6 +755,65 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     await act(async () => { viewButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)) })
   }
 
+  // 下拉框的三种写法都要能显示：元组 [value, label] 此前渲染成空白项，
+  // 连带 ciLevel / ntiles / posthoc / 百分位带都没法选（0.42.0 修）。
+  {
+    const openMenu = async (label) => {
+      const button = [...container.querySelectorAll('.ap-menu-button')].find((node) => node.textContent.trim() === label)
+      await act(async () => { button.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)) })
+    }
+    const clickItem = async (text) => {
+      const item = [...container.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.trim() === text)
+      await act(async () => { item.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)) })
+    }
+    const clickButton = async (dialog, text) => {
+      const button = [...dialog.querySelectorAll('button')].find((node) => node.textContent.trim().startsWith(text))
+      await act(async () => { button.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)) })
+    }
+    const optionText = (select) => [...select.querySelectorAll('option')].map((node) => node.textContent.trim())
+    const optionValue = (select) => [...select.querySelectorAll('option')].map((node) => node.value)
+
+    // 标识异常个案 → 选项 → 界值下拉应该有四挡，而且能选中非默认值。
+    await openMenu('数据')
+    await clickItem('标识异常个案…')
+    const outliers = container.querySelector('.ap-modal')
+    assert.ok(outliers, 'the outlier dialog opens')
+    await clickButton(outliers, '选项')
+    const outlierSheet = [...container.querySelectorAll('.ap-modal')].at(-1)
+    const band = outlierSheet.querySelector('select')
+    assert.ok(band, 'the band is a select, not free text')
+    assert.deepEqual(optionValue(band), ['5,95', '10,90', '2.5,97.5', '1,99'], 'the band offers four choices')
+    assert.ok(optionText(band)[1].includes('第 10 与第 90 百分位'), `the second choice has a label, got ${JSON.stringify(optionText(band))}`)
+    await act(async () => {
+      band.value = '10,90'
+      band.dispatchEvent(new window.Event('change', { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+    await clickButton(outlierSheet, '继续')
+    await clickButton(outliers, '帮助')
+    const outlierHelp = outliers.querySelector('.ap-dlg-help')?.textContent ?? ''
+    assert.ok(outlierHelp.includes('在插件里计算'), `the outlier dialog says the work is local, got ${outlierHelp}`)
+    assert.equal(outliers.querySelector('.ap-dlg-help-code'), null, 'there is no engine syntax to preview')
+    await clickButton(outliers, '取消')
+    const outlierBuild = hooks.ANALYSIS_SPECS.outliers.build({ variables: ['score'] }, { options: { percentiles: '10,90', indicators: false } })
+    assert.deepEqual(outlierBuild.outliers.percentiles, [10, 90], 'the picked band survives the sheet')
+
+    // 线性回归 → 选项 → 置信区间水平：元组标签 90% / 95% / 99%。
+    await openMenu('分析')
+    const regressionItem = [...container.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.trim() === '线性…')
+    await act(async () => { regressionItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)) })
+    const regression = container.querySelector('.ap-modal')
+    await clickButton(regression, '选项')
+    const regressionSheet = [...container.querySelectorAll('.ap-modal')].at(-1)
+    const level = regressionSheet.querySelector('select')
+    assert.deepEqual(optionValue(level), ['90', '95', '99'], 'the confidence level offers three choices')
+    assert.deepEqual(optionText(level), ['90%', '95%', '99%'], `the confidence level has visible labels, got ${JSON.stringify(optionText(level))}`)
+    await clickButton(regressionSheet, '继续')
+    await clickButton(regression, '取消')
+    // Leave the 视图 menu open again: the gridline toggles below read from it.
+    await openMenu('视图')
+  }
+
   const gridWrap = container.querySelector('.ap-grid-wrap')
   assert.ok(gridWrap, 'the data grid is on screen')
   await act(async () => {

@@ -1,6 +1,6 @@
 # dsh-analytics 功能说明
 
-> 版本 0.41.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 版本 0.42.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
 > 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
 > **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 23 个 agent 工具，让模型能在对话里直接分析、转换、画图。这些工具不再是「装了插件就有」，而是挂在插件自带的「数据分析」Agent 预设里（见 §9）。
 
@@ -258,7 +258,7 @@ SPSS 每打开一个文件就多一个数据编辑器窗口；这里对应「多
 | 频率 | 变量（多选，数值） | 统计量：均值/标准差/中位数（默认）、众数/最小/最大（默认）、总和/方差/偏度/峰度；图表：条形图/直方图；百分位（文本，如 `25 50 75`） | `FREQUENCIES /VARIABLES=… [/STATISTICS=…] [/PERCENTILES=…] [/BARCHART] [/HISTOGRAM].` |
 | 描述 | 变量（多选，数值） | 均值/标准差/最小/最大（默认）、均值标准误/方差/极差/偏度/峰度/总和 | `DESCRIPTIVES /VARIABLES=… [/STATISTICS=…].` |
 | 探索 | 变量（多选，数值）、分组变量（可选） | 只选图：箱线图（默认）/直方图/正态概率图 | `EXAMINE v… [BY g] /PLOT=BOXPLOT\|HISTOGRAM\|NPPLOT.`——PSPP 的 `EXAMINE` 自带描述统计表（中位数、四分位数、四分位数间距、偏度峰度、Shapiro-Wilk），对话框不发 `/STATISTICS`（发了也只是冗余，`/NOTOTAL` 同样不发） |
-| 交叉表 | 行变量、列变量、分层变量（可选） | 统计量（0.34.0 起对齐 PSPP 的整套关键字）：卡方（默认）、Phi / Cramer's V、列联系数、Lambda、不确定性系数、Gamma、Kendall tau-b / tau-c、Somers' d、Eta、Spearman / Pearson R、Kappa（方表一致性）、风险估计（2×2）；单元格：计数（默认）/行百分比/列百分比/总百分比/期望频数/残差类 | `CROSSTABS /TABLES=… BY … [BY 层] [/STATISTICS=…] /CELLS=…`（`BY 层` 相当于 SPSS 的「层 1 of 1」） |
+| 交叉表 | 行变量、列变量、分层变量（可选） | 统计量（0.34.0 起对齐 PSPP 的整套关键字）：卡方（默认）、Phi / Cramer's V、列联系数、Lambda、不确定性系数、Gamma、Kendall tau-b / tau-c、Somers' d、Eta、Spearman / Pearson R、Kappa（方表一致性）、风险估计（2×2）；**精确检验（0.42.0，插件按边际枚举，r×c 也给 Fisher–Freeman–Halton 双侧 p；表太大时自动改用固定种子的 Monte Carlo 抽样并报 99% 区间）**；单元格：计数（默认）/行百分比/列百分比/总百分比/期望频数/残差类 | `CROSSTABS /TABLES=… BY … [BY 层] [/STATISTICS=…] /CELLS=…`（`BY 层` 相当于 SPSS 的「层 1 of 1」） |
 
 交叉表的三个附加量（0.27.0，都在 `runSyntax` 里自动加表注/表行，面板、`api/run`、导出三条路一致）：
 
@@ -704,7 +704,7 @@ npm run bundle-engine   # 从系统 PSPP 重新打包 engine/<本机平台>/
 node scripts/bundle-engine.mjs --from-prefix out --platform linux-x64   # 从容器里编好的 prefix 导入
 ```
 
-- 测试：`npm test` 依次跑 26 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/poll、设置存储、路径白名单、预设挂载、缺失值、重复个案与异常个案），全绿时共 376 条 ok 断言 —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」。
+- 测试：`npm test` 依次跑 27 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/poll、设置存储、路径白名单、预设挂载、缺失值、重复个案、异常个案与精确检验），全绿时共 387 条 ok 断言（没有 pdftotext 的机器少 1 条） —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」。
 - smoke：真实引擎跑一遍打开 → 分析 → 保存。
 - routes：43 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收、`api/heartbeat`、新增的 `api/settings`）。
 
