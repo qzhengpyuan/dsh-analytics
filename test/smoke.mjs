@@ -680,4 +680,10 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('crash banner survives exec:', said.slice(0, 60))
 }
 
-await rm(root, { recursive: true, force: true })
+// Teardown must not be able to fail the run on its own: on Windows a workspace
+// file can still be held for a moment, and an EBUSY here used to exit(1) with
+// every assertion already passed — the report showed rc=1 and no failing line.
+await rm(root, { recursive: true, force: true }).catch((error) => {
+  console.log('teardown warning:', error?.code ?? error?.message ?? error)
+})
+console.log('smoke finished')
