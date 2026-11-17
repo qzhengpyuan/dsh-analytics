@@ -706,6 +706,18 @@ check("influence diagnostics use the hat matrix, not an inverse that collinearit
   }, { dependent: 'y', independents: ['a', 'b'] })
   assert.equal(duplicate, null, 'a rank-deficient design gets no influence table rather than nonsense')
 
+  // A perfect fit leaves no residual variance for Cook's D to use. The leverage
+  // is still perfectly well defined, so the row must say why the column is
+  // empty instead of borrowing the "leverage near 1" flag.
+  const perfect = influenceTable({
+    variables: [{ name: 'y', type: 'numeric' }, { name: 'x', type: 'numeric' }],
+    rows: [[3, 1], [5, 2], [7, 3], [9, 4], [11, 5]],
+  }, { dependent: 'y', independents: ['x'] })
+  assert.ok(perfect, 'a perfect fit still produces leverage and Mahalanobis')
+  assert.deepEqual(perfect.matrix.slice(1).map((row) => row[2]), ['—', '—', '—', '—', '—'], "Cook's D is undefined")
+  assert.ok(perfect.matrix.slice(1).every((row) => row[4].includes('完美拟合')), 'and the flag says so')
+  assert.ok(perfect.matrix.slice(1).every((row) => !row[4].includes('杠杆接近 1')), 'no borrowed leverage flag')
+
   assert.equal(influenceTable(dataset, { dependent: 'y', independents: [] }), null)
   assert.equal(influenceTable({ variables: [], rows: [] }, { dependent: 'y', independents: ['x'] }), null)
 })
