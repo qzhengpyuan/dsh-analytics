@@ -1663,3 +1663,17 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.equal(/SAVE/.test(plain.syntax), false, 'no save keyword unless the box is ticked')
   console.log('ok  the rank dialog offers every type, and descriptives can save Z scores')
 }
+
+// GLM 的事后检验：面板要能选，构建时走 ONEWAY 那条线（0.38.0）。
+{
+  const glm = hooks.ANALYSIS_SPECS.glm
+  const plain = glm.build({ vars: ['score'], by: 'g' }, undefined)
+  assert.equal(plain.syntax, 'GLM score BY g /DESIGN=g.')
+  assert.deepEqual(plain.pairwise, { group: 'g', variables: ['score'] })
+  const tukey = glm.build({ vars: ['score'], by: 'g' }, { options: { posthoc: 'TUKEY' } })
+  assert.equal(tukey.syntax, 'GLM score BY g /DESIGN=g.\nONEWAY score BY g /STATISTICS=DESCRIPTIVES HOMOGENEITY /POSTHOC=TUKEY ALPHA(0.05).')
+  assert.match(tukey.pairwise.group, /^g$/, 'the pairwise hint survives the extra statement')
+  const off = glm.build({ vars: ['score'], by: 'g' }, { options: { posthoc: '0' } })
+  assert.equal(off.syntax.includes('ONEWAY'), false, 'picking 不做 leaves GLM alone')
+  console.log('ok  the GLM dialog can ask for post-hoc, and it goes through ONEWAY')
+}

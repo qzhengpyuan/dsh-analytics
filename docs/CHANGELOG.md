@@ -1,3 +1,11 @@
+## 0.38.0
+
+- **一般线性模型（单变量）加事后检验**：LSD / Bonferroni / Sidak / Tukey HSD / Scheffé。PSPP 的 `GLM` 不接受 `/POSTHOC`（探针原文 `expecting MISSING, INTERCEPT, CRITERIA, METHOD, or DESIGN`），所以勾了之后插件在 GLM 之后另发一条 `ONEWAY … /STATISTICS=DESCRIPTIVES HOMOGENEITY /POSTHOC=<法> ALPHA(0.05)` —— 单因子设计下拟合的是同一个模型，事后表（`Multiple Comparisons`、方差齐性检验、描述统计）就是 SPSS 那几张。两个因子以上的设计直接拒绝并说明原因，不假装能算。工具侧 `pspp_analyze` 的 `glm` 收 `posthoc`。
+- 修 0.37.0 的一处文案：`rankTypes:["ntiles"]` 以前报「不认识的秩类型：ntiles（…与 ntiles）」，自相矛盾；现在明确说「ntiles 不是秩类型，它是个独立参数」。
+- 测试：`test/build.mjs` 加一条（GLM 无/有事后、非法名、多因子拒绝）；`test/client.mjs` 加一条（对话框 build 与 pairwise 存活）；`test/smoke.mjs` 加真引擎一条 —— GLM + ONEWAY 两条语句一起跑，断言输出里既有 `Tests of Between-Subjects Effects` 也有 `Multiple Comparisons`。
+
+全量 `npm test` exit 0 / **354 条断言 / 24 套件**（`test/build.mjs` 86 条）。
+
 ## 0.37.0
 
 两处「引擎有、面板没接」补齐，都是原生语法，不涉及自算：

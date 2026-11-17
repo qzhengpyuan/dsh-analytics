@@ -1,6 +1,6 @@
 # dsh-analytics 功能说明
 
-> 版本 0.37.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 版本 0.38.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
 > 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
 > **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 23 个 agent 工具，让模型能在对话里直接分析、转换、画图。这些工具不再是「装了插件就有」，而是挂在插件自带的「数据分析」Agent 预设里（见 §9）。
 
@@ -278,7 +278,7 @@ SPSS 每打开一个文件就多一个数据编辑器窗口；这里对应「多
 
 | 对话框 | 字段 | 语法 |
 | --- | --- | --- |
-| 单变量（GLM） | 因变量（多选）、因子（可多个） | `GLM y BY f1 f2 [/DESIGN=f1 f2].`；多因子即随机区组（`GLM drop BY trt block /DESIGN=trt block`）。**没有协变量**：PSPP 2.1.3 的 `GLM … WITH x` 直接报 `Syntax error expecting MISSING, INTERCEPT, CRITERIA, METHOD, or DESIGN`（即无 ANCOVA），要协方差分析请看第 14 节的替代做法 |
+| 单变量（GLM） | 因变量（多选）、因子（可多个）、选项「事后检验」（LSD / Bonferroni / Sidak / Tukey HSD / Scheffé，0.38.0 起） | `GLM y BY f1 f2 [/DESIGN=f1 f2].`；多因子即随机区组（`GLM drop BY trt block /DESIGN=trt block`）。勾事后检验时另发一条 `ONEWAY … /STATISTICS=DESCRIPTIVES HOMOGENEITY /POSTHOC=<法> ALPHA(0.05)`：PSPP 的 GLM 不接受 `/POSTHOC=`、`/CONTRAST=`、`/PRINT=`（全报 `expecting MISSING, INTERCEPT, CRITERIA, METHOD, or DESIGN`），而单因子模型下 ONEWAY 拟合的是同一个模型，事后表就能拿到；两个因子以上的设计会直接拒绝并提示。**没有协变量**：PSPP 2.1.3 的 `GLM … WITH x` 直接报 `Syntax error expecting MISSING, INTERCEPT, CRITERIA, METHOD, or DESIGN`（即无 ANCOVA），要协方差分析请看第 14 节的替代做法 |
 | 双变量相关 | 变量（多选，数值）、双尾/单尾、显著性列、描述统计量、成对/整行排除缺失 | `CORRELATIONS /VARIABLES=… /PRINT=TWOTAIL SIG /STATISTICS=DESCRIPTIVES /MISSING=LISTWISE.` |
 | 偏相关（插件自算，PSPP 没有这条命令） | 分析变量（多选，数值，至少两个）、控制变量（多选，数值，可空） | 不进引擎：两个变量分别对控制变量做含截距的最小二乘回归，取残差求 Pearson r；`t = r·√(df/(1-r²))`，`df = N − 控制变量数 − 2`，P 由 t 分布双尾给出；输出「变量对 / 控制变量 / r / df / P / N / 标记」，缺失按列表删除（N 可能小于总个案数）。面板入口：分析 → 相关 → 偏相关…；agent 用 `pspp_partial`。表格形式可选「逐对一行」（r/df/P/N/标记）或「矩阵」（变量 × 变量、对角线 1、上下对称，整表共用一次列表删除，适合多变量共用一个控制集时排版） |
 | 线性回归 | 因变量、自变量（多选）、统计量（R/系数/方差分析/置信区间/**系数相关性矩阵（BCOV，0.35.0）**/**共线性诊断（插件计算）**）、选项（置信区间水平 90%/95%/99%，0.35.0）、保存（未标准化预测值/残差、标准化预测/残差、学生化残差、Cook's D） | `REGRESSION /DEPENDENT=… /METHOD=ENTER … [/STATISTICS=COEFF R ANOVA CI] [/SAVE=PRED RESID…].`；勾了「保存」会写回数据集（新变量 `PRED1`、`RES1`…）。**默认不向引擎要 `TOL`**：PSPP 2.1.3 带 TOL 约 1/6 的运行会崩在 `gsl_blas_dsymm`（exit 19、零张表），所以容忍度与 VIF 由插件算（`lib/regression.js`，与 R `car::vif` 对过账），单独出一张「共线性诊断（插件计算）」表；只有一个自变量时固定 1.000 / 1.000（PSPP 自己会打印 `+Infinit`/`NaN`）。显式传 `statistics:["TOL"]` 或 `["ALL"]` 仍可让引擎算，崩溃时自动去掉 TOL/ALL 重跑一次（`/STATISTICS` 摘空则降级为 `COEFF R ANOVA CI BCOV`），重跑后照样补出插件算的共线性表；引擎那列只有在数值有限、落在 0–1 且与重算相差 ≤0.02 时才被采用，否则以重算为准并注明。退出码非 0 且零张表会直接报错（带退出码与引擎原文），不再静默返回空输出。只有两个预测变量互为镜像时，表里所有容忍度都会是 0：插件会额外写一条表注点名是哪两个变量完全相关，提示先删掉其中一个，而不是让用户以为是别的变量有问题。系数表里出现 `NaN` 或 `+Infinit` 时也会加表注说明这几行不能用。PSPP 没有 Durbin-Watson |
@@ -657,7 +657,7 @@ SPSS 数据里最常见的两个坑，这一版都按 SPSS 的口径处理了：
 | 分析 → 比较平均值 → 配对样本 T | 分析 → 比较平均值 → 配对样本 T 检验 | 原生 |
 | 分析 → 比较平均值 → 单因素 ANOVA | 分析 → 比较平均值 → 单因素 ANOVA（+ LSD/Bonferroni/Sidak/Tukey/Scheffé） | 原生 |
 | 分析 → 比较平均值 → 单因素 ANOVA → 对比（Contrasts） | — | 未开放（引擎 `ONEWAY /CONTRAST=` 实测可用、能出 Contrast 表，只是面板没给入口；可在「实用程序 → 运行语法」里手写） |
-| 分析 → 一般线性模型 → 单变量 | 分析 → 一般线性模型 → 单变量（含事后检验） | 原生（无 WITH 协变量、无 `/PRINT=DESCRIPTIVE`） |
+| 分析 → 一般线性模型 → 单变量 | 分析 → 一般线性模型 → 单变量…（因子 + 事后检验 LSD/Bonferroni/Sidak/Tukey/Scheffé） | 原生；事后检验由插件另发一条 `ONEWAY … /POSTHOC=`（PSPP 的 GLM 没有 /POSTHOC，单因子模型等价）；无 WITH 协变量、无 `/PRINT=` |
 | 分析 → 一般线性模型 → 多变量 / 重复测量 / 混合 | — | 缺 |
 | 分析 → 相关 → 双变量 | 分析 → 相关 → 双变量（Pearson/Spearman/Kendall） | 原生 |
 | 分析 → 相关 → 偏相关 | 分析 → 相关 → 偏相关…（逐对或矩阵） | 自算 |

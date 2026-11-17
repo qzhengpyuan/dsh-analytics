@@ -1027,6 +1027,18 @@ check('rank can ask for every rank type PSPP knows', () => {
   assert.throws(() => buildTransform('rank', { variable: 'x', rankTypes: ['savy'] }), /不认识的秩类型：savy/)
 })
 
+check('glm asks for post-hoc through ONEWAY, which is the only place PSPP has it', () => {
+  assert.equal(buildAnalysis('glm', { variables: ['score'], by: 'g' }), 'GLM score BY g /DESIGN=g.')
+  assert.equal(
+    buildAnalysis('glm', { variables: ['score'], by: 'g', posthoc: 'tukey' }),
+    'GLM score BY g /DESIGN=g.\nONEWAY score BY g /STATISTICS=DESCRIPTIVES HOMOGENEITY /POSTHOC=TUKEY ALPHA(0.05).',
+  )
+  assert.throws(() => buildAnalysis('glm', { variables: ['score'], by: 'g', posthoc: 'duncan' }), /不认识的事后检验：DUNCAN/)
+  assert.throws(() => buildAnalysis('glm', { variables: ['score'], factors: ['a', 'b'], posthoc: 'LSD' }), /只做单因子设计/)
+  // Two dependents cannot ride on one ONEWAY, so the design check has to catch it.
+  assert.throws(() => buildAnalysis('glm', { variables: ['y1', 'y2'], factors: ['a', 'b'], posthoc: 'LSD' }), /只做单因子设计/)
+})
+
 check('descriptives can save the standardized values alongside the table', () => {
   assert.equal(
     buildAnalysis('descriptives', { variables: ['x', 'y'], save: true }),

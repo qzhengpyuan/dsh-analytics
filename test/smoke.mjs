@@ -479,4 +479,24 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('standardized values and rank types land as variables:', names.filter((name) => /^(Zx|rx|p_x|z_x|sv_x|q_x)$/.test(name)).join(','))
 }
 
+// ---- GLM plus the ONEWAY statement that carries the post-hoc tables --------
+{
+  const ws = new Workspace({ id: 'smoke38', engine, root, config: { timeoutMs: 60000 } })
+  await ws.init()
+  await ws.createDataset({
+    variables: [
+      { name: 'score', type: 'numeric', width: 8, decimals: 1 },
+      { name: 'g', type: 'numeric', width: 2, decimals: 0, measure: 'nominal' },
+    ],
+    rows: [[10, 1], [12, 1], [11, 1], [20, 2], [22, 2], [21, 2], [30, 3], [33, 3], [31, 3]],
+  })
+  await ws.runSyntax('EXECUTE.')
+  const ran = await ws.runSyntax('GLM score BY g /DESIGN=g.\nONEWAY score BY g /STATISTICS=DESCRIPTIVES HOMOGENEITY /POSTHOC=TUKEY ALPHA(0.05).')
+  assert.equal(ran.diagnostics.filter((entry) => entry.severity === 'error').length, 0, 'both statements run')
+  const flat = JSON.stringify(ran.items)
+  assert.ok(/Tests of Between-Subjects Effects|ANOVA/.test(flat), 'the GLM table is there')
+  assert.ok(/Tukey|Multiple Comparisons/.test(flat), 'the post-hoc table comes from ONEWAY')
+  console.log('glm post-hoc rides on oneway:', ran.items.map((item) => item.title).join(' | ').slice(0, 120))
+}
+
 await rm(root, { recursive: true, force: true })

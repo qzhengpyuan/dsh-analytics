@@ -2088,11 +2088,32 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       },
       glm: {
         title: '一般线性模型（单变量）',
+        hint: 'PSPP 的 GLM 没有事后检验（/POSTHOC 会报语法错误），勾了事后检验时插件会另跑一条 ONEWAY——同一个单因子模型，事后表就是 SPSS「事后多重比较」那张。',
         fields: [
           { key: 'vars', kind: 'multi', label: '因变量', required: true, accept: 'numeric' },
           { key: 'by', kind: 'single', label: '固定因子', required: true, accept: 'any' },
         ],
-        build: (v) => ({ syntax: `GLM ${v.vars.join(' ')} BY ${v.by}.`, pairwise: { group: v.by, variables: v.vars } }),
+        groups: [
+          { key: 'options', title: '选项', items: [
+            { key: 'posthoc', label: '事后检验', kind: 'select', default: '0', options: [
+              ['0', '不做'],
+              ['LSD', 'LSD（最小显著差）'],
+              ['BONFERRONI', 'Bonferroni'],
+              ['SIDAK', 'Sidak'],
+              ['TUKEY', 'Tukey HSD'],
+              ['SCHEFFE', 'Scheffé'],
+            ] },
+          ] },
+        ],
+        build: (v, flags) => {
+          const posthoc = String(flags?.options?.posthoc ?? '0')
+          const usePosthoc = posthoc !== '0'
+          const glm = `GLM ${v.vars.join(' ')} BY ${v.by} /DESIGN=${v.by}.`
+          const syntax = usePosthoc
+            ? `${glm}\nONEWAY ${v.vars.join(' ') || v.vars[0]} BY ${v.by} /STATISTICS=DESCRIPTIVES HOMOGENEITY /POSTHOC=${posthoc} ALPHA(0.05).`
+            : glm
+          return { syntax, pairwise: { group: v.by, variables: v.vars } }
+        },
       },
       correlation: {
         title: '双变量相关',
