@@ -732,11 +732,17 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     await act(async () => { statsButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)) })
     const sheet = [...container.querySelectorAll('.ap-modal')].at(-1)
     const sheetLabels = [...sheet.querySelectorAll('.ap-check')].map((node) => node.textContent.trim())
-    for (const wanted of ["Somers' d", 'Eta', '风险估计（2×2）', '不确定性系数', 'Kendall tau-b']) {
+    for (const wanted of ["Somers' d", 'Eta', '风险估计（2×2）', '不确定性系数', 'Kendall tau-b', '精确卡方 p']) {
       assert.ok(sheetLabels.some((text) => text.includes(wanted)), `the statistics sheet offers ${wanted}`)
     }
     for (const wanted of ["Somers' d", 'Eta']) {
       const label = [...sheet.querySelectorAll('.ap-check')].find((node) => node.textContent.trim().includes(wanted))
+      await act(async () => { label.querySelector('input').dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 10)) })
+    }
+    // The exact chi-square p is a flag too: it must not leak into /STATISTICS
+    // as a keyword PSPP would reject.
+    {
+      const label = [...sheet.querySelectorAll('.ap-check')].find((node) => node.textContent.trim().includes('精确卡方 p'))
       await act(async () => { label.querySelector('input').dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 10)) })
     }
     const cont = [...sheet.querySelectorAll('button')].find((node) => node.textContent.trim() === '继续')
@@ -748,6 +754,7 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     assert.match(syntax, /\/STATISTICS=.*CHISQ/)
     assert.match(syntax, /\/STATISTICS=.*\bD\b/, "Somers' d travels as D")
     assert.match(syntax, /\/STATISTICS=.*ETA/)
+    assert.ok(!/EXACTCHI/.test(syntax), 'the exact chi-square flag stays out of the syntax')
     const cancel = [...dialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
     await act(async () => { cancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)) })
     assert.equal(container.querySelector('.ap-modal'), null, 'the dialog closes again')

@@ -775,6 +775,17 @@ let plainNotes = (r.json().result?.items ?? []).flatMap((item) => item.table?.no
 console.log('without the flag there is no exact note', r.code === 200,
   !plainNotes.some((note) => note.includes('精确检验（插件计算）')))
 
+// 精确卡方：同一个枚举器，换个统计量（Pearson 与似然比各一行注文）
+r = await call('POST', `${base}/api/run`, {
+  sessionId: 'ex01',
+  syntax: 'CROSSTABS /TABLES=g BY wave /STATISTICS=CHISQ /CELLS=COUNT.',
+  exactChi: true,
+})
+let chiNotes = (r.json().result?.items ?? []).flatMap((item) => item.table?.notes ?? item.notes ?? [])
+console.log('the exact chi-square p reaches the crosstab note', r.code === 200,
+  chiNotes.some((note) => note.includes('Pearson 卡方精确检验') && note.includes('似然比卡方精确检验')),
+  JSON.stringify(chiNotes.slice(-1)))
+
 for (const id of ['pivot01', 'pivot02', 'dup01', 'out01', 'ex01']) await call('POST', `${base}/api/close`, { sessionId: id })
 
 r = await call('POST', `${base}/api/close`, { sessionId: 'pivot01' })

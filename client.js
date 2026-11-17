@@ -1885,6 +1885,10 @@ function normalizeChoices(list) {
             // exact p for a bigger table is computed in the plugin and written
             // as a note on the crosstab the engine prints.
             { key: 'exact', label: '精确检验（插件按边际枚举）' },
+            // Same machinery, different statistic: the exact p of Pearson's
+            // chi-square and of the likelihood ratio, which SPSS offers under
+            // Crosstabs → Exact Tests.
+            { key: 'exactchi', label: '精确卡方 p（插件按边际枚举）' },
           ] },
           { key: 'cells', title: '单元格', items: [
             { key: 'count', label: '计数', default: true },
@@ -1902,6 +1906,7 @@ function normalizeChoices(list) {
             chisq: 'CHISQ', phi: 'PHI', cc: 'CC', lambda: 'LAMBDA', gamma: 'GAMMA', kappa: 'KAPPA',
             uc: 'UC', btau: 'BTAU', ctau: 'CTAU', somersd: 'D', eta: 'ETA', corr: 'CORR', risk: 'RISK',
             exact: 'EXACT',
+            exactchi: 'EXACTCHI',
           })
           // Kappa also implies the chi-square table: the Cramér's V line and the
           // small-sample "look at Fisher's Exact Test" note are written onto it.
@@ -1920,11 +1925,12 @@ function normalizeChoices(list) {
           // 精确检验不写进语法（PSPP 的 /METHOD=EXACT 是语法错误），而是让宿主
           // 在引擎那张交叉表上补一条注：所以它单独作为标志返回。
           const exact = onKeys(flags, 'statistics').includes('exact')
+          const exactChi = onKeys(flags, 'statistics').includes('exactchi')
           const parts = [`CROSSTABS /TABLES=${v.row} BY ${v.col}${layer ? ` BY ${layer}` : ''}`]
-          const printable = stats.filter((name) => name !== 'EXACT')
+          const printable = stats.filter((name) => name !== 'EXACT' && name !== 'EXACTCHI')
           if (printable.length) parts.push(`/STATISTICS=${printable.join(' ')}`)
           parts.push(`/CELLS=${(cells.length ? cells : ['COUNT']).join(' ')}`)
-          return { syntax: `${parts.join(' ')}.`, exact }
+          return { syntax: `${parts.join(' ')}.`, exact, exactChi }
         },
       },
       explore: {
@@ -5273,10 +5279,10 @@ let ITEM_CSV_PENDING = null
         }, 60)
       }, [total, loadRows])
 
-      const run = useCallback(async (text, persist, title, pairwise, regression, roc, exact) => {
+      const run = useCallback(async (text, persist, title, pairwise, regression, roc, exact, exactChi) => {
         setBusy(true)
         try {
-          const value = await api('api/run', { sessionId, syntax: text, persist, pairwise, regression, roc, exact: exact === true })
+          const value = await api('api/run', { sessionId, syntax: text, persist, pairwise, regression, roc, exact: exact === true, exactChi: exactChi === true })
           setSt(stateOf(value))
           const items = value.result.items ?? []
           // A data transform (sort/filter/compute) produces no tables: stay in
@@ -6929,7 +6935,7 @@ let ITEM_CSV_PENDING = null
                 await runChart(built.chart)
                 return
               }
-              await run(built.syntax, built.persist === true, spec?.title, built.pairwise, built.regression, built.roc, built.exact)
+              await run(built.syntax, built.persist === true, spec?.title, built.pairwise, built.regression, built.roc, built.exact, built.exactChi)
             },
           })
           : null,

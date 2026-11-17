@@ -1,5 +1,5 @@
 import assert from 'node:assert'
-import { exactTest, fisherExact, trimTable, isCountTable, describeExact } from '../lib/exact.js'
+import { describeChiSquareExact, describeExact, exactChiSquare, exactTest, fisherExact, trimTable, isCountTable } from '../lib/exact.js'
 
 let checks = 0
 const pending = []
@@ -173,7 +173,44 @@ check('describeExact says which method produced the number', () => {
   assert.equal(describeExact(null), null)
 })
 
+check('the exact p of Pearson chi-square and the likelihood ratio come from the same walk', () => {
+  // A 2×2 table orders its tables by chi-square exactly as Fisher's test orders
+  // them by probability, so both exact p-values must land on the same number.
+  const small = [[3, 1], [1, 3]]
+  const pearson = exactChiSquare(small, 'pearson')
+  const likelihood = exactChiSquare(small, 'likelihood')
+  assert.equal(pearson.method, 'exact')
+  assert.equal(pearson.p.toFixed(4), '0.4857')
+  assert.equal(pearson.tables, 5)
+  assert.equal(likelihood.p.toFixed(4), '0.4857')
+  assert.equal(likelihood.value.toFixed(3), '2.093', 'the likelihood ratio of this table')
+
+  // 3×3: disagreeing with Fisher–Freeman–Halton is the point (different statistic).
+  const wide = [[4, 2, 1], [1, 3, 2], [2, 1, 5]]
+  const chi = exactChiSquare(wide, 'pearson')
+  assert.equal(chi.tables, 602)
+  assert.equal(chi.value.toFixed(3), '5.873')
+  assert.equal(chi.p.toFixed(6), '0.243675', 'checked against an independent enumeration')
+  assert.notEqual(chi.p.toFixed(3), exactTest(wide).p.toFixed(3))
+
+  // A table too wide to enumerate samples instead, with a fixed seed.
+  const big = [[200, 150, 120], [150, 200, 130], [100, 90, 80]]
+  const sampled = exactChiSquare(big, 'pearson', { seed: 5 })
+  assert.equal(sampled.method, 'monte-carlo')
+  assert.ok(sampled.low <= sampled.p && sampled.p <= sampled.high)
+  assert.equal(exactChiSquare(big, 'pearson', { seed: 5 }).p, sampled.p, 'same seed, same p')
+  assert.equal(exactChiSquare([[1, 2]], 'pearson'), null, 'a single row has no chi-square')
+  assert.equal(exactChiSquare(small, 'pearson', { maxTables: 2 }).method, 'monte-carlo')
+
+  const text = describeChiSquareExact(pearson)
+  assert.ok(text.includes('Pearson 卡方精确检验'), text)
+  assert.ok(text.includes('χ² = 2.000'), text)
+  assert.ok(text.includes('精确 p = 0.486'), text)
+  assert.ok(describeChiSquareExact(exactChiSquare(small, 'likelihood')).includes('似然比卡方精确检验'))
+  assert.equal(describeChiSquareExact(null), null)
+})
+
 Promise.all(pending).then(() => {
   console.log(`\n${checks} checks passed in test/exact.mjs`)
-  if (checks < 11) process.exitCode = 1
+  if (checks < 13) process.exitCode = 1
 })
