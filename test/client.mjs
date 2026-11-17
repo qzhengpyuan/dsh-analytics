@@ -591,6 +591,122 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     await new Promise((resolve) => setTimeout(resolve, 20))
   })
 
+  // 数据 → 重构: PSPP 2.1.3 has neither CASESTOVARS nor VARSTOCASES, so both
+  // entries must open a dialog that collects the boxes the plugin needs rather
+  // than pasting a program PSPP would reject.
+  await act(async () => {
+    dataButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const restructureEntry = [...container.querySelectorAll('.ap-menu-pop button')].find((button) => button.textContent === '个案转变量…')
+  assert.ok(restructureEntry, 'the data menu offers cases to variables')
+  await act(async () => {
+    restructureEntry.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const caseDialog = [...container.querySelectorAll('.ap-modal')].find((node) => /个案转变量/.test(node.textContent))
+  assert.ok(caseDialog, 'clicking it opens the pivot dialog')
+  assert.match(caseDialog.textContent, /标识变量/, 'the dialog asks for the identifier boxes')
+  assert.match(caseDialog.textContent, /索引变量/, 'and for the index variable whose values become columns')
+  assert.match(caseDialog.textContent, /要展开的变量/, 'and for the variables to spread')
+  const caseHelp = [...caseDialog.querySelectorAll('.ap-modal-foot .ap-tool')].find((button) => button.textContent === '帮助')
+  assert.ok(caseHelp, 'the pivot dialog keeps the 帮助 button')
+  await act(async () => {
+    caseHelp.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  assert.match(caseDialog.textContent, /先把左边必填的变量选上/, 'the help panel explains what is missing before it can run')
+  const caseOk = [...caseDialog.querySelectorAll('.ap-modal-foot .ap-tool')].find((button) => button.textContent === '确定')
+  assert.equal(caseOk.disabled, true, 'the pivot cannot run before an index and a variable are chosen')
+  const caseCancel = [...caseDialog.querySelectorAll('.ap-modal-foot .ap-tool')].find((button) => button.textContent === '取消')
+  await act(async () => {
+    caseCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+
+  await act(async () => {
+    dataButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const stackEntry = [...container.querySelectorAll('.ap-menu-pop button')].find((button) => button.textContent === '变量转个案…')
+  assert.ok(stackEntry, 'the data menu offers variables to cases')
+  await act(async () => {
+    stackEntry.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const stackDialog = [...container.querySelectorAll('.ap-modal')].find((node) => /变量转个案/.test(node.textContent))
+  assert.ok(stackDialog, 'the inverse pivot opens its own dialog')
+  assert.match(stackDialog.textContent, /要堆叠的变量/, 'it names the stack box')
+  assert.match(stackDialog.textContent, /索引列名/, 'and the index column name')
+  const stackCancel = [...stackDialog.querySelectorAll('.ap-modal-foot .ap-tool')].find((button) => button.textContent === '取消')
+  await act(async () => {
+    stackCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+
+  // 编辑 has the clipboard entries SPSS has, and 转到变量 opens a picker instead
+  // of doing nothing (the grid keeps its own selection, so the menu routes
+  // through a command table the grid publishes).
+  const editButton = [...container.querySelectorAll('.ap-menu-button')].find((button) => button.textContent === '编辑')
+  await act(async () => {
+    editButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const editLabels = [...container.querySelectorAll('.ap-menu-pop button')].map((button) => button.textContent)
+  // menuLabel renders the key hint as its own span, so textContent is
+  // "剪切Ctrl+X" rather than "剪切（Ctrl+X）".
+  for (const wanted of ['剪切', '复制', '粘贴', '清除', '粘贴变量…', '转到个案…', '转到变量…']) {
+    assert.ok(editLabels.some((label) => label.startsWith(wanted)), `the edit menu offers ${wanted}`)
+  }
+  const gotoVariable = [...container.querySelectorAll('.ap-menu-pop button')].find((button) => button.textContent === '转到变量…')
+  await act(async () => {
+    gotoVariable.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const gotoDialog = [...container.querySelectorAll('.ap-modal')].find((node) => /转到变量/.test(node.textContent))
+  assert.ok(gotoDialog, '转到变量 opens a picker')
+  assert.ok(gotoDialog.querySelector('datalist#ap-goto-variables'), 'the picker lists every variable it knows')
+  const gotoCancel = [...gotoDialog.querySelectorAll('.ap-modal-foot .ap-tool')].find((button) => button.textContent === '取消')
+  await act(async () => {
+    gotoCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+
+  // 视图 → 网格线 / 工具栏 are display toggles with a check mark that survives
+  // reopening the menu.
+  // The grid only exists on the data view; an earlier case left the panel on
+  // another tab, so switch back before asserting on the rendering.
+  const dataTab = [...container.querySelectorAll('.ap-view-tab')].find((tab) => tab.textContent === '数据视图')
+  if (dataTab) {
+    await act(async () => {
+      dataTab.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
+  }
+  const viewButton = [...container.querySelectorAll('.ap-menu-button')].find((button) => button.textContent === '视图')
+  await act(async () => {
+    viewButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const gridEntry = [...container.querySelectorAll('.ap-menu-pop button')].find((button) => button.textContent.trim() === '✓ 网格线')
+  assert.ok(gridEntry, 'the view menu shows gridlines as on')
+  assert.ok([...container.querySelectorAll('.ap-menu-pop button')].some((button) => button.textContent.trim() === '✓ 工具栏'), 'and the toolbar as on')
+  await act(async () => {
+    gridEntry.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  assert.ok(container.querySelector('.ap-grid.ap-nogrid'), 'turning gridlines off drops the ruling but keeps the table')
+  await act(async () => {
+    viewButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  const gridEntryOff = [...container.querySelectorAll('.ap-menu-pop button')].find((button) => button.textContent.trim() === '网格线')
+  assert.ok(gridEntryOff, 'reopening shows it off')
+  await act(async () => {
+    gridEntryOff.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+
   // Session settings are invisible in the grid, so they get permanent chips:
   // a SPLIT or WEIGHT left behind changes every number without any other sign.
   assert.match(text(), /拆分：gender/, 'an active SPLIT FILE is shown in the status bar')

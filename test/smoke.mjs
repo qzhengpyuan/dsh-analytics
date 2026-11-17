@@ -377,4 +377,47 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('in-flight work blocks eviction')
 }
 
+// Restructuring is plugin-side matrix work, but the result still has to survive
+// the trip through work.sav: a generated column name PSPP rejects, or a row
+// count that disagrees with the engine, only shows up on the next analysis.
+{
+  const pivot = new Workspace({ id: 'pivot', engine, root, config: { timeoutMs: 60000 } })
+  await pivot.init()
+  await pivot.createDataset({ variables: [
+    { name: 'g', type: 'string', width: 1, label: '组' },
+    { name: 'phase', type: 'string', width: 8, label: '阶段' },
+    { name: 'score', type: 'numeric', width: 5, decimals: 1, label: '得分' },
+  ] })
+  for (const row of [['M', '前测', 70], ['M', '后测', 80], ['F', '前测', 60], ['F', '后测', 90], ['M', '前测', 75]]) {
+    pivot.appendCase({ g: row[0], phase: row[1], score: row[2] })
+  }
+  const wide = pivot.restructureCasesToVars({ id: ['g'], index: 'phase', variables: ['score'] })
+  const names = pivot.dataset.variables.map((variable) => variable.name)
+  assert.equal(wide.cases, 2)
+  assert.equal(wide.created, 2)
+  assert.equal(wide.duplicates, 1, 'a repeated identifier+index is counted')
+  // '前测'/'后测' cannot appear in a PSPP variable name, so the columns fall
+  // back to their position rather than producing a name the engine refuses.
+  assert.deepEqual(names, ['g', 'score_v1', 'score_v2'])
+  const first = await pivot.runSyntax('DESCRIPTIVES /VARIABLES=score_v1 score_v2.', { persist: true })
+  const failed = (first.diagnostics ?? []).find((entry) => entry.severity === 'error')
+  if (failed) throw new Error(`the pivoted columns did not survive work.sav: ${failed.message}`)
+  assert.equal(pivot.dataset.rows.length, 2)
+
+  const long = pivot.restructureVarsToCases({
+    variables: ['score_v1', 'score_v2'],
+    id: ['g'],
+    target: 'score',
+    indexName: 'wave',
+    indexValues: 'numbers',
+  })
+  assert.equal(long.cases, 4)
+  assert.deepEqual(pivot.dataset.variables.map((variable) => variable.name), ['g', 'score', 'wave'])
+  const second = await pivot.runSyntax('FREQUENCIES /VARIABLES=wave.', { persist: true })
+  const secondFailed = (second.diagnostics ?? []).find((entry) => entry.severity === 'error')
+  if (secondFailed) throw new Error(`the stacked rows did not survive work.sav: ${secondFailed.message}`)
+  assert.equal(pivot.dataset.rows.length, 4)
+  console.log('restructuring survives work.sav in both directions:', names.join(','), '->', pivot.dataset.variables.map((variable) => variable.name).join(','))
+}
+
 await rm(root, { recursive: true, force: true })

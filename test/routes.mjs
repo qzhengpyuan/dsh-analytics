@@ -605,5 +605,55 @@ console.log('the error text follows the language', r.code === 400, !/[\u4e00-\u9
 r = await call('POST', `${base}/api/settings`, { patch: { uiLanguage: 'zh' } })
 console.log('settings accepts the language back', r.code, r.json().settings.uiLanguage === 'zh')
 
+// Data > Restructure runs inside the plugin: PSPP 2.1.3 has neither
+// CASESTOVARS nor VARSTOCASES, so both directions are matrix work on the host.
+const seed = async (id, rows) => {
+  let res = await call('POST', `${base}/api/new`, { sessionId: id, cwd: home, variables: [
+    { name: 'g', type: 'string', label: '组' },
+    { name: 'wave', type: 'numeric', label: '轮次' },
+    { name: 'score', type: 'numeric', label: '得分' },
+  ] })
+  for (const values of rows) res = await call('POST', `${base}/api/case`, { sessionId: id, values })
+  return res
+}
+const base4 = [
+  { g: 'M', wave: 1, score: 70 }, { g: 'M', wave: 2, score: 80 },
+  { g: 'F', wave: 1, score: 60 }, { g: 'F', wave: 2, score: 90 },
+]
+await seed('pivot01', base4)
+r = await call('POST', `${base}/api/restructure`, { sessionId: 'pivot01', kind: 'casesToVars', id: ['g'], index: 'wave', variables: ['score'] })
+let pivot = r.json()
+let pivotNames = (pivot.state?.dataset?.variables ?? []).map((variable) => variable.name)
+console.log('casesToVars pivots the index into columns', r.code === 200,
+  pivot.result?.cases === 2, pivot.result?.created === 2,
+  pivotNames.includes('score_1') && pivotNames.includes('score_2'),
+  pivot.state?.dataset?.caseCount === 2)
+
+r = await call('POST', `${base}/api/restructure`, { sessionId: 'pivot01', kind: 'varsToCases', variables: ['score_1', 'score_2'], id: ['g'], target: 'score', indexName: 'wave', indexValues: 'numbers' })
+pivot = r.json()
+pivotNames = (pivot.state?.dataset?.variables ?? []).map((variable) => variable.name)
+console.log('varsToCases stacks the wide columns back to long', r.code === 200,
+  pivot.result?.cases === 4, pivotNames.join(',') === 'g,score,wave',
+  pivot.state?.dataset?.caseCount === 4)
+
+// A repeated (identifier, index) pair keeps the first value and says how many
+// it dropped; silently overwriting would lose a case nobody could find again.
+await seed('pivot02', [...base4, { g: 'M', wave: 1, score: 999 }])
+r = await call('POST', `${base}/api/restructure`, { sessionId: 'pivot02', kind: 'casesToVars', id: ['g'], index: 'wave', variables: ['score'] })
+console.log('a duplicated identifier+index is counted, not silently overwritten', r.code === 200, r.json().result?.duplicates === 1, r.json().result?.cases === 2)
+
+// Mixed types cannot be stacked without deciding what the column means, so the
+// host has to refuse and name the variable that does not fit.
+r = await call('POST', `${base}/api/restructure`, { sessionId: 'pivot02', kind: 'varsToCases', variables: ['score_1', 'g'], id: [], target: 'v', indexName: 'idx' })
+console.log('varsToCases refuses mixed types with a readable error', r.code === 400, /类型一致/.test(String(r.json().error)))
+
+// An unknown variable in a box is a typo, not a crash.
+r = await call('POST', `${base}/api/restructure`, { sessionId: 'pivot02', kind: 'casesToVars', id: ['g'], index: 'nope', variables: ['score_1'] })
+console.log('casesToVars names the variable it cannot find', r.code === 400, /没有这个变量/.test(String(r.json().error)))
+
+for (const id of ['pivot01', 'pivot02']) await call('POST', `${base}/api/close`, { sessionId: id })
+
+r = await call('POST', `${base}/api/close`, { sessionId: 'pivot01' })
+
 r = await call('POST', `${base}/api/close`, { sessionId: sid })
 console.log('closed ->', r.code, r.json().state.dataset)

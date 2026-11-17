@@ -74,6 +74,18 @@ window.__ModuleLoader__.load({
       return React.createElement(type, next, ...children.map(mapText))
     }
 
+    // The 编辑 menu lives in the panel, but copy/cut/paste/clear belong to the
+    // data grid (only it knows the selected rectangle). Rather than thread a
+    // ref through three components, the grid publishes a tiny command table and
+    // the menu calls into whichever grid is on screen.
+    let GRID_COMMANDS = null
+
+    function gridCommand(name, payload) {
+      const sink = GRID_COMMANDS
+      if (!sink || typeof sink[name] !== 'function') return false
+      return sink[name](payload) !== false
+    }
+
     const API_BASE = '/analytics/'
     const apiUrl = (path) => new URL(API_BASE + path, document.baseURI).toString()
 
@@ -317,6 +329,8 @@ body[data-ds-dark-theme] .ap-root {
 .ap-grid-wrap { flex:1; min-height:0; overflow:auto; background:var(--ap-panel); }
 .ap-grid { border-collapse:collapse; table-layout:fixed; font-family:inherit; font-size:inherit; }
 .ap-grid td.ap-spacer { height:auto; min-height:0; padding:0; border:0; line-height:0; }
+/* 视图 → 网格线 off: keep the table structure, drop the ruling. */
+.ap-grid.ap-nogrid th, .ap-grid.ap-nogrid td { border-color: transparent; }
 .ap-grid th, .ap-grid td { border-right:1px solid var(--ap-line); border-bottom:1px solid var(--ap-line); padding:1px 6px;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; height:max(22px, 1.7em); }
 .ap-grid thead th { position:sticky; top:0; z-index:2; background:var(--ap-head); font-weight:600; text-align:center;
@@ -2382,6 +2396,30 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         defaults: { fn: 'MEAN' },
         build: (v) => ({ syntax: `AGGREGATE /OUTFILE=* MODE=ADDVARIABLES /BREAK=${v.break} /${v.target}=${v.fn}(${v.variable}).`, persist: true }),
       },
+      // The two restructures have no PSPP syntax behind them (2.1.3 lacks
+      // CASESTOVARS / VARSTOCASES), so build() hands the payload to the host
+      // route instead of returning a program.
+      casesToVars: {
+        title: '个案转变量',
+        fields: [
+          { key: 'id', kind: 'multi', label: '标识变量（每个组合保留一行）' },
+          { key: 'index', kind: 'single', label: '索引变量（它的取值变成新列）', required: true },
+          { key: 'variables', kind: 'multi', label: '要展开的变量', required: true },
+        ],
+        build: (v) => ({ restructure: { kind: 'casesToVars', id: v.id, index: v.index, variables: v.variables } }),
+      },
+      varstocases: {
+        title: '变量转个案',
+        fields: [
+          { key: 'variables', kind: 'multi', label: '要堆叠的变量（类型必须一致）', required: true },
+          { key: 'id', kind: 'multi', label: '标识变量（原样带到每一行）' },
+          { key: 'targetName', kind: 'text', label: '数值列名', placeholder: 'value' },
+          { key: 'indexName', kind: 'text', label: '索引列名', placeholder: 'index' },
+          { key: 'indexValues', kind: 'select', label: '索引值', options: [{ value: 'names', label: '原变量名' }, { value: 'numbers', label: '堆叠顺序号' }] },
+        ],
+        defaults: { indexValues: 'names', targetName: 'value', indexName: 'index' },
+        build: (v) => ({ restructure: { kind: 'varsToCases', variables: v.variables, id: v.id, target: v.targetName, indexName: v.indexName, indexValues: v.indexValues } }),
+      },
     }
 
     /* ----------------------------------------------------------- components */
@@ -2762,7 +2800,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     const SPARE_COLUMN_WIDTH = 96
     const SPARE_ROWS = 40
 
-    function DataGrid({ variables, rows, total, onLoadMore, onEdit, selected, onSelect, showLabels, widths = {}, onWidth, onPaste, onNewVariable, onMoveVariable, onCellMenu, rowHeight: rowHeightProp = 22, freeze = { rows: true, cols: true } }) {
+    function DataGrid({ variables, rows, total, onLoadMore, onEdit, selected, onSelect, showLabels, gridLines = true, widths = {}, onWidth, onPaste, onNewVariable, onMoveVariable, onCellMenu, rowHeight: rowHeightProp = 22, freeze = { rows: true, cols: true } }) {
       // SPSS lines every cell up by the variable's own alignment setting: the
       // sheet defaults to right for numbers and left for text, and switching a
       // variable to 「左」 must win over that default.
@@ -2920,6 +2958,23 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         }
         return null
       }
+      // 清除/剪切 blanks the rectangle through the same host route a paste
+      // uses, so one undo step covers the whole block.
+      const clearSelection = () => {
+        if (!selection) return false
+        const { anchor, focus } = selection
+        const [r1, r2] = [Math.min(anchor.row, focus.row), Math.max(anchor.row, focus.row)]
+        const [c1, c2] = [Math.min(anchor.column, focus.column), Math.max(anchor.column, focus.column)]
+        const cells = []
+        for (let row = r1; row <= r2 && row < rows.length; row += 1) {
+          for (let column = c1; column <= c2 && column < variables.length; column += 1) {
+            cells.push({ row, variable: variables[column].name, value: null })
+          }
+        }
+        if (cells.length === 0) return false
+        onPaste?.(cells, {})
+        return true
+      }
       const pasteFromClipboard = async () => {
         if (!selection || !navigator.clipboard?.readText) return
         let text = ''
@@ -3031,6 +3086,42 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         scrollToRow(row)
       }
 
+      // Two things the 编辑 menu needs from this component: the selected
+      // rectangle (to copy or clear) and the paste entry point. The rest of the
+      // grid state stays private.
+      const liveRef = useRef({})
+      liveRef.current = { selection, rows, variables, total }
+      useEffect(() => {
+        const commands = {
+          copy: () => {
+            const { selection: box } = liveRef.current
+            if (!box) return false
+            copyText(selectionText()).catch(() => { /* clipboard blocked */ })
+            return true
+          },
+          cut: async () => {
+            const { selection: box } = liveRef.current
+            if (!box) return false
+            await copyText(selectionText()).catch(() => { /* clipboard blocked */ })
+            clearSelection()
+            return true
+          },
+          paste: async () => {
+            if (!liveRef.current.selection) return false
+            await pasteFromClipboard()
+            return true
+          },
+          clear: () => {
+            if (!liveRef.current.selection) return false
+            clearSelection()
+            return true
+          },
+          hasSelection: () => Boolean(liveRef.current.selection),
+        }
+        GRID_COMMANDS = commands
+        return () => { if (GRID_COMMANDS === commands) GRID_COMMANDS = null }
+      }, [])
+
       const onKeyDown = (event) => {
         if (editing || !variables.length) return
         const base = selected ?? { row: 0, column: 0 }
@@ -3042,6 +3133,11 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C') && selection) {
           event.preventDefault()
           copyText(selectionText()).catch(() => { /* clipboard blocked */ })
+          return
+        }
+        if ((event.ctrlKey || event.metaKey) && (event.key === 'x' || event.key === 'X') && selection) {
+          event.preventDefault()
+          copyText(selectionText()).then(() => clearSelection()).catch(() => { /* clipboard blocked */ })
           return
         }
         if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V')) {
@@ -3088,7 +3184,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       const spareWidth = filler > 0 ? Math.ceil(filler / spareCount) : SPARE_COLUMN_WIDTH
       const columnCount = variables.length + 1 + spareCount
       return h('div', { className: `ap-grid-wrap ${freezeClass}`, ref: wrapRef, onScroll, tabIndex: 0, onKeyDown, style: { outline: 'none', '--ap-freeze-x': `${freezeX}px` } },
-        h('table', { className: 'ap-grid', style: { width: gridWidth + spareCount * spareWidth } },
+        h('table', { className: `ap-grid${gridLines ? '' : ' ap-nogrid'}`, style: { width: gridWidth + spareCount * spareWidth } },
           h('thead', null,
             h('tr', null,
               h('th', { className: 'ap-rownum' }, ''),
@@ -3446,7 +3542,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       })
     }
 
-    function VariableGrid({ variables, widths = {}, onWidth, onUpdate, onAdd, onRename, onDelete, onEditLabels, onMove }) {
+    function VariableGrid({ variables, widths = {}, onWidth, onUpdate, onAdd, onRename, onDelete, onEditLabels, onMove, jumpTo = null }) {
       const columns = [
         ['name', '名称'], ['type', '类型'], ['width', '宽度'], ['decimals', '小数'],
         ['label', '标签'], ['values', '值'], ['missing', '缺失'], ['columns', '列'], ['measure', '测量'],
@@ -3470,6 +3566,18 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         rows?.[index]?.focus?.()
       }
       useEffect(() => { setCellEdit(null) }, [variables.length])
+      // 转到变量 / 粘贴变量 land here: select the row, focus it and bring it
+      // into view, which is what SPSS does when you jump to a variable.
+      useEffect(() => {
+        if (!jumpTo?.name) return
+        const index = variables.findIndex((variable) => variable.name === jumpTo.name)
+        if (index < 0) return
+        setSelected([jumpTo.name])
+        setAnchor(index)
+        const row = wrapRef.current?.querySelectorAll('tbody tr')?.[index]
+        row?.scrollIntoView?.({ block: 'center' })
+        row?.focus?.()
+      }, [jumpTo, variables])
       const selectRow = (index, event) => {
         if (event?.shiftKey && anchor !== null) {
           const [from, to] = [Math.min(anchor, index), Math.max(anchor, index)]
@@ -4542,6 +4650,16 @@ let ITEM_CSV_PENDING = null
       const [showLabels, setShowLabels] = useState(() => {
         try { return localStorage.getItem('ap.showLabels') !== '0' } catch { return true }
       })
+      // SPSS's View menu hides the gridlines and the toolbar; both are only
+      // display preferences, so the browser keeps them.
+      const [showGridLines, setShowGridLines] = useState(() => {
+        try { return localStorage.getItem('ap.gridLines') !== '0' } catch { return true }
+      })
+      const [showToolbar, setShowToolbar] = useState(() => {
+        try { return localStorage.getItem('ap.toolbar') !== '0' } catch { return true }
+      })
+      // { name, seq }: the seq makes every jump look new even to the same variable.
+      const [variableJump, setVariableJump] = useState(null)
       // Output table preset: 'default' (the on-screen look), 'three' (the
       // journal three-line table), 'plain' (no rules), 'grid' (full borders).
       const [outputQuery, setOutputQuery] = useState('')
@@ -4953,6 +5071,46 @@ let ITEM_CSV_PENDING = null
           setBusy(false)
         }
       }, [sessionId, loadRows])
+
+      // Restructuring replaces the matrix on the host instead of running a
+      // program, so it cannot go through run(): the reply carries counts, not
+      // tables, and the grid has to be reloaded from case 1.
+      const runRestructure = useCallback(async (payload, title) => {
+        setBusy(true)
+        try {
+          const value = await api('api/restructure', { sessionId, ...payload })
+          setSt(stateOf(value))
+          const result = value.result ?? {}
+          const page = await loadRows(0, 500)
+          setRows(page.rows)
+          setTotal(page.total)
+          setSelected(null)
+          setView('data')
+          const extra = result.duplicates ? `，重复的「标识+索引」保留了第一个，共 ${result.duplicates} 处` : ''
+          notify(`${title ?? '重构'}完成：${result.cases ?? 0} 个个案、${result.variables ?? 0} 个变量${result.created ? `（新增 ${result.created} 列）` : ''}${extra}`)
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId, loadRows])
+
+      // SPSS's 粘贴变量 pastes names into a dialog box; our dialogs take clicks,
+      // so the same clipboard is read as a list of names and the variable view
+      // jumps to the first one that exists.
+      const pasteVariablesFromClipboard = useCallback(async () => {
+        let text = ''
+        try { text = (await navigator.clipboard?.readText?.()) ?? '' } catch { notify('浏览器没给读剪贴板的权限：先点一下面板再试'); return }
+        const names = [...new Set(String(text).split(/[\s,，;；、]+/).map((entry) => entry.trim()).filter(Boolean))]
+        if (names.length === 0) { notify('剪贴板里没有内容'); return }
+        const known = (st?.dataset?.variables ?? []).map((variable) => variable.name)
+        const found = names.filter((name) => known.some((entry) => entry.toLowerCase() === name.toLowerCase()))
+        if (found.length === 0) { notify(`剪贴板里的 ${names.length} 个名字都不是当前数据集的变量`); return }
+        setView('variables')
+        setVariableJump({ name: found[0], seq: Date.now() })
+        notify(`剪贴板里有 ${found.length} 个变量：${found.slice(0, 6).join('、')}${found.length > 6 ? '…' : ''}${found.length < names.length ? `；另有 ${names.length - found.length} 个名字没有匹配到变量` : ''}`)
+      }, [st])
 
       // Everything a multiple response set can do: refresh its frequency table,
       // tabulate it against a grouping variable, or drop it.
@@ -5675,6 +5833,16 @@ let ITEM_CSV_PENDING = null
               disabled: history.redo === 0,
               action: () => applyHistory('redo'),
             },
+            { sep: true },
+            { label: '剪切（Ctrl+X）', action: () => { if (!gridCommand('cut')) notify('先在数据视图里选中要剪切的单元格'); } },
+            { label: '复制（Ctrl+C）', action: () => { if (!gridCommand('copy')) notify('先在数据视图里选中要复制的单元格'); } },
+            { label: '粘贴（Ctrl+V）', action: () => { if (!gridCommand('paste')) notify('先在数据视图里点一下要粘贴到的单元格'); } },
+            { label: '清除', action: () => { if (!gridCommand('clear')) notify('先在数据视图里选中要清除的单元格'); } },
+            { label: '粘贴变量…', action: () => pasteVariablesFromClipboard() },
+            { sep: true },
+            { label: '转到个案…', action: () => setDialog({ kind: 'goto', value: String((selected?.row ?? 0) + 1) }) },
+            { label: '转到变量…', action: () => setDialog({ kind: 'gotoVariable', value: '' }) },
+            { sep: true },
             { label: '查找…（Ctrl+F）', action: () => setDialog({ kind: 'find', mode: 'find' }) },
             { label: '替换…', action: () => setDialog({ kind: 'find', mode: 'replace' }) },
           ],
@@ -5684,6 +5852,21 @@ let ITEM_CSV_PENDING = null
             { label: `${showLabels ? '✓ ' : ''}显示值标签`, action: toggleLabels },
             { sep: true },
             { label: '列宽全部恢复默认', action: () => setColWidth(null, null) },
+            { sep: true },
+            { label: `${showGridLines ? '✓ ' : ''}网格线`, action: () => {
+              setShowGridLines((current) => {
+                const next = !current
+                try { localStorage.setItem('ap.gridLines', next ? '1' : '0') } catch { /* private mode */ }
+                return next
+              })
+            } },
+            { label: `${showToolbar ? '✓ ' : ''}工具栏`, action: () => {
+              setShowToolbar((current) => {
+                const next = !current
+                try { localStorage.setItem('ap.toolbar', next ? '1' : '0') } catch { /* private mode */ }
+                return next
+              })
+            } },
             { sep: true },
             { label: `${freezeRows ? '✓ ' : ''}冻结首行（表头）`, action: () => toggleFreeze('rows') },
             { label: `${freezeCols ? '✓ ' : ''}冻结首列（行号与第一个变量）`, action: () => toggleFreeze('cols') },
@@ -5732,6 +5915,10 @@ let ITEM_CSV_PENDING = null
             { label: '拆分文件…', action: () => runAnalysis('split') },
             { label: '随机抽样…', action: () => runAnalysis('sample') },
             { sep: true },
+            { label: '重构', sub: [
+              { label: '个案转变量…', action: () => runAnalysis('casesToVars') },
+              { label: '变量转个案…', action: () => runAnalysis('varstocases') },
+            ] },
             { label: '合并文件', sub: [
               { label: '添加个案…', action: () => setDialog({ kind: 'merge', mode: 'add', path: '', by: '' }) },
               { label: '按关键变量合并…', action: () => setDialog({ kind: 'merge', mode: 'match', path: '', by: '' }) },
@@ -6065,7 +6252,7 @@ let ITEM_CSV_PENDING = null
                 className: `ap-menu-pop ${index >= menus.length - 3 ? 'ap-flip' : ''}`,
               }, renderMenuItems(entry.items))
               : null))),
-        h('div', { className: 'ap-toolbar' },
+        !showToolbar ? null : h('div', { className: 'ap-toolbar' },
           h('button', {
             className: 'ap-tool ap-icon-btn', title: '打开数据', 'aria-label': '打开数据', onClick: () => command('open'),
           }, apIcon('open')),
@@ -6136,6 +6323,7 @@ let ITEM_CSV_PENDING = null
                 selected,
                 onSelect: setSelected,
                 showLabels,
+                gridLines: showGridLines,
                 widths: colWidths,
                 onWidth: setColWidth,
                 onPaste: async (cells, options) => {
@@ -6189,6 +6377,7 @@ let ITEM_CSV_PENDING = null
               ? (st?.dataset
                 ? h(VariableGrid, {
                   variables,
+                  jumpTo: variableJump,
                   widths: colWidths,
                   onWidth: setColWidth,
                   onUpdate: async (name, patch) => {
@@ -6348,6 +6537,32 @@ let ITEM_CSV_PENDING = null
           h('ul', { style: { margin: 0, paddingLeft: 18, lineHeight: 1.7 } },
             ...dialog.notes.map((note, index) => h('li', { key: index }, note))))
           : null,
+        dialog?.kind === 'gotoVariable'
+          ? h(Modal, {
+            title: '转到变量',
+            okText: '跳转',
+            okDisabled: String(dialog.value ?? '').trim() === '',
+            onCancel: () => setDialog(null),
+            onOk: () => {
+              const name = String(dialog.value ?? '').trim()
+              if (!name) return
+              const exists = (st?.dataset?.variables ?? []).some((variable) => variable.name === name)
+              setDialog(null)
+              setView('variables')
+              setVariableJump({ name, seq: Date.now() })
+              if (!exists) notify(`没有这个变量：${name}`)
+            },
+          },
+          h(Field, { label: '变量名', hint: '输入名字后点「跳转」，下面列出全部变量' },
+            h('input', {
+              autoFocus: true,
+              value: dialog.value ?? '',
+              list: 'ap-goto-variables',
+              onChange: (event) => setDialog({ ...dialog, value: event.target.value }),
+            })),
+          h('datalist', { id: 'ap-goto-variables' },
+            variables.map((variable) => h('option', { key: variable.name, value: variable.name }))))
+          : null,
         dialog?.kind === 'analysis'
           ? h(AnalysisDialog, {
             spec: dialog.spec,
@@ -6369,6 +6584,10 @@ let ITEM_CSV_PENDING = null
             },
             onRun: async (built, spec) => {
               if (built?.error) { notify(built.error); return }
+              if (built?.restructure) {
+                await runRestructure(built.restructure, spec?.title)
+                return
+              }
               if (built.chart) {
                 await runChart(built.chart)
                 return
