@@ -942,6 +942,15 @@
     "：原路径未知（浏览器不给路径），要写回原文件请用「文件 → 打开数据…」": ": the original path is unknown (browsers do not reveal it); to write back to that file use File → Open Data…",
     "：引擎超时": ": the engine timed out",
     "；2×2 时 min(r,c)−1 = 1，V 就等于 φ（= sqrt(χ²/N)），两个名字是同一件事": "; for 2×2 tables min(r,c)−1 = 1, so V equals φ (= sqrt(χ²/N)); the two names mean the same thing",
-    "；χ² 由本插件按同一张交叉表的计数补算（Pearson χ² 恰好为 0 时 PSPP 会把那一行整个省掉）": "; the plugin recomputes χ² from the same crosstab counts (PSPP drops that whole row when Pearson χ² is exactly 0)"
+    "；χ² 由本插件按同一张交叉表的计数补算（Pearson χ² 恰好为 0 时 PSPP 会把那一行整个省掉）": "; the plugin recomputes χ² from the same crosstab counts (PSPP drops that whole row when Pearson χ² is exactly 0)",
+    "分层卡方 CMH（插件计算，需层变量）": "Cochran–Mantel–Haenszel (computed here, needs a layer variable)",
+    "精确卡方 p（插件按边际枚举）": "Exact chi-square p (margins enumerated here)",
+    "分层卡方（插件计算）": "Layered chi-square (computed here)",
+    "同质性检验（Breslow–Day）": "Homogeneity test (Breslow–Day)",
+    "分层变量": "Layer variable",
+    "这是带层变量（a × b × c）的交叉表：引擎把它按层拆成好几张，插件不在这里推断行列数，所以没有算 Cramér's V，也没有加 Fisher 提示。要看效应量请去掉层变量、或者在每层上单独跑一次交叉表": "This crosstab has a layer variable (a × b × c): the engine splits it into one block per layer, so the plugin does not infer the row and column counts here — no Cramér's V and no Fisher hint. To see an effect size, drop the layer variable or run one crosstab per layer.",
+    "这张分层交叉表不是每层 2×2（或者有层缺格），Cochran–Mantel–Haenszel 检验要每层都是 2×2 才有意义，所以没有算": "Not every layer of this crosstab is 2×2 (or a layer has an empty cell), and a Cochran–Mantel–Haenszel test needs each layer to be 2×2, so it was not computed.",
+    "自定义对比（插件计算）": "Custom contrast (computed here)",
+    "不可估（该对比在数据里没有对应的自由度，通常是某一格没有观测）": "not estimable (the contrast has no matching degree of freedom in this data — usually an empty cell)"
   }
 }

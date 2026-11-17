@@ -796,7 +796,57 @@ console.log('the exact chi-square p reaches the crosstab note', r.code === 200,
   chiNotes.some((note) => note.includes('Pearson 卡方精确检验') && note.includes('似然比卡方精确检验')),
   JSON.stringify(chiNotes.slice(-1)))
 
-for (const id of ['pivot01', 'pivot02', 'dup01', 'out01', 'ex01']) await call('POST', `${base}/api/close`, { sessionId: id })
+// CMH：引擎不收这个关键字（整份语法会报错），所以宿主先剥掉它，再用每层的
+// 2×2 计数自己算 —— 这条用例盯的就是「剥离之后还知道用户要它」。
+await call('POST', `${base}/api/new`, { sessionId: 'cmh01', cwd: home, variables: [
+  { name: 'g', type: 'string', label: '组' },
+  { name: 'wave', type: 'numeric', label: '轮次' },
+  { name: 'layer', type: 'numeric', label: '层' },
+] })
+for (const values of [
+  { g: 'M', wave: 1, layer: 1 }, { g: 'M', wave: 1, layer: 1 }, { g: 'M', wave: 2, layer: 1 },
+  { g: 'F', wave: 1, layer: 1 }, { g: 'F', wave: 2, layer: 1 }, { g: 'F', wave: 2, layer: 1 },
+  { g: 'M', wave: 1, layer: 2 }, { g: 'M', wave: 1, layer: 2 }, { g: 'M', wave: 2, layer: 2 },
+  { g: 'F', wave: 1, layer: 2 }, { g: 'F', wave: 2, layer: 2 }, { g: 'F', wave: 2, layer: 2 },
+]) await call('POST', `${base}/api/case`, { sessionId: 'cmh01', values })
+r = await call('POST', `${base}/api/run`, {
+  sessionId: 'cmh01',
+  syntax: 'CROSSTABS /TABLES=g BY wave BY layer /STATISTICS=CHISQ CMH /CELLS=COUNT.',
+})
+const cmhItems = r.json().result?.items ?? []
+const cmhNotes = cmhItems.flatMap((item) => [...(item.table?.notes ?? []), ...(item.notes ?? [])])
+console.log('the layered crosstab carries a CMH note, and the engine never saw the keyword', r.code === 200,
+  cmhNotes.some((note) => note.includes('分层卡方（插件计算）') && note.includes('Cochran–Mantel–Haenszel')),
+  !String(r.json().result?.syntax ?? '').includes('CMH'),
+  JSON.stringify(cmhNotes.filter((note) => note.includes('分层卡方')).slice(-1)))
+
+// 双因子 GLM 的对比：引擎没有 /CONTRAST，宿主在自己的设计矩阵上做 Lβ。
+await call('POST', `${base}/api/new`, { sessionId: 'glmc01', cwd: home, variables: [
+  { name: 'y', type: 'numeric', label: '因变量' },
+  { name: 'fa', type: 'numeric', label: '因子一' },
+  { name: 'fb', type: 'numeric', label: '因子二' },
+] })
+for (const [y, fa, fb] of [
+  [3.1, 1, 1], [3.4, 1, 1], [4.2, 1, 2], [5.0, 1, 2], [4.4, 1, 3], [5.6, 1, 3],
+  [2.2, 2, 1], [2.9, 2, 1], [3.8, 2, 2], [4.1, 2, 2], [5.2, 2, 3], [6.0, 2, 3],
+  [2.5, 3, 1], [3.0, 3, 1], [4.6, 3, 2], [4.9, 3, 2], [5.5, 3, 3], [6.4, 3, 3],
+]) await call('POST', `${base}/api/case`, { sessionId: 'glmc01', values: { y, fa, fb } })
+r = await call('POST', `${base}/api/run`, {
+  sessionId: 'glmc01',
+  syntax: 'GLM y BY fa fb /DESIGN=fa fb fa*fb.',
+  contrasts: {
+    dependent: 'y',
+    factors: ['fa', 'fb'],
+    covariates: [],
+    hypotheses: [{ label: 'fb 第 3 水平 vs 第 1', term: { factor: 'fb', coefficients: [0, 0, 1] } }],
+  },
+})
+const contrastTable = (r.json().result?.items ?? []).find((item) => item.kind === 'table' && /自定义对比/.test(String(item.title ?? '')))
+console.log('a two-factor GLM contrast is fitted in the plugin', r.code === 200, Boolean(contrastTable),
+  contrastTable?.table?.matrix?.[1]?.[1], contrastTable?.table?.matrix?.[1]?.[5],
+  JSON.stringify(contrastTable?.table?.matrix?.[1] ?? null))
+
+for (const id of ['pivot01', 'pivot02', 'dup01', 'out01', 'ex01', 'cmh01', 'glmc01']) await call('POST', `${base}/api/close`, { sessionId: id })
 
 r = await call('POST', `${base}/api/close`, { sessionId: 'pivot01' })
 

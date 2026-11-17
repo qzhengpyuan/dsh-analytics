@@ -484,6 +484,13 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-doc td.ap-num { text-align:right; font-variant-numeric:tabular-nums; }
 .ap-doc img { max-width:100%; border:1px solid var(--ap-line); background:var(--ap-panel); }
 .ap-table-wrap { overflow-x:auto; max-width:100%; }
+/* 展开的长表按滚动窗口渲染：盒子自己滚，别把整页带走；上下 spacer 行撑起滚动条 */
+.ap-tbl-vscroll { overflow:auto; max-height:560px; overscroll-behavior:contain; }
+.ap-tbl-vscroll > .ap-tbl-vbody { min-width:100%; }
+.ap-tbl-vscroll table { margin-bottom:0; }
+.ap-tbl-spacer td { padding:0 !important; border:0 !important; line-height:0; background:transparent; }
+/* 打印时把滚动盒撑开：纸上没有滚动条，别只印出一个 520px 的窗口框 */
+@media print { .ap-tbl-vscroll { max-height:none !important; overflow:visible !important; } }
 /* 大表先画一屏：几千行的频率表全量渲染会让整页变慢，也让浏览器快照大到没法用 */
 .ap-table-block { display:flex; flex-direction:column; gap:2px; }
 .ap-table-more { display:flex; align-items:center; gap:8px; padding:2px 2px 4px;
@@ -758,6 +765,161 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     }
 
     /**
+     * Break a rendered table into the rows above its first body row, the body
+     * rows themselves, and whatever follows them.
+     *
+     * A long table is drawn a window at a time (VirtualTable), and PSPP's own
+     * markup has to survive that: the caption, colgroup and header rows are kept
+     * as the exact prefix PSPP produced, and a footer (matrixHtml's footnote) is
+     * kept as the exact tail, so only whole <tr> elements are added or removed.
+     * Returns null when the HTML has no body row to window.
+     */
+    function splitTableHtml(html) {
+      const text = String(html ?? '')
+      const rowPattern = /<tr\b[\s\S]*?<\/tr>/gi
+      const rows = []
+      let match
+      while ((match = rowPattern.exec(text)) !== null) rows.push({ at: match.index, html: match[0] })
+      if (rows.length === 0) return null
+      // The same rule as truncateTableHtml: the header is the leading rows that
+      // hold no <td> at all (crosstabs have two, and a row label may be a <th>).
+      let headerRows = 0
+      for (const row of rows) {
+        if (/<td/i.test(row.html)) break
+        headerRows += 1
+      }
+      // A footer belongs to the table, not to the scrolled data: it stays in the
+      // tail instead of being counted as a body row.
+      let bodyEnd = rows.length
+      const footAt = text.search(/<tfoot\b/i)
+      if (footAt >= 0) {
+        const firstFoot = rows.findIndex((row) => row.at >= footAt)
+        if (firstFoot > headerRows) bodyEnd = firstFoot
+      }
+      const body = rows.slice(headerRows, bodyEnd)
+      if (body.length === 0) return null
+      const first = rows[headerRows]
+      const last = body[body.length - 1]
+      const columns = Math.max(1, (body[0].html.match(/<t[dh]\b/gi) ?? []).length)
+      return {
+        prefix: text.slice(0, first.at),
+        body,
+        tail: text.slice(last.at + last.html.length),
+        columns,
+      }
+    }
+
+    // A fully expanded table is drawn a window at a time once it holds more body
+    // rows than this. Shorter tables keep the plain whole-table render on
+    // purpose: the copy/print/export paths and the existing tests all assume a
+    // small table is simply there, and 200 rows is not worth a scroll layer.
+    const VIRT_TABLE_MIN = 200
+    // PSPP's output is 12px text in 3px-padded cells, so a body row is about
+    // this tall. It is only a fallback: the real height is measured off the
+    // first drawn row and used as soon as the browser can report one.
+    const VIRT_ROW_PX = 26
+    const VIRT_OVERSCAN = 10
+    const VIRT_VIEWPORT_PX = 520
+
+    /**
+     * The rows to draw for a scroll position.
+     *
+     * Pure on purpose: the client test calls it directly, and the same numbers
+     * drive both the drawn rows and the two spacer rows that hold the scrollbar
+     * at the length of the whole table.
+     */
+    function virtualWindow(total, scrollTop, viewport, rowHeight = VIRT_ROW_PX, overscan = VIRT_OVERSCAN) {
+      const count = Math.max(0, Number(total) || 0)
+      const height = Math.max(1, Number(rowHeight) || VIRT_ROW_PX)
+      const perScreen = Math.max(1, Math.ceil(Math.max(0, Number(viewport) || 0) / height))
+      const first = Math.floor(Math.max(0, Number(scrollTop) || 0) / height)
+      const start = Math.max(0, Math.min(Math.max(0, count - 1), first - overscan))
+      const end = Math.min(count, Math.max(start + 1, start + perScreen + overscan * 2))
+      return { start, end }
+    }
+
+    /**
+     * Draw a long table a window at a time inside a box that scrolls itself.
+     *
+     * The header rows stay in the DOM (they are the prefix of PSPP's markup),
+     * the rows in the window are real <tr> elements, and a spacer row above and
+     * below them keeps the scrollbar at the length of the whole table. When the
+     * box cannot be measured -- jsdom has no layout at all, and a hidden panel
+     * reports 0 -- the table falls back to the whole-table render rather than
+     * computing a window from a 0px viewport, which would draw one row and hide
+     * the rest behind a scrollbar that is not there.
+     */
+    function VirtualTable({ html }) {
+      const split = useMemo(() => splitTableHtml(html), [html])
+      const scrollRef = useRef(null)
+      const [box, setBox] = useState({ height: VIRT_VIEWPORT_PX, top: 0, rowHeight: VIRT_ROW_PX })
+      // Height and offset only: this runs on every scroll event, so it must not
+      // walk the table.
+      const measure = useCallback(() => {
+        const node = scrollRef.current
+        if (!node) return
+        const rect = typeof node.getBoundingClientRect === 'function' ? node.getBoundingClientRect() : null
+        const height = Math.max(0, Math.round(node.clientHeight || 0), Math.round(rect?.height || 0))
+        const top = Math.max(0, Math.round(node.scrollTop || 0))
+        setBox((current) => (current.height === height && current.top === top ? current : { ...current, height, top }))
+      }, [])
+      useLayoutEffect(() => { measure() }, [measure, html])
+      useEffect(() => {
+        const node = scrollRef.current
+        if (!node) return undefined
+        measure()
+        if (typeof ResizeObserver !== 'undefined') {
+          const observer = new ResizeObserver(() => measure())
+          observer.observe(node)
+          return () => observer.disconnect()
+        }
+        const onResize = () => measure()
+        window.addEventListener('resize', onResize)
+        return () => window.removeEventListener('resize', onResize)
+      }, [measure, html])
+      // The real row height is preferred over the constant, so the window and
+      // the spacers advance at the pace the browser actually scrolls. One rect
+      // read per render is enough; a box without layout reports 0 and keeps the
+      // constant.
+      useEffect(() => {
+        const node = scrollRef.current
+        if (!node) return
+        const row = node.querySelector('tbody tr td, tr td')?.parentElement
+        const measured = Math.round(row?.getBoundingClientRect?.().height || 0)
+        if (measured > 6 && measured !== box.rowHeight) setBox((current) => ({ ...current, rowHeight: measured }))
+      })
+      const total = split ? split.body.length : 0
+      const virtual = total > VIRT_TABLE_MIN && box.height > 0
+      if (!virtual) {
+        // No measurable box (jsdom never has one, a hidden panel reports 0):
+        // draw the table whole rather than a window computed from 0px. The ref
+        // stays on it so becoming visible can still turn the window back on.
+        return h('div', {
+          key: 'table',
+          ref: scrollRef,
+          className: 'ap-table-wrap',
+          dangerouslySetInnerHTML: { __html: html },
+        })
+      }
+      const height = Math.max(VIRT_ROW_PX, Math.min(box.height, VIRT_VIEWPORT_PX))
+      const { start, end } = virtualWindow(total, box.top, height, box.rowHeight, VIRT_OVERSCAN)
+      const spacer = (px) => (px > 0
+        ? `<tr class="ap-tbl-spacer" aria-hidden="true"><td colspan="${split.columns}" style="height:${Math.round(px)}px"></td></tr>`
+        : '')
+      // The window lives in its own content div: replacing that div's HTML must
+      // not touch the scroller above it, or the scroll position would jump on
+      // every step.
+      const inner = `${split.prefix}${spacer(start * box.rowHeight)}${split.body.slice(start, end).map((row) => row.html).join('')}${spacer((total - end) * box.rowHeight)}${split.tail}`
+      return h('div', {
+        key: 'table',
+        ref: scrollRef,
+        className: 'ap-table-wrap ap-tbl-vscroll',
+        style: { maxHeight: `${height}px` },
+        onScroll: measure,
+      }, h('div', { className: 'ap-tbl-vbody', dangerouslySetInnerHTML: { __html: inner } }))
+    }
+
+    /**
      * Toolbar glyphs, drawn as inline SVG so the bar works offline, follows the
      * theme colour, and stays crisp on a HiDPI screen. SPSS has an icon-only
      * toolbar; the words live in `title`, which is also the screen-reader name.
@@ -886,6 +1048,10 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       globalThis.__AP_TEST_HOOKS__.summarizeTable = summarizeTable
       globalThis.__AP_TEST_HOOKS__.matrixHtml = matrixHtml
       globalThis.__AP_TEST_HOOKS__.truncateTableHtml = truncateTableHtml
+      globalThis.__AP_TEST_HOOKS__.splitTableHtml = splitTableHtml
+      globalThis.__AP_TEST_HOOKS__.virtualWindow = virtualWindow
+      globalThis.__AP_TEST_HOOKS__.VIRT_TABLE_MIN = VIRT_TABLE_MIN
+      globalThis.__AP_TEST_HOOKS__.VIRT_ROW_PX = VIRT_ROW_PX
       globalThis.__AP_TEST_HOOKS__.parseContrasts = parseContrasts
       globalThis.__AP_TEST_HOOKS__.PREVIEW_ROWS = PREVIEW_ROWS
       globalThis.__AP_TEST_HOOKS__.stateOf = stateOf
@@ -1466,7 +1632,33 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
      * understood, so every tuple select (confidence level, ntiles, post-hoc
      * method, outlier band) rendered as blank rows.
      */
-    function parseContrasts(text) {
+    /**
+ * 「因子 = 系数」形式的对比：两个因子以上的模型用。
+ *
+ * 单因子的「2 -1 -1」走 ONEWAY（引擎自己印 Contrast Tests）；多因子没有引擎通路，
+ * 系数必须说清是哪个因子的，所以写成 `a = 2 -1 -1; b = 0 0 1`。
+ */
+function parseNamedContrasts(text) {
+  const raw = String(text ?? '').trim()
+  if (raw === '') return { list: [] }
+  const list = []
+  for (const chunk of raw.split(/[;；]+/)) {
+    const piece = chunk.trim()
+    if (piece === '') continue
+    const match = piece.match(/^([^=]+)=(.+)$/)
+    if (!match) return { error: `多因子对比要写成「因子 = 系数」，例如 a = 2 -1 -1；这一条看不懂：${piece}` }
+    const factor = match[1].trim()
+    const coefficients = match[2].trim().split(/[\s,，]+/).filter(Boolean).map(Number)
+    if (coefficients.some((value) => !Number.isFinite(value))) {
+      return { error: `对比系数要是数字，收到「${match[2].trim()}」` }
+    }
+    if (coefficients.length < 2) return { error: `每个对比至少要两个系数：${piece}` }
+    list.push({ label: `${factor}：${coefficients.join(' ')}`, term: { factor, coefficients } })
+  }
+  return { list }
+}
+
+function parseContrasts(text) {
   // Same rules as lib/tools.js: one coefficient per factor level, a semicolon
   // between contrasts. Returning { error } lets the dialog show the reason
   // instead of shipping a statement the engine will silently ignore.
@@ -1898,6 +2090,10 @@ function normalizeChoices(list) {
             // chi-square and of the likelihood ratio, which SPSS offers under
             // Crosstabs → Exact Tests.
             { key: 'exactchi', label: '精确卡方 p（插件按边际枚举）' },
+            // PSPP rejects CMH outright, so the keyword is stripped before the
+            // engine runs and the statistic is computed from the per-layer
+            // counts in the plugin (see dropCmhStatistic in the host half).
+            { key: 'cmh', label: '分层卡方 CMH（插件计算，需层变量）' },
           ] },
           { key: 'cells', title: '单元格', items: [
             { key: 'count', label: '计数', default: true },
@@ -1916,6 +2112,7 @@ function normalizeChoices(list) {
             uc: 'UC', btau: 'BTAU', ctau: 'CTAU', somersd: 'D', eta: 'ETA', corr: 'CORR', risk: 'RISK',
             exact: 'EXACT',
             exactchi: 'EXACTCHI',
+            cmh: 'CMH',
           })
           // Kappa also implies the chi-square table: the Cramér's V line and the
           // small-sample "look at Fisher's Exact Test" note are written onto it.
@@ -2157,10 +2354,11 @@ function normalizeChoices(list) {
         fields: [
           { key: 'vars', kind: 'multi', label: '因变量', required: true, accept: 'numeric' },
           { key: 'by', kind: 'single', label: '固定因子', required: true, accept: 'any' },
+          { key: 'by2', kind: 'single', label: '第二因子（可选，加了就是双因子模型）', accept: 'any' },
         ],
         groups: [
           { key: 'options', title: '选项', items: [
-            { key: 'contrasts', label: '对比系数（每个水平一个数，多个对比用分号隔开）', kind: 'text', hint: '例如三个水平、想让「第 1 组对其余两组」就写 2 -1 -1；两个对比写 2 -1 -1; 0 1 -1。系数个数必须等于因子水平数，否则引擎会忽略这一条（插件会在表下注明）。' },
+            { key: 'contrasts', label: '对比系数（每个水平一个数；双因子写成「因子 = 数」）', kind: 'text', hint: '单因子：三个水平想让「第 1 组对其余两组」写 2 -1 -1，两个对比写 2 -1 -1; 0 1 -1，走 ONEWAY 由引擎印 Contrast Tests。双因子：写成 a = 2 -1 -1; b = 0 0 1，插件在自己的设计矩阵上算（PSPP 的 GLM 没有 /CONTRAST），主效应用等权组合，与 SPSS 的 Type III 一致。' },
             { key: 'posthoc', label: '事后检验', kind: 'select', default: '0', options: [
               ['0', '不做'],
               ['LSD', 'LSD（最小显著差）'],
@@ -2174,6 +2372,22 @@ function normalizeChoices(list) {
         build: (v, flags) => {
           const posthoc = String(flags?.options?.posthoc ?? '0')
           const usePosthoc = posthoc !== '0'
+          const by2 = String(v.by2 ?? '').trim()
+          // A second factor means the design has an interaction, and then there is
+          // no engine path for contrasts at all: fit them on our design matrix.
+          if (by2 !== '') {
+            if (usePosthoc) return { error: '双因子模型没有引擎事后检验（PSPP 的 GLM 不收 /POSTHOC，ONEWAY 只做单因子）：去掉事后检验，或者只用单因子' }
+            const named = parseNamedContrasts(flags?.options?.contrasts)
+            if (named.error) return { error: named.error }
+            const dependent = v.vars[0]
+            const design = `${v.by} ${by2} ${v.by}*${by2}`
+            return {
+              syntax: `GLM ${dependent} BY ${v.by} ${by2} /DESIGN=${design}.`,
+              contrasts: named.list.length > 0
+                ? { dependent, factors: [v.by, by2], covariates: [], hypotheses: named.list }
+                : null,
+            }
+          }
           const parsed = parseContrasts(flags?.options?.contrasts)
           if (parsed.error) return { error: parsed.error }
           const glm = `GLM ${v.vars.join(' ')} BY ${v.by} /DESIGN=${v.by}.`
@@ -4552,12 +4766,26 @@ function normalizeChoices(list) {
                       })()
                       : { html: matrixHtml(matrix, `ap-tbl-${tableStyle}`, null, limit), total: bodyRows, shown: shownRows }
                   const hidden = Math.max(0, drawn.total - drawn.shown)
+                  // 显示全部 on a long table draws a scroll window instead of
+                  // every row: the window is built from the same full HTML, so
+                  // the header/colgroup/footer are still PSPP's own markup and
+                  // the CSV/export paths (which read the matrix and the original
+                  // html string, never this DOM) keep the whole table.
+                  const virtualHtml = full && drawn.total > VIRT_TABLE_MIN
+                    ? (edits
+                      ? matrixHtml(matrix, `ap-tbl-${tableStyle}`, edits, 0)
+                      : item.table.html?.includes?.('<table')
+                        ? item.table.html.replace('<table', `<table class="ap-tbl-${tableStyle}"`)
+                        : matrixHtml(matrix, `ap-tbl-${tableStyle}`, null, 0))
+                    : null
                   return h('div', { className: 'ap-table-block' }, [
-                    h('div', {
-                      key: 'table',
-                      className: 'ap-table-wrap',
-                      dangerouslySetInnerHTML: { __html: drawn.html },
-                    }),
+                    virtualHtml !== null
+                      ? h(VirtualTable, { key: 'table', html: virtualHtml })
+                      : h('div', {
+                        key: 'table',
+                        className: 'ap-table-wrap',
+                        dangerouslySetInnerHTML: { __html: drawn.html },
+                      }),
                     hidden > 0
                       ? h('div', { key: 'more', className: 'ap-table-more' }, [
                         h('span', { key: 'note' }, `这张表共 ${drawn.total} 行，面板先画前 ${drawn.shown} 行（复制 CSV 与导出仍是全部）`),
@@ -5327,10 +5555,10 @@ let ITEM_CSV_PENDING = null
         }, 60)
       }, [total, loadRows])
 
-      const run = useCallback(async (text, persist, title, pairwise, regression, roc, exact, exactChi) => {
+      const run = useCallback(async (text, persist, title, pairwise, regression, roc, exact, exactChi, contrasts) => {
         setBusy(true)
         try {
-          const value = await api('api/run', { sessionId, syntax: text, persist, pairwise, regression, roc, exact: exact === true, exactChi: exactChi === true })
+          const value = await api('api/run', { sessionId, syntax: text, persist, pairwise, regression, roc, exact: exact === true, exactChi: exactChi === true, contrasts: contrasts ?? null })
           setSt(stateOf(value))
           const items = value.result.items ?? []
           // A data transform (sort/filter/compute) produces no tables: stay in
@@ -6997,7 +7225,7 @@ let ITEM_CSV_PENDING = null
                 await runChart(built.chart)
                 return
               }
-              await run(built.syntax, built.persist === true, spec?.title, built.pairwise, built.regression, built.roc, built.exact, built.exactChi)
+              await run(built.syntax, built.persist === true, spec?.title, built.pairwise, built.regression, built.roc, built.exact, built.exactChi, built.contrasts)
             },
           })
           : null,

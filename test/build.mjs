@@ -1095,5 +1095,42 @@ check('the reported version is re-read even when mtime does not change', async (
   }
 })
 
+check('a two-factor GLM keeps the interaction in the design and hands over the contrast terms', async () => {
+  const syntax = buildAnalysis('glm', { variables: ['y'], factors: ['a', 'b'], contrasts: [{ factor: 'b', coefficients: [0, 0, 1] }] })
+  assert.equal(syntax, 'GLM y BY a b /DESIGN=a b a*b.')
+  const extras = analysisExtras('glm', {
+    variables: ['y'],
+    factors: ['a', 'b'],
+    contrasts: [{ label: 'b3', factor: 'b', coefficients: [0, 0, 1] }],
+  })
+  assert.equal(extras.contrasts?.dependent, 'y')
+  assert.deepEqual(extras.contrasts?.factors, ['a', 'b'])
+  assert.deepEqual(extras.contrasts?.hypotheses?.[0]?.term?.coefficients, [0, 0, 1])
+  // A single factor keeps the ONEWAY path: no extra table, engine prints it.
+  assert.deepEqual(analysisExtras('glm', { variables: ['y'], factors: ['a'], contrasts: [[2, -1, -1]] }), {})
+  assert.match(buildAnalysis('glm', { variables: ['y'], factors: ['a'], contrasts: [[2, -1, -1]] }), /ONEWAY y BY a \/CONTRAST=2 -1 -1\.$/)
+})
+
+check('CMH is stripped from the syntax but remembered as requested', async () => {
+  const { dropCmhStatistic } = await import('../lib/workspace.js')
+  const kept = dropCmhStatistic('CROSSTABS /TABLES=a BY b /STATISTICS=CHISQ CMH /CELLS=COUNT.')
+  assert.equal(kept.requested, true)
+  assert.match(kept.syntax, /\/STATISTICS=CHISQ\s/)
+  assert.ok(!/CMH/.test(kept.syntax))
+  // Only CMH in the list: the whole /STATISTICS has to go, not leave `=`.
+  const alone = dropCmhStatistic('CROSSTABS /TABLES=a BY b /STATISTICS=CMH /CELLS=COUNT.')
+  assert.equal(alone.requested, true)
+  assert.ok(!/\/STATISTICS/.test(alone.syntax))
+  assert.match(alone.syntax, /\/CELLS=COUNT\.$/)
+  // Untouched when it is not asked for, and lowercase still counts as asked.
+  const plain = dropCmhStatistic('CROSSTABS /TABLES=a BY b /STATISTICS=CHISQ /CELLS=COUNT.')
+  assert.equal(plain.requested, false)
+  assert.equal(plain.syntax, 'CROSSTABS /TABLES=a BY b /STATISTICS=CHISQ /CELLS=COUNT.')
+  assert.equal(dropCmhStatistic('CROSSTABS /TABLES=a BY b /STATISTICS=chisq cmh /CELLS=COUNT.').requested, true)
+  // Other commands keep their statistics alone.
+  const other = dropCmhStatistic('FREQUENCIES /VARIABLES=x /STATISTICS=MEAN CMH.')
+  assert.equal(other.requested, false)
+})
+
 await Promise.all(pending)
 console.log(`\n${checks} checks passed${process.exitCode ? ' (with failures)' : ''}`)

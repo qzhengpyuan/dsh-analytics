@@ -1260,6 +1260,263 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.equal(Boolean(bigHost.querySelector('.ap-status .ap-chip')), false, 'a full dataset gets no truncation chip')
   await act(async () => { bigRoot.unmount() })
   console.log('ok  a big table draws 200 rows and offers the rest')
+
+  // 显示全部 on a 3000-row table must not put 3000 rows in the DOM. jsdom has no
+  // layout, so the windowed renderer cannot measure its box and has to fall back
+  // to the whole table -- that fallback is the contract, and it is what the
+  // client does in a panel that is hidden as well. The window math itself is
+  // asserted directly below.
+  {
+    const rows = [['', 'N', 'Percent']]
+    const body = []
+    for (let index = 1; index <= 3000; index += 1) {
+      rows.push(['取值' + index, String(index), ((index / 3000) * 100).toFixed(1)])
+      body.push(`<tr><td>取值${index}</td><td>${index}</td><td>${((index / 3000) * 100).toFixed(1)}</td></tr>`)
+    }
+    const tableHtml = `<table><caption>大表</caption><tbody><tr><th></th><th>N</th><th>Percent</th></tr>${body.join('')}</tbody></table>`
+
+    const host = window.document.createElement('div')
+    window.document.body.appendChild(host)
+    const bigRoot = createRoot(host)
+    const state = {
+      id: 'session-test',
+      version: '0.48.0',
+      engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+      dataset: { sourcePath: '/tmp/huge.sav', name: 'huge.sav', caseCount: 3000, variables: [] },
+      items: [{ id: 'run-1-0', kind: 'table', title: '大表', table: { caption: '大表', matrix: rows, html: tableHtml }, runId: 1 }],
+      importNotes: [],
+      log: [],
+      mrSets: [],
+      splitBy: [],
+      history: { undo: 0, redo: 0 },
+      tableStyle: 'three-line',
+      maxExportRows: 5000,
+      signal: { id: 'session-test', items: 1 },
+    }
+    window.fetch = async (url) => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(String(url).includes('api/heartbeat') ? { ok: true, signal: state.signal } : { ok: true, state }),
+    })
+    globalThis.fetch = window.fetch
+    await act(async () => {
+      bigRoot.render(React.createElement(registered.tabs[0].component, props))
+      await new Promise((resolve) => setTimeout(resolve, 150))
+    })
+    const outputTab = [...host.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
+    await act(async () => {
+      outputTab.click()
+      await new Promise((resolve) => setTimeout(resolve, 40))
+    })
+    // (a) the first paint is the 200-row preview, not the whole table.
+    const firstRows = host.querySelectorAll('.ap-table-block table tr').length
+    assert.equal(firstRows, 201, 'a 3000-row table first paints 200 body rows plus the header, got ' + firstRows)
+    assert.ok(hooks.VIRT_TABLE_MIN === 200, 'the windowing threshold is 200 body rows')
+    // The window math never asks for thousands of rows at once.
+    const head = hooks.virtualWindow(3000, 0, 520, 26, 10)
+    assert.ok(head.start === 0 && head.end - head.start < 100, 'a 520px viewport shows a screenful, got ' + (head.end - head.start))
+    const deep = hooks.virtualWindow(3000, 26 * 2500, 520, 26, 10)
+    assert.ok(deep.start > 2400 && deep.end - deep.start < 100, 'a scrolled window stays small and follows the offset')
+    // A footnote is table furniture, not a body row: windowing must not count it
+    // as data or drop it out of the drawn table.
+    const footHtml = hooks.matrixHtml([['', 'N'], ['a', '1'], ['b', '2']], 'ap-tbl-three', { footnote: '注：示例' }, 0)
+    const footSplit = hooks.splitTableHtml(footHtml)
+    assert.equal(footSplit.body.length, 2, 'the footnote row is not counted as body data')
+    assert.match(footSplit.tail, /<tfoot>/, 'the footnote stays pinned under the window')
+    const expand = [...host.querySelectorAll('.ap-table-more button')].find((node) => node.textContent === '显示全部')
+    assert.ok(expand, 'the rest is one click away')
+    await act(async () => {
+      expand.click()
+      await new Promise((resolve) => setTimeout(resolve, 60))
+    })
+    // 硬要求：量不到容器高度（jsdom 没有布局）时退回整表，而不是画 0 行。
+    assert.equal(
+      host.querySelectorAll('.ap-table-block table tr').length,
+      3001,
+      'without a measurable box the whole table is drawn, never an empty window',
+    )
+    assert.equal(host.querySelectorAll('.ap-tbl-spacer').length, 0, 'the fallback has no spacer rows')
+    assert.match(host.querySelector('.ap-table-more').textContent, /正在显示全部 3000 行/, 'the note still says all rows are shown')
+    await act(async () => { bigRoot.unmount() })
+
+    // With a measurable box the same table is drawn as a window, and the copy /
+    // download / export paths still see all 3000 rows (they read the matrix and
+    // the original html string, not this DOM).
+    const realRect = window.Element.prototype.getBoundingClientRect
+    window.Element.prototype.getBoundingClientRect = function measureRect() {
+      if (this.classList?.contains('ap-tbl-vscroll')) {
+        return { x: 0, y: 0, width: 600, height: 560, top: 0, left: 0, right: 600, bottom: 560, toJSON() {} }
+      }
+      return realRect.call(this)
+    }
+    const virtHost = window.document.createElement('div')
+    window.document.body.appendChild(virtHost)
+    const virtRoot = createRoot(virtHost)
+    try {
+      await act(async () => {
+        virtRoot.render(React.createElement(registered.tabs[0].component, props))
+        await new Promise((resolve) => setTimeout(resolve, 150))
+      })
+      const virtTab = [...virtHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
+      await act(async () => {
+        virtTab.click()
+        await new Promise((resolve) => setTimeout(resolve, 40))
+      })
+      const virtExpand = [...virtHost.querySelectorAll('.ap-table-more button')].find((node) => node.textContent === '显示全部')
+      await act(async () => {
+        virtExpand.click()
+        await new Promise((resolve) => setTimeout(resolve, 60))
+      })
+      const scroller = virtHost.querySelector('.ap-tbl-vscroll')
+      assert.ok(scroller, 'a measurable long table gets a scroller of its own')
+      assert.equal(scroller.style.maxHeight, '520px', 'the scroller is capped at the viewport height')
+      assert.ok(scroller.querySelector('table.ap-tbl-three'), 'the table preset class survives the windowed render')
+      const windowRows = () => scroller.querySelectorAll('tbody tr').length
+      assert.ok(windowRows() < 200, 'the expanded table draws a window, got ' + windowRows() + ' rows')
+
+      // (b) the two spacer rows hold the scrollbar at the real length, and the
+      // window follows the offset.
+      Object.defineProperty(scroller, 'scrollTop', { configurable: true, get: () => 26 * 2500, set: () => {} })
+      await act(async () => {
+        scroller.dispatchEvent(new window.Event('scroll', { bubbles: true }))
+        await new Promise((resolve) => setTimeout(resolve, 40))
+      })
+      const spacers = [...scroller.querySelectorAll('tr.ap-tbl-spacer')]
+      assert.equal(spacers.length, 2, 'a spacer row sits above and below the window')
+      const spacerPx = (row) => Number(String(row.querySelector('td')?.getAttribute('style') ?? '').match(/height:(\d+)px/)?.[1] ?? 0)
+      const topPx = spacerPx(spacers[0])
+      const bottomPx = spacerPx(spacers[1])
+      const drawnRows = scroller.querySelectorAll('tbody tr').length - 1 - 2
+      assert.equal(
+        topPx + drawnRows * 26 + bottomPx,
+        3000 * 26,
+        `spacers plus drawn rows must add up to the real row count (top ${topPx}, drawn ${drawnRows}, bottom ${bottomPx})`,
+      )
+      assert.ok(topPx > 60000 && bottomPx > 5000, 'the spacers cover the rows outside the window')
+      const inner = scroller.querySelector('.ap-tbl-vbody').innerHTML
+      assert.match(inner, /取值2[45]\d\d/, 'the window moved to the scrolled region')
+      assert.equal(/<td>取值1<\/td>/.test(inner), false, 'the first row is no longer in the DOM')
+
+      // (c) 复制 CSV / 下载 CSV still see every row.
+      let copied = null
+      Object.defineProperty(window.navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async (text) => { copied = text } },
+      })
+      const copyButton = [...virtHost.querySelectorAll('.ap-tool')].find((node) => node.textContent === '复制 CSV')
+      assert.ok(copyButton, 'the table still offers 复制 CSV')
+      await act(async () => {
+        copyButton.click()
+        await new Promise((resolve) => setTimeout(resolve, 40))
+      })
+      assert.ok(copied, '复制 CSV wrote to the clipboard')
+      assert.equal(copied.split('\n').length, 3001, 'the copied CSV carries all 3000 body rows, got ' + copied.split('\n').length)
+      assert.match(copied, /取值3000,3000,/, 'the last row is in the copied CSV')
+      delete window.navigator.clipboard
+
+      const downloaded = []
+      const realCreate = window.URL.createObjectURL
+      const realGlobalUrl = globalThis.URL
+      globalThis.URL = window.URL
+      window.URL.createObjectURL = (blob) => { downloaded.push(blob); return 'blob:stub-csv' }
+      const realClick = window.HTMLAnchorElement.prototype.click
+      window.HTMLAnchorElement.prototype.click = function noop() {}
+      const downloadButton = [...virtHost.querySelectorAll('.ap-tool')].find((node) => node.textContent === '下载 CSV')
+      await act(async () => {
+        downloadButton.click()
+        await new Promise((resolve) => setTimeout(resolve, 40))
+      })
+      window.URL.createObjectURL = realCreate
+      globalThis.URL = realGlobalUrl
+      window.HTMLAnchorElement.prototype.click = realClick
+      assert.equal(downloaded.length, 1, '下载 CSV produced one file')
+      const downloadedCsv = await downloaded[0].text()
+      assert.equal(downloadedCsv.split('\n').length, 3001, 'the downloaded CSV carries all 3000 body rows')
+
+      // The HTML export reads item.table.html, not the window in the DOM.
+      const exported = []
+      globalThis.URL = window.URL
+      window.URL.createObjectURL = (blob) => { exported.push(blob); return 'blob:stub-html' }
+      window.HTMLAnchorElement.prototype.click = function noop() {}
+      const fileMenu = [...virtHost.querySelectorAll('.ap-menu-button')].find((node) => node.textContent === '文件')
+      await act(async () => {
+        fileMenu.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+      const htmlEntry = [...virtHost.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent === '导出输出为 HTML…')
+      await act(async () => {
+        htmlEntry.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+      window.URL.createObjectURL = realCreate
+      globalThis.URL = realGlobalUrl
+      window.HTMLAnchorElement.prototype.click = realClick
+      assert.equal(exported.length, 1, 'the HTML export produced one file')
+      const exportedHtml = await exported[0].text()
+      const exportedRows = (exportedHtml.match(/<tr\b/g) ?? []).length
+      assert.equal(exportedRows, 3001, 'the exported HTML carries all 3000 body rows, got ' + exportedRows)
+      assert.match(exportedHtml, /取值3000/, 'the last row is in the exported HTML')
+      await act(async () => { virtRoot.unmount() })
+    } finally {
+      window.Element.prototype.getBoundingClientRect = realRect
+    }
+    console.log('ok  a 3000-row table renders as a window and CSV/export keep every row')
+  }
+
+  // (d) a table at or under the threshold keeps the plain whole-table render:
+  // 150 rows are all drawn, with no scroller and no spacers around them.
+  {
+    const smallHost = window.document.createElement('div')
+    window.document.body.appendChild(smallHost)
+    const smallRoot = createRoot(smallHost)
+    const rows = [['', 'N']]
+    for (let index = 1; index <= 150; index += 1) rows.push(['取值' + index, String(index)])
+    const state = {
+      id: 'session-test',
+      version: '0.48.0',
+      engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+      dataset: { sourcePath: '/tmp/small.sav', name: 'small.sav', caseCount: 150, variables: [] },
+      items: [{
+        id: 'run-1-0',
+        kind: 'table',
+        title: '小表',
+        table: {
+          caption: '小表',
+          matrix: rows,
+          html: `<table><tbody><tr><th></th><th>N</th></tr>${rows.slice(1).map((row) => `<tr><td>${row[0]}</td><td>${row[1]}</td></tr>`).join('')}</tbody></table>`,
+        },
+        runId: 1,
+      }],
+      importNotes: [],
+      log: [],
+      mrSets: [],
+      splitBy: [],
+      history: { undo: 0, redo: 0 },
+      tableStyle: 'three-line',
+      signal: { id: 'session-test', items: 1 },
+    }
+    window.fetch = async (url) => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(String(url).includes('api/heartbeat') ? { ok: true, signal: state.signal } : { ok: true, state }),
+    })
+    globalThis.fetch = window.fetch
+    await act(async () => {
+      smallRoot.render(React.createElement(registered.tabs[0].component, props))
+      await new Promise((resolve) => setTimeout(resolve, 150))
+    })
+    const smallTab = [...smallHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
+    await act(async () => {
+      smallTab.click()
+      await new Promise((resolve) => setTimeout(resolve, 40))
+    })
+    assert.equal(smallHost.querySelectorAll('.ap-table-block table tr').length, 151, 'a 150-row table is drawn whole')
+    assert.equal(smallHost.querySelector('.ap-tbl-vscroll'), null, 'a small table gets no scroller')
+    assert.equal(smallHost.querySelectorAll('.ap-tbl-spacer').length, 0, 'and no spacer rows')
+    assert.equal(smallHost.querySelector('.ap-table-more'), null, 'and no 显示全部 button, because nothing is hidden')
+    await act(async () => { smallRoot.unmount() })
+    console.log('ok  a table under the windowing threshold still renders whole')
+  }
 }
 
 // A truncated dataset (more cases than "数据视图最多载入个案数") looks exactly
@@ -1889,6 +2146,29 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.match(hooks.parseContrasts('2 -1; 0 1 -1').error, /系数个数要一样/)
   assert.match(glm.build({ vars: ['score'], by: 'g' }, { options: { contrasts: '2' } }).error, /至少要两个系数/)
   console.log('ok  the GLM contrast box parses coefficients the same way the tool does')
+}
+
+// 双因子 GLM：对比必须按因子写，交给宿主算；单因子仍旧走 ONEWAY（0.48.0）。
+{
+  const glm = hooks.ANALYSIS_SPECS.glm
+  const single = glm.build({ vars: ['y'], by: 'a' }, { options: { contrasts: '2 -1 -1', posthoc: '0' } })
+  assert.match(single.syntax, /ONEWAY y BY a \/CONTRAST=2 -1 -1\.$/)
+  assert.equal(single.contrasts, undefined, 'the single factor path leaves the numbers to the engine')
+  const both = glm.build({ vars: ['y'], by: 'a', by2: 'b' }, { options: { contrasts: 'a = 2 -1 -1; b = 0 0 1', posthoc: '0' } })
+  assert.equal(both.syntax, 'GLM y BY a b /DESIGN=a b a*b.')
+  assert.deepEqual(both.contrasts?.factors, ['a', 'b'])
+  assert.deepEqual(both.contrasts?.hypotheses?.map((entry) => entry.term), [
+    { factor: 'a', coefficients: [2, -1, -1] },
+    { factor: 'b', coefficients: [0, 0, 1] },
+  ])
+  // A post-hoc with two factors has no engine path at all.
+  const refused = glm.build({ vars: ['y'], by: 'a', by2: 'b' }, { options: { posthoc: 'TUKEY' } })
+  assert.match(String(refused.error), /双因子模型没有引擎事后检验/)
+  // Coefficients written without a factor name are ambiguous here, not silently
+  // applied to the wrong factor.
+  const vague = glm.build({ vars: ['y'], by: 'a', by2: 'b' }, { options: { contrasts: '2 -1 -1' } })
+  assert.match(String(vague.error), /因子 = 系数/)
+  console.log('ok  a two-factor GLM sends its contrast terms instead of guessing')
 }
 
 // 回归的影响诊断是插件算的，所以面板必须把开关带进 regression 提示（0.44.0）。

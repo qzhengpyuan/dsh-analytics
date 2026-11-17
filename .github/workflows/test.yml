@@ -59,6 +59,10 @@ jobs:
           node test/xlsx.mjs
           node test/ods.mjs
           node test/dta.mjs
+          node test/cmh.mjs
+          node test/contrasts.mjs
+          node test/risk.mjs
+          node test/exact.mjs
 
       - name: client bundle (jsdom)
         run: node test/client.mjs
@@ -112,6 +116,116 @@ jobs:
           set -euo pipefail
           node test/smoke.mjs
           node test/routes.mjs
+          node test/flow.mjs
 
       - name: pdf table notes
         run: node test/pdf-notes.mjs
+
+  # The two jobs above only ever run the Linux engine. This one runs the same
+  # engine-dependent suites against the engine the release actually ships for
+  # each platform, which is where the plumbing differs: macOS dylibs rewritten
+  # to @loader_path, Windows DLLs found through PATH, the Linux launcher.
+  #
+  # The engine directory comes from the running Node, `<platform>-<arch>`, the
+  # same rule lib/engine.js uses, and the release asset name is derived from it
+  # (`engine-linux-x64.tgz`, `engine-darwin-arm64.tgz`, `engine-win32-x64.tgz`,
+  # ...). Deriving it instead of listing it per runner means a runner label
+  # change cannot silently download the wrong architecture. macos-15 is arm64,
+  # so the macOS leg covers `engine-darwin-arm64.tgz`; add macos-15-intel to the
+  # matrix to cover `engine-darwin-x64.tgz`.
+  engine-cross:
+    name: engine (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-15]
+        node: [22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # `<process.platform>-<process.arch>` of this runner, e.g. win32-x64.
+      - name: platform directory
+        id: engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="$(node -p 'process.platform + "-" + process.arch')"
+          case "$dir" in
+            linux-x64|linux-arm64|darwin-arm64|darwin-x64|win32-x64) ;;
+            *)
+              echo "no engine asset is released for $dir" >&2
+              exit 1
+              ;;
+          esac
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          echo "asset=engine-$dir.tgz" >> "$GITHUB_OUTPUT"
+          echo "runner ${{ matrix.os }} -> $dir (engine-$dir.tgz)"
+
+      # The repository is private, so the release asset needs the job's token:
+      # an anonymous download of a private release answers 404.
+      - name: engine (${{ steps.engine.outputs.asset }} from engine-v1)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p engine
+          gh release download engine-v1 \
+            --repo "${{ github.repository }}" \
+            --pattern "${{ steps.engine.outputs.asset }}" \
+            --output engine.tgz \
+            --clobber
+          tar -C engine -xzf engine.tgz
+
+      # resolveEngine() must find it on its own: no engineDir, no env var.
+      # `source: bundled` is the assertion — `system` would mean the runner
+      # happened to have PSPP installed and the bundle was never used.
+      - name: resolve (bundled engine)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module -e "
+            import { resolveEngine } from './lib/engine.js'
+            const engine = resolveEngine()
+            console.log(JSON.stringify({
+              source: engine.source,
+              platform: engine.platform,
+              bin: engine.bin,
+              lib: engine.lib,
+            }))
+            if (engine.source !== 'bundled') {
+              throw new Error('engine not resolved from engine/ (source: ' + engine.source + ')')
+            }
+            if (!engine.bin) throw new Error('bundled engine has no pspp binary')
+          "
+
+      - name: engine version
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="${{ steps.engine.outputs.dir }}"
+          if [ "$dir" = win32-x64 ]; then
+            # bash cannot exec the .cmd launcher; the real binary needs lib/ on
+            # PATH so the DLLs resolve before it starts.
+            PATH="$PWD/engine/$dir/lib:$PATH" "engine/$dir/libexec/pspp.exe" --version | sed -n 1p
+          else
+            "engine/$dir/bin/pspp" --version | sed -n 1p
+          fi
+
+      # smoke is the data round trip (missing values, newline in a string,
+      # save/reopen), routes is the whole HTTP surface. pdf-notes needs poppler's
+      # pdftotext, which neither the Windows nor the macOS runner ships: it
+      # prints its skip line there and exits 0 (installing poppler would only
+      # paper over that), and the pdf-notes job above still reads the PDF back.
+      - name: engine tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node test/smoke.mjs
+          node test/routes.mjs
+          node test/flow.mjs
+          node test/pdf-notes.mjs

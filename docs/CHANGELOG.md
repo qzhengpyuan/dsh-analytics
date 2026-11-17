@@ -1,3 +1,35 @@
+## 0.48.0
+
+三件「引擎没有、只能自己算」的事，加一条把整条用户路径走一遍的测试。
+
+- **分层卡方 CMH（插件计算）**：PSPP 2.1.3 把 `CROSSTABS /STATISTICS=CMH` 当语法错误，
+  带它的语法一行输出都没有。宿主在发车前把关键字剥掉，再用每层的 2×2 计数自己算
+  Cochran–Mantel–Haenszel χ²、共同优势比与 Robins–Breslow–Greenland 区间，并给
+  Breslow–Day 同质性检验；注文写清共几层、有效几层。与 R `mantelhaen.test` 逐位对过账
+  （UCBAdmissions χ² 1.524606660443、OR 0.904696828259、CI 0.771907361759~1.060329764437）。
+  只对带层变量的交叉表有效，每层必须 2×2，否则表下写明为什么没算。
+- **双因子 GLM 的自定义对比（插件计算）**：`GLM` 不接受 `/CONTRAST`，单因子可以改走
+  `ONEWAY`，两个因子就没有引擎通路了。新增 `lib/contrasts.js` 在设计矩阵上做 `Lβ` 与
+  `L(X'X)⁻¹L'`（MGS 二次重正交，不求逆），输出「自定义对比（插件计算）」表；主效应按等权
+  组合，与 SPSS 的 Type III 一致。系数向量不在行空间里时判「不可估」并说明原因，不给假数。
+  与 R `car::linearHypothesis` 对账：7 条假设 38 个数最大偏差 5.3e-10；等权对比能精确复现
+  引擎 `GLM` 的 Type III 行。面板的「对比系数」在勾了第二因子时写成 `a = 2 -1 -1; b = 0 0 1`。
+- **大表行窗口化**：点开「显示全部」后不再一次性铺满 3 000 行 DOM，而是随滚动渲染窗口
+  （上下各留 10 行缓冲，用 spacer 行撑出真实滚动条长度）；≤ 200 行仍整表渲染，复制/下载
+  CSV、导出 HTML 仍取原始数据。jsdom 量不到高度时退回整表，不会按 0 像素画一行。
+- **`test/flow.mjs`（新的端到端测试，12 条断言）**：导入 CSV → 看变量与指纹 → 分页 → t 检验 →
+  交叉表（精确检验 + 风险差）→ 出图并经 HTTP 读回 → 导出 docx（查 `word/document.xml` 与
+  内嵌图）→ 导出 pdf（查 `%PDF-`）→ 保存/关闭/重开（查 provenance）→ 导出 CSV → 合并第二个
+  文件。它当场抓到两个真 bug：导出重放 `lastScript` 时不走字符串/RISK 守卫（字符串分组 +
+  RISK 的交叉表在导出时把引擎打崩，报错只有一排星号），以及 `exportCsv` 失败分支引用了不存在
+  的 `outPath`。两个都修了。
+- **CI 加跨平台腿**：`engine-cross` job 在 ubuntu / windows / macos-15 上下载对应平台的引擎包
+  并跑 smoke、routes、flow、pdf-notes（`macos-14` 已于 2026-11 退役，且本来就是 x64）。
+- 风险差注文里的类别改按整数显示（`1.00 → 1`，`1.50` 保持），`test/smoke.mjs` 的收尾不再能把
+  一次全绿的运行变成 exit 1（Windows 上 `rm` 偶尔 EBUSY），改用 `teardown warning:` + `smoke finished`。
+
+本次全量测试 445 条 ok / 31 个套件。
+
 ## 0.47.2
 
 - 风险差注文里的类别改成按整数显示：引擎按变量的 FORMAT 打印类别，整数码会写成 `1.00`，
