@@ -115,6 +115,17 @@ check('a table that cannot be enumerated falls back to Monte Carlo, reproducibly
   assert.ok(first.note.includes('超过 200000 张'))
 })
 
+check('sampling lands on the enumerated p for a table small enough to check', () => {
+  // Sequential sampling once drifted to 0.36 where enumeration says 0.27; the
+  // sampler now shuffles the cases, and this comparison keeps it honest.
+  const table = [[4, 2, 1], [1, 3, 2], [2, 1, 5]]
+  const exact = exactTest(table)
+  const sampled = exactTest(table, { maxTables: 1, simulations: 20000, seed: 11 })
+  assert.equal(sampled.method, 'monte-carlo')
+  assert.ok(Math.abs(sampled.p - exact.p) < 0.02, `sampled ${sampled.p} vs exact ${exact.p}`)
+  assert.ok(sampled.low <= exact.p && exact.p <= sampled.high, 'the enumerated p sits inside the interval')
+})
+
 check('lowering the cap switches a small table to sampling too', () => {
   const result = exactTest([[3, 1, 2], [2, 4, 1]], { maxTables: 5, simulations: 2000, seed: 3 })
   assert.equal(result.method, 'monte-carlo')
