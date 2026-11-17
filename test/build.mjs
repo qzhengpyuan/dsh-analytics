@@ -511,7 +511,7 @@ check('regression can save predictions and residuals', () => {
     'REGRESSION /DEPENDENT=score /METHOD=ENTER age /STATISTICS=COEFF R ANOVA CI(95).')
   assert.deepEqual(
     analysisExtras('regression', { dependent: 'score', independents: ['age', 'weight'] }),
-    { regression: { dependent: 'score', independents: ['age', 'weight'] } })
+    { regression: { dependent: 'score', independents: ['age', 'weight'], influence: false } })
   // Asking for TOL explicitly still reaches the engine, and the hint travels too:
   // A logistic result hands the outcome and the predictors to the ROC dialog:
   // asking for both variables again is the step users forget.
@@ -524,10 +524,10 @@ check('regression can save predictions and residuals', () => {
   // printed Tolerance itself, so passing the hint never duplicates a table.
   assert.deepEqual(
     analysisExtras('regression', { dependent: 'score', independents: ['age'], statistics: ['TOL'] }),
-    { regression: { dependent: 'score', independents: ['age'] } })
+    { regression: { dependent: 'score', independents: ['age'], influence: false } })
   assert.deepEqual(
     analysisExtras('regression', { dependent: 'score', independents: ['age'], statistics: ['ALL'] }),
-    { regression: { dependent: 'score', independents: ['age'] } })
+    { regression: { dependent: 'score', independents: ['age'], influence: false } })
   assert.deepEqual(analysisExtras('regression', { dependent: 'score', independents: ['age'], collinearity: false }), {})
   // An explicit list wins, and unknown keywords are dropped rather than sent.
   assert.equal(

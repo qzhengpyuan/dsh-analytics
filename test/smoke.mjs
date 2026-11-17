@@ -573,6 +573,34 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('outlier indicators survive work.sav:', report.created.join(', '))
 }
 
+// ---- Influence diagnostics, computed in the plugin ------------------------
+{
+  const ws = new Workspace({ id: 'smoke0440', engine, root, config: { timeoutMs: 60000 } })
+  await ws.init()
+  const rows = []
+  for (let i = 1; i <= 12; i += 1) rows.push([2 * i + 1 + (i === 12 ? 25 : 0), i])
+  await ws.createDataset({
+    variables: [
+      { name: 'y', type: 'numeric', width: 8, decimals: 2 },
+      { name: 'x', type: 'numeric', width: 4, decimals: 0 },
+    ],
+    rows,
+  })
+  await ws.runSyntax('EXECUTE.')
+  const ran = await ws.runSyntax('REGRESSION /DEPENDENT=y /METHOD=ENTER x /STATISTICS=COEFF R ANOVA CI(95).', {
+    regression: { dependent: 'y', independents: ['x'], influence: true },
+  })
+  const titles = ran.items.map((item) => item.title)
+  assert.ok(titles.some((title) => /影响诊断/.test(title)), `the influence table is appended: ${titles.join(' | ')}`)
+  const table = ran.items.find((item) => /影响诊断/.test(item.title))
+  assert.equal(table.table.matrix[0][0], '个案号')
+  const first = table.table.matrix[1]
+  assert.equal(first[0], '12', 'the pulled-away case tops the list')
+  assert.ok(Number(first[1]) > 0.15, `its leverage is the largest: ${first[1]}`)
+  assert.ok(table.notes.some((note) => /Cook's D > 4\/n/.test(note)), 'the criterion is spelled out')
+  console.log('influence diagnostics:', table.table.matrix[1].join(' | '))
+}
+
 // ---- GLM contrasts, which ONEWAY carries as well ---------------------------
 {
   const ws = new Workspace({ id: 'smoke0430', engine, root, config: { timeoutMs: 60000 } })

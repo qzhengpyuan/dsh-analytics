@@ -2204,6 +2204,7 @@ function normalizeChoices(list) {
             { key: 'ci', label: '系数置信区间', default: true },
             { key: 'bcov', label: '系数相关性矩阵' },
             { key: 'tol', label: '共线性诊断（容忍度 / VIF，由插件计算）', default: true },
+            { key: 'influence', label: '影响诊断（杠杆值 / Cook\'s D / Mahalanobis，由插件计算）' },
           ] },
           { key: 'options', title: '选项', items: [
             { key: 'ciLevel', label: '置信区间水平', kind: 'select', default: '95', options: [['90', '90%'], ['95', '95%'], ['99', '99%']] },
@@ -2231,10 +2232,14 @@ function normalizeChoices(list) {
           if (stats.length) parts.push(`/STATISTICS=${stats.join(' ')}`)
           if (save.length) parts.push(`/SAVE=${save.join(' ')}`)
           const collinearity = flags?.statistics?.tol !== false
+          const influence = flags?.statistics?.influence === true
+          const regression = collinearity || influence
+            ? { dependent: v.dep, independents: v.ind, influence }
+            : null
           return {
             syntax: `${parts.join(' ')}.`,
             persist: save.length > 0,
-            regression: collinearity ? { dependent: v.dep, independents: v.ind } : null,
+            regression,
           }
         },
       },

@@ -1,6 +1,6 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
-import { collinearityTable, durbinWatsonTable } from '../lib/regression.js'
+import { collinearityTable, durbinWatsonTable, influenceTable } from '../lib/regression.js'
 import { annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
@@ -666,6 +666,48 @@ check('Durbin-Watson is worked out from residuals in case order', () => {
   const bigTable = durbinWatsonTable(big, { dependent: 'y', independents: ['x'] })
   assert.ok(bigTable.notes.some((note) => note.includes('5% 界限')), 'a big sample gets the bounds verdict')
   assert.equal(durbinWatsonTable(big, { dependent: 'y', independents: [] }), null, 'no predictors, no DW')
+})
+
+check("influence diagnostics use the hat matrix, not an inverse that collinearity breaks", () => {
+  // Five points: four on y = 2x + 1, one pulled far away. For a simple
+  // regression the leverage is 1/n + (x - x̄)²/Sxx = .6/.3/.2/.3/.6, which is
+  // what an independent derivation gives and what the table must print.
+  const dataset = {
+    variables: [{ name: 'y', type: 'numeric' }, { name: 'x', type: 'numeric' }],
+    rows: [[3, 1], [5, 2], [7, 3], [9, 4], [30, 5]],
+  }
+  const table = influenceTable(dataset, { dependent: 'y', independents: ['x'] })
+  assert.equal(table.title, "影响诊断（插件计算）")
+  assert.equal(table.n, 5)
+  assert.equal(table.matrix[0].join('|'), '个案号|杠杆值|Cook D|Mahalanobis 距离|标记')
+  const body = table.matrix.slice(1)
+  assert.equal(body.length, 5, 'every usable case is listed when there are few')
+  assert.deepEqual(body.map((row) => row[0]), ['5', '1', '4', '3', '2'], 'sorted by Cook\'s D, largest first')
+  assert.deepEqual(body.map((row) => row[1]), ['0.6000', '0.6000', '0.3000', '0.2000', '0.3000'])
+  assert.equal(body[0][2], '2.2500', "hand-checked Cook's D for the wild case")
+  assert.match(body[0][4], /Cook D 超 4\/n/)
+  assert.equal(table.flagged, 1)
+  // Mahalanobis of the predictor vector: sqrt((n-1)(h - 1/n)).
+  assert.equal(body[0][3], '1.265')
+  assert.equal(body[3][3], '0.000', 'the case at the mean of x has distance 0')
+
+  // The same missing-value codes the other tables honour are dropped here.
+  const withCodes = influenceTable({
+    variables: [{ name: 'y', type: 'numeric' }, { name: 'x', type: 'numeric', missing: [999] }],
+    rows: [[3, 1], [5, 2], [7, 999], [9, 4], [30, 5]],
+  }, { dependent: 'y', independents: ['x'] })
+  assert.equal(withCodes.n, 4, 'the declared missing code is excluded')
+
+  // Two identical predictors have no invertible X'X; leverage still exists, so
+  // the honest answer is the projection, not a crash or a table of NaN.
+  const duplicate = influenceTable({
+    variables: [{ name: 'y', type: 'numeric' }, { name: 'a', type: 'numeric' }, { name: 'b', type: 'numeric' }],
+    rows: [[3, 1, 1], [5, 2, 2], [7, 3, 3], [9, 4, 4], [30, 5, 5]],
+  }, { dependent: 'y', independents: ['a', 'b'] })
+  assert.equal(duplicate, null, 'a rank-deficient design gets no influence table rather than nonsense')
+
+  assert.equal(influenceTable(dataset, { dependent: 'y', independents: [] }), null)
+  assert.equal(influenceTable({ variables: [], rows: [] }, { dependent: 'y', independents: ['x'] }), null)
 })
 
 console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)

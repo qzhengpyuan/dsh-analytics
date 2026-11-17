@@ -1778,3 +1778,16 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.match(glm.build({ vars: ['score'], by: 'g' }, { options: { contrasts: '2' } }).error, /至少要两个系数/)
   console.log('ok  the GLM contrast box parses coefficients the same way the tool does')
 }
+
+// 回归的影响诊断是插件算的，所以面板必须把开关带进 regression 提示（0.44.0）。
+{
+  const regression = hooks.ANALYSIS_SPECS.regression
+  const plain = regression.build({ dep: 'y', ind: ['x1'] }, { statistics: { r: true, coeff: true, anova: true, ci: true, tol: true } })
+  assert.equal(plain.regression.influence, false, 'the influence table is opt-in')
+  const wanted = regression.build({ dep: 'y', ind: ['x1'] }, { statistics: { tol: false, influence: true } })
+  assert.equal(wanted.regression.influence, true)
+  assert.deepEqual(wanted.regression.independents, ['x1'])
+  const only = regression.build({ dep: 'y', ind: ['x1'] }, { statistics: { tol: false, influence: true } })
+  assert.notEqual(only.regression, null, 'influence alone still needs the hint, even with tolerance off')
+  console.log('ok  the regression dialog carries the influence switch next to the syntax')
+}
