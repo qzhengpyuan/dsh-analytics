@@ -420,4 +420,40 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('restructuring survives work.sav in both directions:', names.join(','), '->', pivot.dataset.variables.map((variable) => variable.name).join(','))
 }
 
+{
+  // The crosstab dialog now asks the engine for the whole statistic list it
+  // accepts (BTAU, CTAU, D, ETA, UC, RISK, CORR); this proves the keywords are
+  // real and that our "you asked but the engine skipped it" note stays quiet
+  // when the table is there.
+  const xtab = new Workspace({ id: 'xtab', engine, root, config: { timeoutMs: 60000 } })
+  await xtab.init()
+  await xtab.createDataset({ variables: [
+    { name: 'a', type: 'numeric', width: 2, decimals: 0 },
+    { name: 'b', type: 'numeric', width: 2, decimals: 0 },
+  ] })
+  for (const row of [[1, 1], [1, 2], [1, 3], [2, 1], [2, 2], [2, 3], [3, 1], [3, 2], [3, 3], [1, 1], [2, 2], [3, 3],
+    [1, 1], [1, 2], [2, 2], [2, 3], [3, 3], [3, 1]]) {
+    xtab.appendCase({ a: row[0], b: row[1] })
+  }
+  const run = await xtab.runSyntax('CROSSTABS /TABLES=a BY b /STATISTICS=CHISQ PHI CC LAMBDA UC BTAU CTAU GAMMA D KAPPA ETA CORR /CELLS=COUNT.')
+  const errors = (run.diagnostics ?? []).filter((entry) => entry.severity === 'error')
+  if (errors.length > 0) throw new Error(`the crosstab statistics were rejected: ${errors[0].message}`)
+  const flat = run.items
+    .flatMap((item) => (item.table?.matrix ?? []).flat().map((cell) => String(cell ?? '')))
+    .join(' | ')
+  for (const label of ["Kendall's tau-b", "Kendall's tau-c", "Somers' d", 'Eta', 'Uncertainty Coefficient', 'Lambda', 'Spearman Correlation']) {
+    assert.ok(flat.includes(label), `the engine printed ${label}`)
+  }
+  const complaint = run.items.find((item) => (item.notes ?? []).some((text) => text.includes('引擎没有输出')))
+  assert.equal(complaint, undefined, 'nothing is missing when the engine has the table')
+  const riskAsked = await xtab.runSyntax('CROSSTABS /TABLES=a BY b /STATISTICS=CHISQ RISK /CELLS=COUNT.')
+  const riskNote = riskAsked.items
+    .flatMap((item) => item.notes ?? [])
+    .find((text) => text.includes('引擎没有输出'))
+  assert.ok(riskNote, 'asking for RISK on a 3x3 table is explained, not silently dropped')
+  assert.match(riskNote, /RISK/)
+  assert.equal(/ETA|BTAU|TAU-C|SOMERS/.test(riskNote), false, 'only the statistic that is really missing is named')
+  console.log('crosstab statistics run on the engine:', 'BTAU CTAU D ETA UC RISK CORR'.split(' ').join(','))
+}
+
 await rm(root, { recursive: true, force: true })

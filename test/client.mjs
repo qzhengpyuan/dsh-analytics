@@ -707,6 +707,54 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   // The grid publishes its command table once at mount, so it has to forward
   // to the newest closures: a stale one would make 复制/清除 silently do
   // nothing after the second render (which is what the menu always sees).
+  // 交叉表统计量：对话框要能把整套 PSPP /STATISTICS 关键字发出去，不只卡方。
+  // 走「帮助」而不是「确定」：帮助里显示的就是确定会跑的语法，而且不需要宿主。
+  {
+    const analysisButton = [...container.querySelectorAll('.ap-menu-button')].find((node) => node.textContent.trim() === '分析')
+    await act(async () => { analysisButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)) })
+    const crosstabsItem = [...container.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.trim() === '交叉表…')
+    await act(async () => { crosstabsItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)) })
+    const dialog = container.querySelector('.ap-modal')
+    const boxes = [...dialog.querySelectorAll('.ap-dlg-box')]
+    const captionOf = (node) => node.querySelector('.ap-dlg-caption')?.textContent.trim()
+    const labels = [...dialog.querySelectorAll('.ap-dlg-var')]
+    assert.ok(labels.length >= 2, 'the variable list is filled')
+    const pick = async (box, variable) => {
+      await act(async () => { box.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 10)) })
+      const label = labels.find((node) => node.textContent.trim().startsWith(variable))
+      await act(async () => { label.querySelector('input').dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 10)) })
+    }
+    const firstName = labels[0].textContent.trim().split(/\s+/)[0]
+    const secondName = labels[1].textContent.trim().split(/\s+/)[0]
+    await pick(boxes.find((node) => captionOf(node) === '行变量'), firstName)
+    await pick(boxes.find((node) => captionOf(node) === '列变量'), secondName)
+    const statsButton = [...dialog.querySelectorAll('button')].find((node) => node.textContent.trim().startsWith('统计量'))
+    await act(async () => { statsButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)) })
+    const sheet = [...container.querySelectorAll('.ap-modal')].at(-1)
+    const sheetLabels = [...sheet.querySelectorAll('.ap-check')].map((node) => node.textContent.trim())
+    for (const wanted of ["Somers' d", 'Eta', '风险估计（2×2）', '不确定性系数', 'Kendall tau-b']) {
+      assert.ok(sheetLabels.some((text) => text.includes(wanted)), `the statistics sheet offers ${wanted}`)
+    }
+    for (const wanted of ["Somers' d", 'Eta']) {
+      const label = [...sheet.querySelectorAll('.ap-check')].find((node) => node.textContent.trim().includes(wanted))
+      await act(async () => { label.querySelector('input').dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 10)) })
+    }
+    const cont = [...sheet.querySelectorAll('button')].find((node) => node.textContent.trim() === '继续')
+    await act(async () => { cont.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)) })
+    const help = [...dialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '帮助')
+    await act(async () => { help.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)) })
+    const syntax = dialog.querySelector('.ap-dlg-help-code')?.textContent ?? ''
+    assert.match(syntax, new RegExp(`CROSSTABS /TABLES=${firstName} BY ${secondName}`))
+    assert.match(syntax, /\/STATISTICS=.*CHISQ/)
+    assert.match(syntax, /\/STATISTICS=.*\bD\b/, "Somers' d travels as D")
+    assert.match(syntax, /\/STATISTICS=.*ETA/)
+    const cancel = [...dialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+    await act(async () => { cancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)) })
+    assert.equal(container.querySelector('.ap-modal'), null, 'the dialog closes again')
+    // The clear/blank checks below expect the 视图 menu to be the open one.
+    await act(async () => { viewButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)) })
+  }
+
   const gridWrap = container.querySelector('.ap-grid-wrap')
   assert.ok(gridWrap, 'the data grid is on screen')
   await act(async () => {

@@ -1,3 +1,13 @@
+## 0.34.0
+
+交叉表统计量补齐。PSPP 2.1.3 的 `CROSSTABS /STATISTICS=` 接受一整套关键字，面板此前只接了 6 个：
+
+- 新增：不确定性系数（`UC`）、Kendall tau-b（`BTAU`）、Kendall tau-c（`CTAU`）、Somers' d（`D`）、Eta（`ETA`）、Spearman / Pearson R（`CORR`）、风险估计（`RISK`）。对话框与 `pspp_analyze` 工具同一套名字。
+- **勾了但引擎没给时会点名**：引擎对不满足前提的统计量不报错、只是把那一行/那张表省掉（`RISK` 只给 2×2；`ETA` 要一个名义配一个数值；`tau-b/c`、`Somers' d` 要两个有序变量）。现在表下会写「这几项统计量勾了，但引擎没有输出：RISK（风险估计只在 2×2 表里输出）…」，避免用户以为插件漏了。
+- 测试：`test/smoke.mjs` 用真引擎跑 3×3 表把 7 个新关键字全过一遍（断言 `Kendall's tau-b`/`tau-c`/`Somers' d`/`Eta`/`Uncertainty Coefficient`/`Lambda`/`Spearman Correlation` 真的打出来，且没有「引擎没有输出」的抱怨），再单独跑 `RISK` 断言被点名；`test/regression.mjs` 加三条注文单测；`test/client.mjs` 走真实菜单打开交叉表 → 统计量面板断言新选项在、勾上 `Somers' d`/`Eta` 后「帮助」里的语法含 `D` 与 `ETA`。
+
+全量 `npm test` exit 0 / 337 条断言 / 23 套件。
+
 ## 0.33.2
 
 Windows 复验 0.33.1 时提出的两条（都是「不发错误、只是结果不对/装不上」那类）：

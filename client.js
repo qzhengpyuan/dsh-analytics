@@ -1818,7 +1818,14 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             { key: 'phi', label: 'Phi / Cramer V' },
             { key: 'cc', label: '列联系数' },
             { key: 'lambda', label: 'Lambda' },
+            { key: 'uc', label: '不确定性系数' },
             { key: 'gamma', label: 'Gamma' },
+            { key: 'btau', label: "Kendall tau-b" },
+            { key: 'ctau', label: 'Kendall tau-c' },
+            { key: 'somersd', label: "Somers' d" },
+            { key: 'eta', label: 'Eta' },
+            { key: 'corr', label: 'Spearman / Pearson R' },
+            { key: 'risk', label: '风险估计（2×2）' },
             // Kappa needs a square table; PSPP prints it under Symmetric Measures.
             // Turning it on also keeps CHISQ on, because the Cramér's V line and
             // the small-sample Fisher hint hang off the chi-square table.
@@ -1838,6 +1845,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         build: (v, flags) => {
           const stats = mapKeys(onKeys(flags, 'statistics'), {
             chisq: 'CHISQ', phi: 'PHI', cc: 'CC', lambda: 'LAMBDA', gamma: 'GAMMA', kappa: 'KAPPA',
+            uc: 'UC', btau: 'BTAU', ctau: 'CTAU', somersd: 'D', eta: 'ETA', corr: 'CORR', risk: 'RISK',
           })
           // Kappa also implies the chi-square table: the Cramér's V line and the
           // small-sample "look at Fisher's Exact Test" note are written onto it.

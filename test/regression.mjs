@@ -1,7 +1,7 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
 import { collinearityTable } from '../lib/regression.js'
-import { annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateReliabilityIcc, degradeStatistics, describeFailure } from '../lib/workspace.js'
+import { annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
 const failures = []
@@ -596,5 +596,34 @@ check('collinearity drops the user\'s missing-value codes', () => {
   assert.deepEqual(withCode.matrix, without.matrix)
 })
 
-console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)
 if (failures.length > 0) process.exitCode = 1
+
+check('a requested crosstab statistic the engine skipped is named, with the reason', () => {
+  const items = items2x2()
+  annotateCrosstabs(items, { statistics: ['RISK', 'ETA'] })
+  const note = items[0].notes.find((text) => text.includes('引擎没有输出'))
+  assert.ok(note, 'the note about the skipped statistics is there')
+  assert.match(note, /RISK/)
+  assert.match(note, /风险估计只在 2×2 表里输出/)
+  assert.match(note, /ETA/)
+})
+
+check('no complaint when the engine did print the requested table', () => {
+  const items = items2x2()
+  items.push({
+    kind: 'table',
+    id: 'risk',
+    title: 'Risk Estimate',
+    table: { caption: 'Risk Estimate', matrix: [['', 'Value'], ['Odds Ratio for a (1 / 2)', '21.33']] },
+  })
+  annotateCrosstabs(items, { statistics: ['RISK'] })
+  assert.equal((items[0].notes ?? []).some((text) => text.includes('引擎没有输出')), false)
+})
+
+check('requested statistics come out of the syntax, not out of thin air', () => {
+  const asked = requestedCrosstabStatistics('CROSSTABS /TABLES=a BY b /STATISTICS=CHISQ PHI RISK ETA /CELLS=COUNT.')
+  assert.deepEqual(asked, ['CHISQ', 'PHI', 'RISK', 'ETA'])
+  assert.deepEqual(requestedCrosstabStatistics('FREQUENCIES /VARIABLES=x.'), [])
+})
+
+console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)
