@@ -5,3 +5,4 @@ engine/
 .DS_Store
 build/
 SHA256SUMS
+drafts/
