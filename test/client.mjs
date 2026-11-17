@@ -1606,3 +1606,19 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   await act(async () => { langRoot.unmount() })
   console.log('ok  the language announced by the settings page is adopted without waiting for the heartbeat')
 }
+
+// 回归对话框：置信区间水平要跟着关键字走，系数相关性矩阵要有独立开关。
+{
+  const specs = hooks.ANALYSIS_SPECS
+  assert.ok(specs?.regression?.build, 'the regression spec is exported for the panel tests')
+  const base = { dep: 'score', ind: ['age'] }
+  const plain = specs.regression.build(base, { statistics: { r: true, coeff: true, anova: true, ci: true } })
+  assert.match(plain.syntax, /\/STATISTICS=.*CI\(95\)/, 'the interval defaults to 95%')
+  const wide = specs.regression.build(base, { statistics: { ci: true }, options: { ciLevel: '99' } })
+  assert.match(wide.syntax, /CI\(99\)/, 'the chosen level travels with CI')
+  const bcov = specs.regression.build(base, { statistics: { r: true, bcov: true } })
+  assert.match(bcov.syntax, /\/STATISTICS=.*BCOV/, 'the coefficient correlation matrix can be asked for')
+  const noCi = specs.regression.build(base, { statistics: { r: true, ci: false } })
+  assert.ok(!/CI/.test(noCi.syntax), 'turning the interval off leaves no CI keyword')
+  console.log('ok  the regression dialog carries the interval level and the coefficient matrix')
+}

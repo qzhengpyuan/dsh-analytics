@@ -1,3 +1,13 @@
+## 0.35.0
+
+线性回归的两个缺口（先说清哪些是引擎给的、哪些不是）：
+
+- 置信区间水平可选 90% / 95% / 99%。以前固定发 `CI`，PSPP 只按 95% 算；现在发 `CI(99)` 时表头确实变成 “99% Confidence Interval for B”（真引擎验过三档）。
+- 新增「系数相关性矩阵」（`/STATISTICS=BCOV`），即 SPSS 的 Coefficient Correlations 表。
+- 顺手核了引擎不接受的东西：`/STATISTICS=` 只收 `R COEFF ANOVA BCOV TOL CI ALL DEFAULTS`（`OUTS`、`CHANGE` 都报语法错）；`/RESIDUALS=`、`/CASEWISE=`、`/SCATTERPLOT=`、`/PARTIALPLOT=` 语法能收但**不产出任何表**，所以对话框不提供这几项——做了也是空承诺。`/SAVE=` 收 `PRED RESID ZPRED ZRESID SRESID COOK`（`MAHAL`、`LEVER` 被拒）。
+
+全量 `npm test` exit 0 / 338 条断言 / 23 套件。
+
 ## 0.34.0
 
 交叉表统计量补齐。PSPP 2.1.3 的 `CROSSTABS /STATISTICS=` 接受一整套关键字，面板此前只接了 6 个：

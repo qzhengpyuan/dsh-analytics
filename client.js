@@ -2081,7 +2081,11 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             { key: 'coeff', label: '系数', default: true },
             { key: 'anova', label: '方差分析', default: true },
             { key: 'ci', label: '系数置信区间', default: true },
+            { key: 'bcov', label: '系数相关性矩阵' },
             { key: 'tol', label: '共线性诊断（容忍度 / VIF，由插件计算）', default: true },
+          ] },
+          { key: 'options', title: '选项', items: [
+            { key: 'ciLevel', label: '置信区间水平', kind: 'select', default: '95', options: [['90', '90%'], ['95', '95%'], ['99', '99%']] },
           ] },
           { key: 'save', title: '保存（写回数据集）', items: [
             { key: 'pred', label: '未标准化预测值' },
@@ -2097,7 +2101,8 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
           // gsl_blas_dsymm on about one run in six and writes no output. The
           // tolerance/VIF table is computed from the dataset instead, and the
           // hint below tells the workspace to do so.
-          const stats = mapKeys(onKeys(flags, 'statistics'), { r: 'R', coeff: 'COEFF', anova: 'ANOVA', ci: 'CI' })
+          const level = ['90', '95', '99'].includes(String(flags?.options?.ciLevel)) ? String(flags.options.ciLevel) : '95'
+          const stats = mapKeys(onKeys(flags, 'statistics'), { r: 'R', coeff: 'COEFF', anova: 'ANOVA', ci: `CI(${level})`, bcov: 'BCOV' })
           const save = mapKeys(onKeys(flags, 'save'), {
             pred: 'PRED', resid: 'RESID', zpred: 'ZPRED', zresid: 'ZRESID', sresid: 'SRESID', cook: 'COOK',
           })
@@ -2503,6 +2508,8 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             }, formats.map(([ext, label]) => h('option', { key: ext, value: ext }, label))))),
         h('div', { className: 'ap-hint' }, '由引擎自带的 pspp-convert 完成，不经过语法解析。'))
     }
+
+    if (typeof globalThis !== 'undefined' && globalThis.__AP_TEST_HOOKS__) globalThis.__AP_TEST_HOOKS__.ANALYSIS_SPECS = ANALYSIS_SPECS
 
     // PSPP commands get the accent colour, subcommands a muted one; comments,
     // strings and numbers are the three other things worth seeing at a glance.

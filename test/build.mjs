@@ -505,10 +505,10 @@ check('regression can save predictions and residuals', () => {
   // run in six. Tolerance and VIF come from the plugin instead.
   assert.equal(
     buildAnalysis('regression', { dependent: 'score', independents: ['age'], save: ['pred', 'resid'] }),
-    'REGRESSION /DEPENDENT=score /METHOD=ENTER age /SAVE=PRED RESID /STATISTICS=COEFF R ANOVA CI.')
+    'REGRESSION /DEPENDENT=score /METHOD=ENTER age /SAVE=PRED RESID /STATISTICS=COEFF R ANOVA CI(95).')
   assert.equal(
     buildAnalysis('regression', { dependent: 'score', independents: ['age'] }),
-    'REGRESSION /DEPENDENT=score /METHOD=ENTER age /STATISTICS=COEFF R ANOVA CI.')
+    'REGRESSION /DEPENDENT=score /METHOD=ENTER age /STATISTICS=COEFF R ANOVA CI(95).')
   assert.deepEqual(
     analysisExtras('regression', { dependent: 'score', independents: ['age', 'weight'] }),
     { regression: { dependent: 'score', independents: ['age', 'weight'] } })
@@ -536,6 +536,14 @@ check('regression can save predictions and residuals', () => {
   assert.equal(
     buildAnalysis('regression', { dependent: 'score', independents: ['age'], confidence: false, collinearity: false }),
     'REGRESSION /DEPENDENT=score /METHOD=ENTER age /STATISTICS=COEFF R ANOVA.')
+  // The interval level travels with the keyword: PSPP only prints
+  // "99% Confidence Interval for B" when it is told the level.
+  assert.equal(
+    buildAnalysis('regression', { dependent: 'score', independents: ['age'], ciLevel: 99 }),
+    'REGRESSION /DEPENDENT=score /METHOD=ENTER age /STATISTICS=COEFF R ANOVA CI(99).')
+  assert.equal(
+    buildAnalysis('regression', { dependent: 'score', independents: ['age'], ciLevel: 500 }),
+    'REGRESSION /DEPENDENT=score /METHOD=ENTER age /STATISTICS=COEFF R ANOVA CI(95).')
 })
 
 check('agent-facing tables keep the hints the output shows', () => {
