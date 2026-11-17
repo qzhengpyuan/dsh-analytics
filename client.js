@@ -4825,11 +4825,16 @@ let ITEM_CSV_PENDING = null
         // the unguarded reader (the same reason the handoff code below uses it
         // for `sidebarRight`). Falling back to `ctx.sessions` keeps the unit
         // tests and any host that hands the service to a plugin that did inject.
-        const service = typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined
-        const live = service ?? ctx?.sessions
-        const read = live?.projectionValues
-        if (typeof read !== 'function') return null
-        const value = read.call(live, sessionId)
+        const service = (typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined) ?? ctx?.sessions
+        if (!service) return null
+        // The client service has no `projectionValues` of its own: the DSH
+        // preset picker reads the list snapshot's `byId[id].projectionValues`
+        // (`dsh-client-ui-agent-preset` does exactly this), and the manager
+        // behind the service answers `projectionValues(id)`.
+        const row = service.list?.getSnapshot?.()?.byId?.[sessionId]
+        const value = row?.projectionValues
+          ?? service.manager?.projectionValues?.(sessionId)
+          ?? (typeof service.projectionValues === 'function' ? service.projectionValues(sessionId) : undefined)
         const preset = value?.agentPreset
         if (typeof preset !== 'string' || preset === '') return null
         return preset

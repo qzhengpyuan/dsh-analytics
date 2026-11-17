@@ -186,10 +186,28 @@ assert.equal(hooks.sessionPreset({}, 's1'), null, 'no ctx.sessions is unknown')
 // Cordis refuses `ctx.sessions` for a plugin that did not inject it, so the
 // real host is reached through `ctx.get('sessions')`; without this the banner
 // would be dead code in the browser while every unit test still passed.
+// The real client service has NO `projectionValues` of its own: the preset
+// picker reads the list snapshot, so both shapes have to work.
 assert.equal(
-  hooks.sessionPreset({ get: (name) => (name === 'sessions' ? { projectionValues: () => ({ agentPreset: 'other' }) } : undefined) }, 's1'),
+  hooks.sessionPreset({
+    get: (name) => (name === 'sessions'
+      ? { list: { getSnapshot: () => ({ ids: ['s1'], byId: { s1: { projectionValues: { agentPreset: 'other' } } } }) } }
+      : undefined),
+  }, 's1'),
   'other',
-  'the unguarded ctx.get reader finds the projection service',
+  'the unguarded ctx.get reader finds the projection through the list snapshot',
+)
+assert.equal(
+  hooks.sessionPreset({
+    get: () => ({ manager: { projectionValues: () => ({ agentPreset: 'analytics' }) } }),
+  }, 's1'),
+  'analytics',
+  'the manager behind the service answers projectionValues(id) too',
+)
+assert.equal(
+  hooks.sessionPreset({ get: () => ({ list: { getSnapshot: () => ({ byId: {} }) } }) }, 's1'),
+  null,
+  'a session the snapshot does not know yet is unknown, not fatal',
 )
 assert.equal(
   hooks.sessionPreset({

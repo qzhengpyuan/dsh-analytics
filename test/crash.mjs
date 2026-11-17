@@ -86,6 +86,20 @@ check('an ordinary syntax error keeps the old one-line wording', () => {
   assert.doesNotMatch(said, /PSPP/)
 })
 
+check('a file name that merely contains the banner words is not a crash', () => {
+  // Linux allows these names, and claiming a crash here would replace the real
+  // "cannot open" reason with a bug report that never happened.
+  for (const name of ['proximate cause: report.sav', 'segmentation violation.csv']) {
+    const said = describeEngineError(`cannot open ${name}: No such file or directory`, name)
+    assert.match(said, /打不开/)
+    assert.doesNotMatch(said, /引擎崩溃|缺陷/)
+  }
+  // The banner fields are what makes the difference: the same words plus the
+  // real report shape do count.
+  const banner = describeEngineError('proximate cause: Segmentation Violation\nhost_system: x86_64-pc-linux-gnu', 'x.sav')
+  assert.match(banner, /引擎崩溃/)
+})
+
 check('a crash under a file operation never reads as "cannot open"', () => {
   const said = describeEngineError(BANNER, 'out.pdf', 139)
   assert.doesNotMatch(said, /打不开/)

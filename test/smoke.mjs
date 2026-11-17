@@ -4,7 +4,8 @@ import { homedir, tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 
 import { resolveEngine } from '../lib/engine.js'
-import { Workspace, WorkspaceRegistry } from '../lib/workspace.js'
+import { Workspace, WorkspaceRegistry, describeFailure } from '../lib/workspace.js'
+import { quoteSyntaxPath } from '../lib/dataset.js'
 
 const engine = resolveEngine()
 console.log('engine:', engine)
@@ -651,6 +652,32 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   const notes = dropped.items.flatMap((item) => item.notes ?? [])
   assert.ok(notes.some((note) => /对比被引擎忽略了/.test(note)), `the dropped contrast is named: ${JSON.stringify(notes).slice(0, 200)}`)
   console.log('a dropped contrast is named in the notes')
+}
+
+// A PSPP bug banner goes to fd 2 while the `-e` file stays empty, so reading
+// only the file used to throw away the one sentence that said "the engine
+// crashed". This is the real crash: CROSSTABS RISK on a string grouping
+// variable (SIGSEGV on 2.1.3), run through exec on purpose to skip the guard.
+{
+  const ws = new Workspace({ id: 'smoke-crash', engine, root: join(root, 'crash'), config: { timeoutMs: 60000 } })
+  await ws.init()
+  await ws.createDataset({
+    variables: [
+      { name: 'g', type: 'string', width: 4 },
+      { name: 'wave', type: 'numeric', width: 2, decimals: 0 },
+    ],
+    rows: [['A', 1], ['A', 1], ['A', 1], ['A', 2], ['B', 1], ['B', 2], ['B', 2], ['B', 2]],
+  })
+  await ws.runSyntax('EXECUTE.')
+  const crashed = await ws.exec(`GET FILE=${quoteSyntaxPath(ws.dataset.workPath)}.\nCROSSTABS /TABLES=g BY wave /STATISTICS=CHISQ RISK /CELLS=COUNT.`)
+  assert.ok(crashed.code !== 0 || crashed.signal, `the engine has to die: code=${crashed.code} signal=${crashed.signal}`)
+  assert.match(String(crashed.stderr), /You have discovered a bug in PSPP/i,
+    `the banner has to survive exec, got: ${String(crashed.stderr).slice(0, 120)}`)
+  const said = describeFailure(crashed)
+  assert.match(said, /引擎崩溃/, `the crash has to be named, got: ${said}`)
+  assert.match(said, /缺陷/)
+  assert.doesNotMatch(said, /build_system|run\.sps/)
+  console.log('crash banner survives exec:', said.slice(0, 60))
 }
 
 await rm(root, { recursive: true, force: true })
