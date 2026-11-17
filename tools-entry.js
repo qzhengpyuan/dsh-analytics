@@ -14,14 +14,14 @@
  * dataset. Building a second registry would give the panel and the conversation
  * two different datasets that look alike.
  */
-export const name = 'dsh-analytics:tools'
+export const name = 'dsh-analytics-pspp:tools'
 
 export const inject = ['tools', 'analytics']
 
 export function apply(ctx, config = {}) {
   const service = ctx.get('analytics')
   if (!service || !service.registry) {
-    throw new Error('dsh-analytics 的工具需要宿主半（dsh-analytics）先加载：`analytics` 服务不存在')
+    throw new Error('dsh-analytics-pspp 的工具需要宿主半（dsh-analytics-pspp）先加载：`analytics` 服务不存在')
   }
 
   // The Host half's own settings (engine timeout, defaults) travel with the

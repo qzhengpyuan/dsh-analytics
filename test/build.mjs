@@ -1081,11 +1081,11 @@ check('the reported version is re-read even when mtime does not change', async (
   try {
     const manifest = join(dir, 'package.json')
     const written = new Date('2026-01-01T00:00:00Z')
-    writeFileSync(manifest, JSON.stringify({ name: 'dsh-analytics', version: '1.0.0' }))
+    writeFileSync(manifest, JSON.stringify({ name: 'dsh-analytics-pspp', version: '1.0.0' }))
     utimesSync(manifest, written, written)
     const { pluginInfo } = await import(`../lib/version.js?probe=${Date.now()}`)
     assert.equal(pluginInfo(manifest).version, '1.0.0')
-    writeFileSync(manifest, JSON.stringify({ name: 'dsh-analytics', version: '1.0.1' }))
+    writeFileSync(manifest, JSON.stringify({ name: 'dsh-analytics-pspp', version: '1.0.1' }))
     utimesSync(manifest, written, written)
     assert.equal(pluginInfo(manifest).version, '1.0.0', 'the throttle keeps the value for a second')
     await new Promise((resolve) => setTimeout(resolve, 1100))

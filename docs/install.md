@@ -18,7 +18,7 @@ npm 依赖：**无运行时 npm 依赖**。peer 只有 `@deepseek-ai/cordis` 与
 
 ## 安装（从 Release 的 .tgz 手工装）
 
-每个版本都按平台挂 `dsh-analytics-<版本>-<平台>.tgz`（如 `-linux-x64`、`-win32-x64`，各自带对应平台的引擎，约 34 MB）；0.31.5 及更早只有一个不带平台后缀的 `dsh-analytics-<版本>.tgz`：
+每个版本都按平台挂 `dsh-analytics-pspp-<版本>-<平台>.tgz`（如 `-linux-x64`、`-win32-x64`，各自带对应平台的引擎，约 34 MB）；0.49.0 之前叫 `dsh-analytics-<版本>-<平台>.tgz`，0.31.5 及更早只有一个不带平台后缀的 `dsh-analytics-<版本>.tgz`：
 
 ```bash
 # 1. 下载：到 releases/latest 页拿 dsh-analytics-<版本>-<平台>.tgz（下文以 0.32.0 的 linux-x64 为例）
@@ -49,7 +49,7 @@ git clone https://github.com/qzhengpyuan/dsh-analytics.git && cd dsh-analytics
 node scripts/install.mjs web                    # 干跑：下载、比对 SHA256SUMS、打印下面两步
 node scripts/install.mjs web --apply            # 真的装进 profile「web」
 node scripts/install.mjs desktop --apply        # 换 profile 就把第一个参数换掉
-node scripts/install.mjs --offline /path/to/dsh-analytics-<版本>.tgz   # 不联网
+node scripts/install.mjs --offline /path/to/dsh-analytics-pspp-<版本>.tgz   # 不联网
 ```
 
 要点：
@@ -98,14 +98,14 @@ npm run pack:portable   # → dsh-analytics-<版本>-portable.tgz（不含引擎
 ```bash
 mkdir -p ~/dsh-plugins && cd ~/dsh-plugins
 npm init -y
-npm install ./dsh-analytics-0.2.0-linux-x64.tgz     # 或 portable 版
+npm install ./dsh-analytics-pspp-<版本>-linux-x64.tgz     # 或 portable 版
 # 通用版再补引擎：
 (cd node_modules/dsh-analytics && npm run engine:fetch)
 ```
 
 然后在 DSH 里 `plugin_manager install_bundle ~/dsh-plugins/node_modules/dsh-analytics`。
 
-已验证（2026-11-04）：两种 tgz 都能 `npm install` 进空项目；`import('.../dsh-analytics/index.js')` 导出 `apply/inject/name`；自带引擎版直接 `pspp --version` → `pspp (GNU PSPP) 2.1.3`；通用版 `engine:fetch` 后同样可跑，可执行位保留。
+已验证（2026-11-04）：两种 tgz 都能 `npm install` 进空项目；`import('.../dsh-analytics-pspp/index.js')` 导出 `apply/inject/name`；自带引擎版直接 `pspp --version` → `pspp (GNU PSPP) 2.1.3`；通用版 `engine:fetch` 后同样可跑，可执行位保留。
 
 tgz 里带着 GPLv3 引擎，分发时务必保留 `engine/<平台>/COPYING` 与 `NOTICE`。
 

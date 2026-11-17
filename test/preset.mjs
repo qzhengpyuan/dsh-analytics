@@ -51,7 +51,7 @@ const service = {
 
 await check('the preset-scoped plugin declares the inject list it needs', () => {
   assert.deepEqual([...toolsInject].sort(), ['analytics', 'tools'])
-  assert.equal(toolsName, 'dsh-analytics:tools')
+  assert.equal(toolsName, 'dsh-analytics-pspp:tools')
 })
 
 await check('the tools mount on the analytics service and reuse its registry', async () => {
@@ -85,7 +85,7 @@ await check('the bundle patch ships the preset and mounts the scoped tools', () 
   assert.match(patch, /id: preset-analytics/)
   assert.match(patch, /name: '@deepseek-ai\/dsh-agent-preset'/)
   assert.match(patch, /id: analytics\b[\s\S]*?registerTools: false/)
-  assert.match(patch, /name: 'dsh-analytics\/tools'/)
+  assert.match(patch, /name: 'dsh-analytics-pspp\/tools'/)
   assert.match(patch, /name: 数据分析/)
 })
 

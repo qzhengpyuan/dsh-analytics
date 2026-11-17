@@ -1,3 +1,17 @@
+## 0.49.0
+
+改名：npm 上的 `dsh-analytics` 是别人的包（rainfun 的 FinOps / token 统计插件，0.4.0，
+2026-08-14），我们发布时用它会被 403 拒绝，用户也会装错东西。包名、bundle 名、预设里挂的
+工具模块名一并改成 `dsh-analytics-pspp`，插件 id 仍是 `analytics`、路由仍是 `/analytics`、
+数据目录仍是 `~/.dsh/analytics`、面板页签与设置项都不变，已有的数据集与设置不用迁移。
+
+一次改名牵连到的面：`package.json` 的 `name`、`cordis.patch.yml` 里宿主行与预设里的
+`dsh-analytics-pspp/tools`、`index.js` / `tools-entry.js` 的插件名、`scripts/install.mjs`
+（资产名匹配、写进 `dsh.profile.bundles` 的名字、备份文件名）、以及钉住这些名字的测试。
+
+升级注意：profile 里旧包的依赖与 bundle 条目要一起换成 `dsh-analytics-pspp`；本地开发用的
+`link:` 也要改键名，否则 DSH 按旧名找不到模块。
+
 ## 0.48.1
 
 - **值标签在英文 Windows 上读不回来（真 bug）**：`DISPLAY DICTIONARY` 的值标签表用「变量

@@ -9,7 +9,7 @@ import { SettingsStore } from './lib/settings.js'
 import { createTools } from './lib/tools.js'
 import { WorkspaceRegistry } from './lib/workspace.js'
 
-export const name = 'dsh-analytics'
+export const name = 'dsh-analytics-pspp'
 
 // The panel and pspp_status both report the version actually loaded, which is
 // the only way to tell "the code changed" from "the process is still running

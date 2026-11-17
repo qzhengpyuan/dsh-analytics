@@ -7,7 +7,7 @@
  *   node scripts/install.mjs --apply web    # 目标 profile，默认 web
  *   node scripts/install.mjs --offline <tgz>  # 用本地 tgz，不联网
  *
- * 为什么不用 npm：`dsh-analytics` 这个名字在 npm 上已被别的包占用（0.4.0，
+ * 为什么不用 npm：`dsh-analytics` 这个名字在 npm 上已被 rainfun 的 FinOps 插件占用（0.4.0，
  * 2026-08-14 创建），换名字只会把文档拆成两份。分发渠道 = GitHub Release 的 .tgz。
  *
  * 仓库是私有的，所以 API 与资产下载都带 token：先看 GITHUB_TOKEN / GH_TOKEN，
@@ -108,7 +108,7 @@ export function pickTarball(candidates, platform = process.platform, arch = proc
 
 async function main() {
   const PROFILE = pickProfile()
-  const work = mkdtempSync(join(tmpdir(), 'dsh-analytics-install-'))
+  const work = mkdtempSync(join(tmpdir(), 'dsh-analytics-pspp-install-'))
   workDir = work
   let tgz
   let version
@@ -116,7 +116,7 @@ async function main() {
   if (offline) {
     tgz = resolve(offline)
     if (!existsSync(tgz)) throw new Error(`找不到 ${tgz}`)
-    version = (basename(tgz).match(/dsh-analytics-(\d+\.\d+\.\d+)(?:-[a-z0-9-]+)?\.tgz/) ?? [])[1] ?? 'unknown'
+    version = (basename(tgz).match(/dsh-analytics-pspp-(\d+\.\d+\.\d+)(?:-[a-z0-9-]+)?\.tgz/) ?? [])[1] ?? 'unknown'
     console.log(`本地包：${tgz}（版本 ${version}）`)
     const digest = sha256(readFileSync(tgz))
     console.log(`sha256：${digest}`)
@@ -127,8 +127,8 @@ async function main() {
     // Releases carry one tarball per platform (`-linux-x64`, `-win32-x64`, …) and
     // the older ones carried a single plain name: take this machine's build when
     // it is there, and fall back to whatever the release does have.
-    const candidates = release.assets.filter((asset) => new RegExp(`^dsh-analytics-${version.replace(/\./g, '\\.')}(?:-[a-z0-9-]+)?\\.tgz$`).test(asset.name))
-    if (candidates.length === 0) throw new Error(`${release.tag_name} 没有挂 dsh-analytics-${version}*.tgz（资产：${release.assets.map(a => a.name).join(', ') || '无'}）`)
+    const candidates = release.assets.filter((asset) => new RegExp(`^dsh-analytics-pspp-${version.replace(/\./g, '\\.')}(?:-[a-z0-9-]+)?\\.tgz$`).test(asset.name))
+    if (candidates.length === 0) throw new Error(`${release.tag_name} 没有挂 dsh-analytics-pspp-${version}*.tgz（资产：${release.assets.map(a => a.name).join(', ') || '无'}）`)
     const tarball = pickTarball(candidates, process.platform, process.arch)
     tgz = join(work, tarball.name)
     const buffer = await download(tarball, tgz)
@@ -150,7 +150,7 @@ async function main() {
   console.log()
   console.log(`接下来，对 profile「${PROFILE}」：`)
   console.log(`  dsh plugin --profile ${PROFILE} add file:${tgz}`)
-  console.log(`  并把 "dsh-analytics" 加进 ${profileJson} 的 dsh.profile.bundles`)
+  console.log(`  并把 "dsh-analytics-pspp" 加进 ${profileJson} 的 dsh.profile.bundles`)
 
   if (!APPLY) {
     console.log()
@@ -165,16 +165,16 @@ async function main() {
   pkg.dsh ??= {}
   pkg.dsh.profile ??= {}
   pkg.dsh.profile.bundles ??= []
-  if (!pkg.dsh.profile.bundles.includes('dsh-analytics')) {
-    copyFileSync(profileJson, `${profileJson}.before-dsh-analytics`)
-    pkg.dsh.profile.bundles.push('dsh-analytics')
+  if (!pkg.dsh.profile.bundles.includes('dsh-analytics-pspp')) {
+    copyFileSync(profileJson, `${profileJson}.before-dsh-analytics-pspp`)
+    pkg.dsh.profile.bundles.push('dsh-analytics-pspp')
     writeFileSync(profileJson, `${JSON.stringify(pkg, null, 2)}\n`)
-    console.log('已把 dsh-analytics 加进 dsh.profile.bundles')
+    console.log('已把 dsh-analytics-pspp 加进 dsh.profile.bundles')
   } else {
-    console.log('dsh.profile.bundles 里已经有 dsh-analytics')
+    console.log('dsh.profile.bundles 里已经有 dsh-analytics-pspp')
   }
   console.log()
-  console.log('重载：设置 → 插件 → dsh-analytics 关一次再开（面板里已打开的数据集会清空）')
+  console.log('重载：设置 → 插件 → dsh-analytics-pspp 关一次再开（面板里已打开的数据集会清空）')
   console.log('检查：新建会话时预设选择器里应出现「数据分析」')
 }
 
