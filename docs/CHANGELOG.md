@@ -1,3 +1,11 @@
+## 0.40.0
+
+- **数据 → 标识重复个案**（SPSS 数据菜单里的同一条命令，PSPP 没有任何对应语法）：按你选的键变量比对当前数据集，出一张「标识重复个案（插件计算）」表 —— 组号、键变量值、个案号、组内序号、是否末条，最多列 50 组并注明总组数。勾「创建指示变量」时再新增两列 `dupSeq`（组内序号，0 表示唯一）与 `dupLast`（重复组的末条），可直接接「数据 → 选择个案」按 `dupSeq > 1` 筛。含声明缺失码的个案各自单列，不参与比对（与其它表的缺失口径一致）；键变量留空表示用全部变量。工具侧 `pspp_transform` 新增 `identifyDuplicates`。
+- 数据分析预设里的工具说明同步：`pspp_transform` 的 description 与参数 schema 补上 `indicators`，agent 侧不必猜这条命令的入口。
+- 测试：新增 `test/dupes.mjs`（9 条：重复成组与序号、两组并存、声明缺失码单列、留空=全部变量、空键值与空键值相等、无重复时给明说、未知变量名回落到全部、空数据集返回 null、超 50 组截断并注明）；`test/routes.mjs` 加 `api/duplicates` 六条（分组计数、表进输出面板、两列指示变量真的落到网格、序号与末条标记逐值对上、加列后数据集变脏、只要报告时不加列）；`test/client.mjs` 加一条（对话框只送键变量、指示变量默认开、不产引擎语法）；`test/smoke.mjs` 加真引擎一条 —— 加完指示变量后跑 `DESCRIPTIVES /VARIABLES=dupSeq dupLast`，验证两列真的写回了 `work.sav`。
+
+全量 `npm test` exit 0 / **365 条断言 / 25 套件**（`test/dupes.mjs` 9 条）。
+
 ## 0.39.0
 
 - **线性回归追加 Durbin-Watson**：PSPP 的 `REGRESSION` 根本不打印这个统计量（`/STATISTICS` 只有 `R COEFF ANOVA BCOV TOL CI ALL DEFAULTS`），所以插件在回归跑完后按残差在数据行序上自算，追加一张「Durbin-Watson（插件计算）」表：DW 值、个案数、预测变量数，加两条判读（数值含义 + n ≥ 15 时的 5% 界限区间；n < 15 时明说不引用界限表）。缺失值口径与其它表一致（`MISSING VALUES` 声明的码、空白都剔除）。完美拟合（残差方差为 0）时不出这张表，而不是印一个 `Infinity`。顺序按数据文件当前行序，表注里写明了「刚做过排序的话，这个数字描述的是排序后的顺序」。

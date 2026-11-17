@@ -1664,6 +1664,19 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   console.log('ok  the rank dialog offers every type, and descriptives can save Z scores')
 }
 
+// 标识重复个案：对话框只挑键变量，指示变量默认打开（0.40.0）。
+{
+  const spec = hooks.ANALYSIS_SPECS.duplicates
+  const plain = spec.build({ variables: ['id', 'score'] }, { options: { indicators: true } })
+  assert.deepEqual(plain.duplicates.variables, ['id', 'score'])
+  assert.equal(plain.duplicates.indicators, true)
+  assert.equal(plain.syntax, undefined, 'nothing goes to the engine: PSPP has no duplicate command')
+  const off = spec.build({ variables: [] }, { options: { indicators: false } })
+  assert.deepEqual(off.duplicates.variables, [], 'no key variables means every variable')
+  assert.equal(off.duplicates.indicators, false)
+  console.log('ok  the duplicate dialog sends key variables only, with the indicators on by default')
+}
+
 // GLM 的事后检验：面板要能选，构建时走 ONEWAY 那条线（0.38.0）。
 {
   const glm = hooks.ANALYSIS_SPECS.glm

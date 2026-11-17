@@ -673,6 +673,35 @@ console.log('the table set can be narrowed', r.code === 200, r.json().result?.ta
 r = await call('POST', `${base}/api/missing`, { sessionId: 'mva01', variables: ['nope'] })
 console.log('an unknown variable is named, not crashed on', r.code === 400, /没有这些变量/.test(String(r.json().error)))
 
+// Identify duplicate cases: the grouping is the plugin's own arithmetic, and
+// the two indicator variables have to land in the grid as real columns.
+await seed('dup01', [
+  { id: 1, score: 10 }, { id: 2, score: 20 }, { id: 1, score: 10 }, { id: 1, score: 10 }, { id: 3, score: 30 },
+])
+r = await call('POST', `${base}/api/duplicates`, { sessionId: 'dup01', variables: ['id', 'score'], indicators: true })
+let dup = r.json()
+console.log('identify duplicates groups and counts them', r.code === 200, dup.result?.groups === 1, dup.result?.duplicates === 3)
+let dupTitles = (dup.state?.items ?? []).map((item) => item.title ?? '')
+console.log('the table reaches the output panel', dupTitles.includes('标识重复个案（插件计算）'))
+let dupNames = (dup.state?.dataset?.variables ?? []).map((variable) => variable.name)
+console.log('the indicator variables become real columns', dup.result?.created?.length === 2,
+  dupNames.includes('dupSeq') && dupNames.includes('dupLast'), JSON.stringify(dupNames))
+// The grid gets its rows from api/rows, so read them back the same way the panel does.
+let dupPage = r.code === 200 ? (await call('POST', `${base}/api/rows`, { sessionId: 'dup01', offset: 0, limit: 500 })).json().page : { rows: [] }
+let seqColumn = dupNames.indexOf('dupSeq')
+let lastColumn = dupNames.indexOf('dupLast')
+let seqValues = (dupPage.rows ?? []).slice(0, 5).map((row) => row[seqColumn])
+let lastValues = (dupPage.rows ?? []).slice(0, 5).map((row) => row[lastColumn])
+console.log('the sequence numbers match the groups', JSON.stringify(seqValues) === '[1,0,2,3,0]', JSON.stringify(seqValues))
+console.log('exactly one row of the group is flagged as the last', lastValues.filter((value) => value === 1).length === 1, JSON.stringify(lastValues))
+console.log('adding the indicators leaves the dataset dirty for saving', dup.state?.dataset?.dirty === true)
+
+// Without the indicators it is a read-only report: no new columns, no undo step.
+r = await call('POST', `${base}/api/duplicates`, { sessionId: 'dup01', variables: ['id'] })
+let reportOnly = r.json()
+console.log('a report-only run adds no columns', r.code === 200, (reportOnly.result?.created ?? []).length === 0,
+  (reportOnly.state?.dataset?.variables ?? []).length === dupNames.length)
+
 // Replacing: the fill is one undo step and it reaches the grid's rows.
 r = await call('POST', `${base}/api/missing`, { sessionId: 'mva01', mode: 'replace', variables: ['score'], method: 'linear' })
 let fill = r.json()
@@ -683,7 +712,7 @@ console.log('replace missing values fills and reports the count', r.code === 200
 
 for (const id of ['mva01']) await call('POST', `${base}/api/close`, { sessionId: id })
 
-for (const id of ['pivot01', 'pivot02']) await call('POST', `${base}/api/close`, { sessionId: id })
+for (const id of ['pivot01', 'pivot02', 'dup01']) await call('POST', `${base}/api/close`, { sessionId: id })
 
 r = await call('POST', `${base}/api/close`, { sessionId: 'pivot01' })
 

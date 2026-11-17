@@ -526,4 +526,29 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('durbin-watson table, n = 20:', dw.table.matrix[1][1])
 }
 
+// ---- duplicate indicators have to survive the trip through work.sav -------
+{
+  const ws = new Workspace({ id: 'smoke40', engine, root, config: { timeoutMs: 60000 } })
+  await ws.init()
+  await ws.createDataset({
+    variables: [
+      { name: 'id', type: 'numeric', width: 8, decimals: 0 },
+      { name: 'score', type: 'numeric', width: 8, decimals: 1 },
+    ],
+    rows: [[1, 10], [2, 20], [1, 10], [1, 10], [3, 30]],
+  })
+  await ws.runSyntax('EXECUTE.')
+  const report = ws.identifyDuplicates({ variables: ['id', 'score'], indicators: true })
+  assert.equal(report.groups, 1, 'one key repeats')
+  assert.equal(report.duplicates, 3, 'three rows land in it')
+  assert.deepEqual(report.created, ['dupSeq', 'dupLast'])
+  // The engine only sees work.sav, so a DESCRIPTIVES that names the new
+  // columns proves the host wrote them back in the same shape it drew them.
+  const ran = await ws.runSyntax('DESCRIPTIVES /VARIABLES=dupSeq dupLast.')
+  assert.equal(ran.diagnostics.filter((entry) => entry.severity === 'error').length, 0, 'the indicator columns reach the engine')
+  const flat = JSON.stringify(ran.items)
+  assert.ok(/dupSeq/.test(flat) && /dupLast/.test(flat), 'and the descriptives table lists both')
+  console.log('duplicate indicators survive work.sav:', report.created.join(', '))
+}
+
 await rm(root, { recursive: true, force: true })

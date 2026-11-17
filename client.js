@@ -2519,6 +2519,24 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       // The two restructures have no PSPP syntax behind them (2.1.3 lacks
       // CASESTOVARS / VARSTOCASES), so build() hands the payload to the host
       // route instead of returning a program.
+      duplicates: {
+        title: '标识重复个案',
+        hint: 'SPSS 的这条命令 PSPP 没有，所以由插件按你选的键变量比对当前数据集：留空表示用全部变量。勾了「创建指示变量」会新增 dupSeq（组内序号，0 表示唯一）与 dupLast（重复组的末条），随后可用「数据 → 选择个案」按 dupSeq > 1 筛出重复。',
+        fields: [
+          { key: 'variables', kind: 'multi', label: '定义重复的键变量（留空用全部变量）' },
+        ],
+        groups: [
+          { key: 'options', title: '选项', items: [
+            { key: 'indicators', label: '创建指示变量（dupSeq / dupLast）', default: true },
+          ] },
+        ],
+        build: (v, flags) => ({
+          duplicates: {
+            variables: Array.isArray(v?.variables) ? v.variables : [],
+            indicators: flags?.options?.indicators === true,
+          },
+        }),
+      },
       casesToVars: {
         title: '个案转变量',
         fields: [
@@ -5222,6 +5240,26 @@ let ITEM_CSV_PENDING = null
 
       // MVA 与 RMV 都由宿主从当前数据集算，不经过语法；两者共用一条路由，
       // 用 mode 区分。替换是改数据的操作，完成后必须把数据视图重画一次。
+      const runDuplicates = useCallback(async (payload, title) => {
+        setBusy(true)
+        try {
+          const value = await api('api/duplicates', { sessionId, ...payload })
+          setSt(stateOf(value))
+          const result = value.result ?? {}
+          if ((result.created ?? []).length > 0) {
+            const page = await loadRows(0, Math.max(500, rows.length))
+            setRows(page.rows)
+            setTotal(page.total)
+          }
+          notify(`${title ?? '标识重复个案'}：${result.groups ?? 0} 组重复、共 ${result.duplicates ?? 0} 个个案${(result.created ?? []).length ? `；已新增 ${result.created.join('、')}` : ''}`)
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId, loadRows, rows.length])
+
       const runMissing = useCallback(async (payload, title) => {
         setBusy(true)
         try {
@@ -6076,6 +6114,8 @@ let ITEM_CSV_PENDING = null
               { label: '添加个案…', action: () => setDialog({ kind: 'merge', mode: 'add', path: '', by: '' }) },
               { label: '按关键变量合并…', action: () => setDialog({ kind: 'merge', mode: 'match', path: '', by: '' }) },
             ] },
+            { label: '标识重复个案…', action: () => runAnalysis('duplicates') },
+            { label: '标识异常个案…', action: () => notify('标识异常个案还没有实现：它要按变量类型选距离度量（连续变量用马氏距离、分类变量用频次比），PSPP 也没有这条命令。眼下可以先看「描述」里的极值与「探索」的箱线图离群点') },
           ],
         },
         {
@@ -6759,6 +6799,10 @@ let ITEM_CSV_PENDING = null
               if (built?.error) { notify(built.error); return }
               if (built?.restructure) {
                 await runRestructure(built.restructure, spec?.title)
+                return
+              }
+              if (built?.duplicates) {
+                await runDuplicates(built.duplicates, spec?.title)
                 return
               }
               if (built?.missing) {
