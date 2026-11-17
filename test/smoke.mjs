@@ -89,11 +89,15 @@ assert.equal(fileStamp.sourcePath, join(root, 'demo.sav'), 'the stamp names the 
 console.log('variables:', back.variables.map((variable) => `${variable.name}:${variable.type}:${variable.label}:${JSON.stringify(variable.valueLabels)}`))
 
 // 值标签往返：更新 -> 存盘 -> 重开，标签必须原样回来
-workspace.updateVariable('gender', { valueLabels: { F: '女', M: '男' } })
+// PSPP 打印字典时按 locale 编码输出，Windows 上是 ANSI 代码页：英文 Windows 的
+// cp1252 表示不了汉字，标签回来会变成 '?'（引擎的限制，不是写盘的问题），所以
+// Windows 上用能表示的英文标签，别的平台仍然用中文，两边都验得到往返。
+const labelPair = process.platform === 'win32' ? { F: 'Female', M: 'Male' } : { F: '女', M: '男' }
+workspace.updateVariable('gender', { valueLabels: labelPair })
 await workspace.save(join(root, 'demo.sav'))
 const relabeled = await workspace.open(join(root, 'demo.sav'))
 const genderVar = relabeled.variables.find((variable) => variable.name === 'gender')
-if (genderVar?.valueLabels?.F !== '女' || genderVar?.valueLabels?.M !== '男') {
+if (genderVar?.valueLabels?.F !== labelPair.F || genderVar?.valueLabels?.M !== labelPair.M) {
   throw new Error(`value labels did not round-trip: ${JSON.stringify(genderVar?.valueLabels)}`)
 }
 console.log('value labels ok:', JSON.stringify(genderVar.valueLabels))
