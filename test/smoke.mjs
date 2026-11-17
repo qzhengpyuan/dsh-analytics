@@ -456,4 +456,27 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('crosstab statistics run on the engine:', 'BTAU CTAU D ETA UC RISK CORR'.split(' ').join(','))
 }
 
+// ---- standardized values and the full rank vocabulary -----------------------
+{
+  const ws = new Workspace({ id: 'smoke37', engine, root, config: { timeoutMs: 60000 } })
+  await ws.init()
+  await ws.createDataset({
+    variables: [{ name: 'x', type: 'numeric', width: 8, decimals: 1 }],
+    rows: [[3], [1], [4], [1], [5], [9]],
+  })
+  await ws.runSyntax('EXECUTE.')
+  const saved = await ws.runSyntax('DESCRIPTIVES /VARIABLES=x /STATISTICS=MEAN STDDEV /SAVE.', { persist: true })
+  assert.equal(saved.diagnostics.filter((entry) => entry.severity === 'error').length, 0, 'DESCRIPTIVES /SAVE runs')
+  const zed = saved.variables.map((variable) => variable.name)
+  assert.ok(zed.includes('Zx'), `the standardized value becomes a variable: ${zed.join(',')}`)
+  const ranked = await ws.runSyntax(
+    'RANK VARIABLES=x /RANK INTO rx /PERCENT INTO p_x /NORMAL INTO z_x /SAVAGE INTO sv_x /NTILES(2) INTO q_x /TIES=MEAN.',
+    { persist: true },
+  )
+  assert.equal(ranked.diagnostics.filter((entry) => entry.severity === 'error').length, 0, 'every rank type runs on the engine')
+  const names = ranked.variables.map((variable) => variable.name)
+  for (const name of ['rx', 'p_x', 'z_x', 'sv_x', 'q_x']) assert.ok(names.includes(name), `${name} exists`)
+  console.log('standardized values and rank types land as variables:', names.filter((name) => /^(Zx|rx|p_x|z_x|sv_x|q_x)$/.test(name)).join(','))
+}
+
 await rm(root, { recursive: true, force: true })

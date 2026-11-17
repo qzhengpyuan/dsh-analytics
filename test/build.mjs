@@ -1015,7 +1015,32 @@ check('a string THRU range is refused instead of dropped', async () => {
 
 await Promise.all(pending)
 
-console.log(`\n${checks} checks passed${process.exitCode ? ' (with failures)' : ''}`)
+check('rank can ask for every rank type PSPP knows', () => {
+  assert.equal(buildTransform('rank', { variable: 'x' }), 'RANK VARIABLES=x /RANK INTO r_x /TIES=MEAN.')
+  assert.equal(
+    buildTransform('rank', { variable: 'x', rankTypes: ['rank', 'percent', 'normal', 'savage'], ntiles: 4 }),
+    'RANK VARIABLES=x /RANK INTO r_x /PERCENT INTO p_x /NORMAL INTO z_x /SAVAGE INTO sv_x /NTILES(4) INTO q_x /TIES=MEAN.',
+  )
+  assert.equal(buildTransform('rank', { variable: 'x', rankTypes: ['rfraction'], ties: 'low' }), 'RANK VARIABLES=x /RFRACTION INTO rf_x /TIES=LOW.')
+  assert.throws(() => buildTransform('rank', { variable: 'x', rankTypes: ['fraction'] }), /不认识的秩类型：fraction/)
+  // FRACTION and SAVY are not PSPP spellings: sending them would be a 400.
+  assert.throws(() => buildTransform('rank', { variable: 'x', rankTypes: ['savy'] }), /不认识的秩类型：savy/)
+})
+
+check('descriptives can save the standardized values alongside the table', () => {
+  assert.equal(
+    buildAnalysis('descriptives', { variables: ['x', 'y'], save: true }),
+    'DESCRIPTIVES /VARIABLES=x y /SAVE.\nDESCRIPTIVES /VARIABLES=x y /STATISTICS=MEAN STDDEV MINIMUM MAXIMUM /SAVE.',
+  )
+  // MEDIAN forces the table through FREQUENCIES, which has no /SAVE, so the Z
+  // variables get their own DESCRIPTIVES statement in front.
+  assert.equal(
+    buildAnalysis('descriptives', { variables: ['x'], statistics: ['MEDIAN'], save: true, percentiles: [50] }),
+    'DESCRIPTIVES /VARIABLES=x /SAVE.\nFREQUENCIES /VARIABLES=x /FORMAT=NOTABLE /STATISTICS=MEDIAN /PERCENTILES=50.',
+  )
+  assert.equal(buildAnalysis('descriptives', { variables: ['x'], save: false }), 'DESCRIPTIVES /VARIABLES=x /STATISTICS=MEAN STDDEV MINIMUM MAXIMUM.')
+})
+
 
 check('the reported version is re-read even when mtime does not change', async () => {
   // Windows reaches the checkout over SMB, where the cached mtime can lag by
@@ -1038,3 +1063,6 @@ check('the reported version is re-read even when mtime does not change', async (
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+await Promise.all(pending)
+console.log(`\n${checks} checks passed${process.exitCode ? ' (with failures)' : ''}`)

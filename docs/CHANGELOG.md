@@ -1,3 +1,13 @@
+## 0.37.0
+
+两处「引擎有、面板没接」补齐，都是原生语法，不涉及自算：
+
+- **排秩**对话框从「只会算秩」扩到 PSPP `RANK` 的全部八种类型：秩、累计个案数（`N`）、百分位（`PERCENT`）、比例估计（`PROPORTION`）、相对秩（`RFRACTION`）、正态得分（`NORMAL`）、Savage 得分（`SAVAGE`）、分位数（`NTILES(n)`，2/4/5/10/100 可选），外加原有结值处理。新变量名按类型自动取（`r_x`/`n_x`/`p_x`/`prop_x`/`rf_x`/`z_x`/`sv_x`/`q_x`），一次提交可以同时产出多种。工具侧 `pspp_transform` 加 `rankTypes` 与 `ntiles`，认不出的类型名（例如 SPSS 文档里的 `FRACTION`、`SAVY`）直接报错而不是丢给引擎换一个 400。
+- **描述**对话框加「将标准化值另存为变量（Z<变量名>）」，发 `DESCRIPTIVES … /SAVE`。当表因为中位数/众数/百分位要改走 `FREQUENCIES` 时，`/SAVE` 无法挂在同一条语句上，于是单独发一条 `DESCRIPTIVES /VARIABLES=… /SAVE.` 放在前面，两类输出都不丢。工具侧 `pspp_analyze` 的 `descriptives` 收 `save`。
+- 测试：`test/build.mjs` 加两条（八种秩类型与拒绝非法名、描述保存的两种语句形态）；`test/client.mjs` 加一条（对话框 build 的输出与 `persist`）；`test/smoke.mjs` 加真引擎一条：`DESCRIPTIVES /SAVE` 后字典里出现 `Zx`，`RANK` 八种类型跑完变量 `rx/p_x/z_x/sv_x/q_x` 全部落盘。顺手修 `test/build.mjs` 末尾的汇总行：它原来在几条 `check()` 之前打印，导致断言数永远少 3 条、且 `0 passed` 也能退出 0。
+
+全量 `npm test` exit 0 / **352 条断言 / 24 套件**（`test/build.mjs` 85 条）。
+
 ## 0.36.0
 
 缺失值这一块 PSPP 2.1.3 是空的（`MVA is not yet implemented`、`RMV is not yet implemented`），所以这两个功能完全由插件从手上那份数据集算：

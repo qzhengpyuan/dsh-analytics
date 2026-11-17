@@ -1,6 +1,6 @@
 # dsh-analytics 功能说明
 
-> 版本 0.36.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 版本 0.37.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
 > 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
 > **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 23 个 agent 工具，让模型能在对话里直接分析、转换、画图。这些工具不再是「装了插件就有」，而是挂在插件自带的「数据分析」Agent 预设里（见 §9）。
 
@@ -236,8 +236,10 @@ SPSS 每打开一个文件就多一个数据编辑器窗口；这里对应「多
 | 自动重新编码… | `AUTORECODE VARIABLES=源 /INTO 目标.` + `EXECUTE.`（字符串分类转连续编号，PSPP 会把值标签一并带过去） |
 | 汇总… | `AGGREGATE /OUTFILE=* MODE=ADDVARIABLES /BREAK=… /目标=函数(变量).`（函数 MEAN/SUM/MAX/MIN/COUNT） |
 | 计数… | `COUNT 目标 = 变量… (值).`（目标变量名会做合法性校验） |
-| 排秩… | `RANK VARIABLES=x /RANK INTO 目标 /TIES=MEAN|LOW|HIGH.`（目标名默认 `r_<变量>`） |
+| 排秩… | `RANK VARIABLES=x /RANK INTO r_x /PERCENT INTO p_x /NORMAL INTO z_x /SAVAGE INTO sv_x /NTILES(4) INTO q_x /TIES=MEAN|LOW|HIGH.`（八种秩类型任选，新变量名 `r_/n_/p_/prop_/rf_/z_/sv_/q_<变量>`；PSPP 的写法是 `RFRACTION`，没有 `FRACTION` 与 `SAVY`） |
 | 替换缺失值… | 不发语法：PSPP 2.1.3 没有 `RMV`，三种方法（序列平均值 / 线性趋势 / 临近点）由插件从该变量自己的值算，写完进数据集算一步撤销（0.36.0） |
+
+「描述」里勾「将标准化值另存为变量」时发 `DESCRIPTIVES /VARIABLES=… /SAVE`（生成 `Z<变量名>`）；表要经过 `FREQUENCIES`（要中位数/众数/百分位）时，`/SAVE` 单独成一条语句放在前面——`FREQUENCIES` 没有这个子命令。
 
 以上都会**写回工作文件**。
 

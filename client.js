@@ -1779,19 +1779,24 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             { key: 'median', label: '中位数' },
             { key: 'mode', label: '众数' },
             { key: 'sum', label: '总和' },
+            { key: 'save', label: '将标准化值另存为变量（Z<变量名>）' },
           ] },
         ],
         build: (v, flags) => {
           const stats = mapKeys(onKeys(flags, 'statistics'), {
             mean: 'MEAN', std: 'STDDEV', min: 'MINIMUM', max: 'MAXIMUM', semean: 'SEMEAN', variance: 'VARIANCE',
             range: 'RANGE', skew: 'SKEWNESS', seskew: 'SESKEWNESS', kurt: 'KURTOSIS', sekurt: 'SEKURTOSIS',
-            median: 'MEDIAN', mode: 'MODE', sum: 'SUM',
+            median: 'MEDIAN', mode: 'MODE', sum: 'SUM', save: '',
           })
           const variables = v.vars.join(' ')
           const wanted = String(v.percentiles ?? '').trim().split(/[\s,]+/).filter(Boolean)
           // DESCRIPTIVES rejects MEDIAN/MODE, so either one (or a percentile
           // list) sends the same request through FREQUENCIES without the table.
           const freqOnly = stats.filter((name) => name === 'MEDIAN' || name === 'MODE')
+          // /SAVE only exists on DESCRIPTIVES, so the Z variables are asked for
+          // in their own statement when the table has to go through FREQUENCIES.
+          const save = flags?.statistics?.save === true
+          const zScores = save ? `DESCRIPTIVES /VARIABLES=${variables} /SAVE.\n` : ''
           if (wanted.length || freqOnly.length > 0) {
             const merged = [...new Set([...stats, 'MEDIAN'])]
             for (const token of wanted) {
@@ -1799,10 +1804,15 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             }
             const suffix = wanted.length > 0 ? ` /PERCENTILES=${wanted.join(' ')}` : ''
             return {
-              syntax: `FREQUENCIES /VARIABLES=${variables} /FORMAT=NOTABLE /STATISTICS=${merged.join(' ')}${suffix}.`,
+              syntax: `${zScores}FREQUENCIES /VARIABLES=${variables} /FORMAT=NOTABLE /STATISTICS=${merged.join(' ')}${suffix}.`,
+              persist: save,
             }
           }
-          return { syntax: `DESCRIPTIVES /VARIABLES=${variables}${stats.length ? ` /STATISTICS=${stats.join(' ')}` : ''}.` }
+          const statList = stats.filter((name) => name !== 'SAVE')
+          return {
+            syntax: `DESCRIPTIVES /VARIABLES=${variables}${statList.length ? ` /STATISTICS=${statList.join(' ')}` : ''}${save ? ' /SAVE' : ''}.`,
+            persist: save,
+          }
         },
       },
       crosstabs: {
@@ -1988,11 +1998,29 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       },
       rank: {
         title: '排秩',
+        hint: 'PSPP 的 RANK 支持 RANK / N / PERCENT / PROPORTION / RFRACTION / NORMAL / SAVAGE / NTILES；新变量名按类型自动取，避免重名时再改一次。',
         fields: [
           { key: 'variable', kind: 'single', label: '排序变量', required: true, accept: 'numeric' },
           { key: 'target', kind: 'text', label: '秩变量名', placeholder: 'rx', default: 'rx' },
         ],
         groups: [
+          { key: 'types', title: '秩类型', items: [
+            { key: 'rank', label: '秩（RANK）', default: true },
+            { key: 'n', label: '累计个案数（N）' },
+            { key: 'percent', label: '百分位（PERCENT）' },
+            { key: 'proportion', label: '比例估计（PROPORTION）' },
+            { key: 'rfraction', label: '相对秩（RFRACTION）' },
+            { key: 'normal', label: '正态得分（NORMAL）' },
+            { key: 'savage', label: 'Savage 得分（SAVAGE）' },
+            { key: 'ntiles', label: '分位数（NTILES）', kind: 'select', default: '0', options: [
+              ['0', '不做'],
+              ['2', '2 分位（中位数）'],
+              ['4', '4 分位'],
+              ['5', '5 分位'],
+              ['10', '10 分位'],
+              ['100', '100 分位'],
+            ] },
+          ] },
           { key: 'ties', title: '结值处理', items: [
             { key: 'mean', label: '平均值（默认）', default: true },
             { key: 'low', label: '低值' },
@@ -2000,9 +2028,23 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
           ] },
         ],
         build: (v, flags) => {
-          const target = String(v.target ?? '').trim() || `r_${v.variable}`
+          const name = String(v.variable ?? '')
+          const base = name.replace(/[^A-Za-z0-9_]/g, '_')
+          const target = String(v.target ?? '').trim() || `r_${base}`
           const ties = flags?.ties?.low ? 'LOW' : flags?.ties?.high ? 'HIGH' : 'MEAN'
-          return { syntax: `RANK VARIABLES=${v.variable} /RANK INTO ${target} /TIES=${ties}.`, persist: true }
+          const on = (key, fallback = false) => (flags?.types?.[key] === undefined ? fallback : flags.types[key] === true)
+          const parts = []
+          if (on('rank', true)) parts.push(`/RANK INTO ${target}`)
+          if (on('n')) parts.push(`/N INTO n_${base}`)
+          if (on('percent')) parts.push(`/PERCENT INTO p_${base}`)
+          if (on('proportion')) parts.push(`/PROPORTION INTO prop_${base}`)
+          if (on('rfraction')) parts.push(`/RFRACTION INTO rf_${base}`)
+          if (on('normal')) parts.push(`/NORMAL INTO z_${base}`)
+          if (on('savage')) parts.push(`/SAVAGE INTO sv_${base}`)
+          const ntiles = Number(flags?.types?.ntiles ?? 0)
+          if (Number.isFinite(ntiles) && ntiles >= 2) parts.push(`/NTILES(${Math.round(ntiles)}) INTO q_${base}`)
+          if (parts.length === 0) return { error: '至少勾一种秩类型' }
+          return { syntax: `RANK VARIABLES=${name} ${parts.join(' ')} /TIES=${ties}.`, persist: true }
         },
       },
       tpaired: {

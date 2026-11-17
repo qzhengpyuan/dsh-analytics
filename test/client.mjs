@@ -1639,3 +1639,27 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.equal(fallback.missing.method, 'mean', 'the method falls back to the series mean')
   console.log('ok  the missing-value dialogs hand the work to the host, not the engine')
 }
+
+// 排秩的秩类型与「描述」的标准化值（0.37.0）：PSPP 的 RANK 有八种，名字不能拍脑袋写。
+{
+  const specs = hooks.ANALYSIS_SPECS
+  const rank = specs.rank
+  const defaultRank = rank.build({ variable: 'x' }, null)
+  assert.equal(defaultRank.syntax, 'RANK VARIABLES=x /RANK INTO r_x /TIES=MEAN.')
+  assert.equal(defaultRank.persist, true)
+  const many = rank.build({ variable: 'x', target: '' }, {
+    types: { rank: true, percent: true, normal: true, ntiles: '4' },
+    ties: { mean: true },
+  })
+  assert.equal(many.syntax, 'RANK VARIABLES=x /RANK INTO r_x /PERCENT INTO p_x /NORMAL INTO z_x /NTILES(4) INTO q_x /TIES=MEAN.')
+  assert.equal(rank.build({ variable: 'x' }, { types: { rank: false } }).error, '至少勾一种秩类型')
+
+  const desc = specs.descriptives
+  const withSave = desc.build({ vars: ['x'] }, { statistics: { mean: true, std: true, save: true } })
+  assert.match(withSave.syntax, /DESCRIPTIVES \/VARIABLES=x \/STATISTICS=MEAN STDDEV \/SAVE\.$/)
+  assert.equal(withSave.persist, true, 'saving Z scores writes the data file, so the run must persist')
+  const plain = desc.build({ vars: ['x'] }, { statistics: { mean: true } })
+  assert.equal(plain.persist, false, 'nothing is written back when the box is off')
+  assert.equal(/SAVE/.test(plain.syntax), false, 'no save keyword unless the box is ticked')
+  console.log('ok  the rank dialog offers every type, and descriptives can save Z scores')
+}
