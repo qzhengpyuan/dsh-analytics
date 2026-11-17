@@ -590,6 +590,15 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-row { display:flex; gap:8px; align-items:center; }
 /* 11px 是正文下限：说明文字/状态栏之外不再出现更小的字 */
 .ap-hint { color:var(--ap-text-2); font-size:11px; }
+/* 预设提示条：会话没选「数据分析」预设时，智能体看不到 pspp_* 工具，但面板
+   照常可用。底色从 --ap-accent 混出来（不写死亮色），暗色主题下不会刷白。 */
+.ap-preset-bar { display:flex; align-items:center; gap:8px; flex:none; padding:4px 8px;
+  background:color-mix(in srgb, var(--ap-accent) 12%, var(--ap-panel));
+  border-bottom:1px solid var(--ap-line-2); color:var(--ap-text-2); font-size:11px; }
+.ap-preset-bar-text { flex:1 1 auto; min-width:0; }
+.ap-preset-bar-close { flex:none; background:none; border:1px solid var(--ap-line-2); border-radius:3px;
+  padding:0 6px; font:inherit; font-size:11px; color:var(--ap-text-2); cursor:pointer; }
+.ap-preset-bar-close:hover { background:var(--ap-hover); color:var(--ap-text); }
 .ap-settings { max-width: 640px; display: flex; flex-direction: column; gap: 10px; }
 .ap-settings-title { margin: 0; font-size: 13px; font-weight: 600; }
 .ap-settings-row { display: flex; flex-direction: column; gap: 4px; }
@@ -4702,6 +4711,9 @@ function normalizeChoices(list) {
       globalThis.__AP_TEST_HOOKS__.pathJoin = pathJoin
       globalThis.__AP_TEST_HOOKS__.renameDocTab = renameDocTab
       globalThis.__AP_TEST_HOOKS__.stateOf = stateOf
+      // Declared below this block, but function declarations hoist: the hooks
+      // object is filled while the factory body runs, so the order is safe.
+      globalThis.__AP_TEST_HOOKS__.sessionPreset = sessionPreset
     }
 
     function FileBrowser({ onPick, onClose, initialPath, extra = null, title = '选择文件' }) {
@@ -4802,6 +4814,30 @@ let ITEM_CSV_PENDING = null
       return /[\\/]uploads[\\/]/.test(text) ? basenameOf(text) : text
     }
 
+    // The agent preset the session runs under, as the host projects it. A
+    // session without a preset (or an old host with no `ctx.sessions`) answers
+    // null, and null means "unknown": no banner and nothing disabled, so the
+    // panel behaves exactly as it did before presets existed.
+    function sessionPreset(ctx, sessionId) {
+      try {
+        // Cordis guards `ctx.<service>` behind the plugin's inject list and
+        // throws `cannot get property "sessions" without inject`; `ctx.get` is
+        // the unguarded reader (the same reason the handoff code below uses it
+        // for `sidebarRight`). Falling back to `ctx.sessions` keeps the unit
+        // tests and any host that hands the service to a plugin that did inject.
+        const service = typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined
+        const live = service ?? ctx?.sessions
+        const read = live?.projectionValues
+        if (typeof read !== 'function') return null
+        const value = read.call(live, sessionId)
+        const preset = value?.agentPreset
+        if (typeof preset !== 'string' || preset === '') return null
+        return preset
+      } catch {
+        return null
+      }
+    }
+
     // A dropped file only exists as a copy inside the workspace, so its real
     // location is unknown: name it, say so, and never show the copy's path as
     // if it were the user's own file. An opened file shows its full path.
@@ -4816,6 +4852,13 @@ let ITEM_CSV_PENDING = null
     function App({ ctx, scope, tab, visible = true }) {
       ensureStyle()
       const baseSessionId = scope?.sessionId
+      // The preset this session was created under. The projection snapshot is
+      // cached by the host, so this is a cheap read per render, not a poll; a
+      // preset cannot change inside a live session. null = unknown = say nothing.
+      const presetId = sessionPreset(ctx, baseSessionId)
+      const [presetBannerHidden, setPresetBannerHidden] = useState(() => {
+        try { return window.localStorage?.getItem('ap.hidePresetBanner') === '1' } catch { return false }
+      })
       // SPSS opens a new Data Editor per file. Each sidebar tab owns one
       // workspace: the primary tab uses the session id, extra tabs carry their
       // own `<session>~<n>` in `tab.meta.docId`, so closing a tab keeps the
@@ -6604,6 +6647,20 @@ let ITEM_CSV_PENDING = null
             className: 'ap-tool ap-icon-btn', title: '清除输出', 'aria-label': '清除输出', onClick: () => command('clear'),
           }, apIcon('clear')),
           busy ? h('span', { className: 'ap-hint' }, '处理中…') : null),
+        // Above the document tabs, below the toolbar: a notice, not a
+        // replacement — the panel keeps working without the preset.
+        presetId && presetId !== 'analytics' && !presetBannerHidden
+          ? h('div', { className: 'ap-preset-bar', role: 'status' },
+            h('span', { className: 'ap-preset-bar-text' },
+              tr('本会话没有启用「数据分析」预设：智能体看不到 pspp_* 工具，但面板本身仍可直接操作数据。新建会话时选「数据分析」预设即可同时启用工具。')),
+            h('button', {
+              className: 'ap-preset-bar-close',
+              onClick: () => {
+                try { window.localStorage?.setItem('ap.hidePresetBanner', '1') } catch { /* 存不下就只隐藏这一次 */ }
+                setPresetBannerHidden(true)
+              },
+            }, tr('不再提示')))
+          : null,
         docs.length > 1 || (docs.length === 1 && Boolean(st?.dataset))
           ? h('div', { className: 'ap-doctabs' },
             docs.map((doc) => h('div', {
@@ -7977,6 +8034,14 @@ let ITEM_CSV_PENDING = null
           single: false,
           dedupeKey: (tab) => tab?.meta?.docId ?? 'primary',
           order: 30,
+          // Greyed out in better-sidebar's "+" menu unless the session runs the
+          // 数据分析 preset: without it the agent cannot see the pspp_* tools,
+          // so opening a fresh tab from the menu is the wrong move. null means
+          // the host told us nothing (old host, test context) — stay available.
+          available: (tabCtx, tabScope) => {
+            const value = sessionPreset(tabCtx ?? ctx, tabScope?.sessionId)
+            return value === null || value === 'analytics'
+          },
           onClose: (tab) => {
             const docId = tab?.meta?.docId
             if (!docId) return

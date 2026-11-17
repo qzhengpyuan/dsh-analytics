@@ -170,6 +170,93 @@ assert.equal(hooks.pathJoin('C:\\psppdata\\中文目录', 'new.sav'), 'C:\\psppd
 assert.equal(hooks.pathJoin('C:\\', 'a.sav'), 'C:\\a.sav', 'joining at a drive root keeps one separator')
 assert.equal(hooks.pathJoin('/tmp/数据', 'a.sav'), '/tmp/数据/a.sav')
 
+// Agent preset (0.47.0): the panel works without the 数据分析 preset, but the
+// agent cannot see the pspp_* tools, so the panel says so and better-sidebar
+// greys the "+" entry out. The only source is the host projection; anything it
+// cannot answer is "unknown" and must change nothing.
+assert.equal(hooks.sessionPreset({ sessions: { projectionValues: () => ({ agentPreset: 'analytics' }) } }, 's1'), 'analytics')
+assert.equal(hooks.sessionPreset({ sessions: { projectionValues: () => ({}) } }, 's1'), null,
+  'a projection without agentPreset is unknown')
+assert.equal(hooks.sessionPreset({ sessions: { projectionValues: () => { throw new Error('x') } } }, 's1'), null,
+  'a throwing service is unknown, not fatal')
+assert.equal(hooks.sessionPreset({ sessions: { projectionValues: () => ({ agentPreset: '' }) } }, 's1'), null,
+  'an empty preset id is unknown')
+assert.equal(hooks.sessionPreset(undefined, 's1'), null, 'no ctx is unknown')
+assert.equal(hooks.sessionPreset({}, 's1'), null, 'no ctx.sessions is unknown')
+// Cordis refuses `ctx.sessions` for a plugin that did not inject it, so the
+// real host is reached through `ctx.get('sessions')`; without this the banner
+// would be dead code in the browser while every unit test still passed.
+assert.equal(
+  hooks.sessionPreset({ get: (name) => (name === 'sessions' ? { projectionValues: () => ({ agentPreset: 'other' }) } : undefined) }, 's1'),
+  'other',
+  'the unguarded ctx.get reader finds the projection service',
+)
+assert.equal(
+  hooks.sessionPreset({
+    get: () => undefined,
+    sessions: { projectionValues: () => ({ agentPreset: 'analytics' }) },
+  }, 's1'),
+  'analytics',
+  'a host that hands the service over still works',
+)
+assert.equal(
+  hooks.sessionPreset({ get: () => ({ projectionValues: () => { throw new Error('boom') } }) }, 's1'),
+  null,
+  'a throwing projection service through ctx.get is unknown, not fatal',
+)
+
+const tabDefinition = registered.tabs[0]
+assert.equal(typeof tabDefinition.available, 'function', 'better-sidebar can grey the + entry out')
+const availableWith = (preset) => tabDefinition.available(
+  { sessions: { projectionValues: () => (preset === undefined ? undefined : { agentPreset: preset }) } },
+  { sessionId: 's1' },
+)
+assert.equal(availableWith('analytics'), true, 'the panel stays available under its own preset')
+assert.equal(availableWith('other'), false, 'another preset greys the + entry out')
+assert.equal(availableWith(undefined), true, 'an unknown preset leaves the menu unchanged')
+assert.equal(tabDefinition.available({}, { sessionId: 's1' }), true, 'an old host without ctx.sessions stays available')
+
+// The notice bar: present (and still a working panel) on another preset, absent
+// under the right one, and dismissible for good.
+const mountWithPreset = async (preset) => {
+  const panelCtx = makeContext()
+  // null stands for a host that cannot answer at all: no ctx.sessions.
+  if (preset !== null) panelCtx.sessions = { projectionValues: () => ({ agentPreset: preset }) }
+  const host = window.document.createElement('div')
+  window.document.body.appendChild(host)
+  const root = createRoot(host)
+  await act(async () => {
+    root.render(React.createElement(tabDefinition.component, { ...props, ctx: panelCtx }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+  return { host, root }
+}
+
+const otherPreset = await mountWithPreset('other')
+const presetBar = otherPreset.host.querySelector('.ap-preset-bar')
+assert.ok(presetBar, 'a session on another preset gets the notice bar, not a blank panel')
+assert.match(presetBar.textContent, /数据分析/, 'the notice names the preset')
+assert.match(presetBar.textContent, /pspp_\*/, 'and says what the agent loses')
+assert.match(otherPreset.host.textContent, /分析/, 'the panel itself still renders')
+await act(async () => { presetBar.querySelector('.ap-preset-bar-close').click() })
+assert.equal(otherPreset.host.querySelector('.ap-preset-bar'), null, 'the dismiss button hides the bar')
+assert.equal(window.localStorage.getItem('ap.hidePresetBanner'), '1', 'and remembers the choice')
+await act(async () => { otherPreset.root.unmount() })
+otherPreset.host.remove()
+window.localStorage.removeItem('ap.hidePresetBanner')
+
+const rightPreset = await mountWithPreset('analytics')
+assert.equal(rightPreset.host.querySelector('.ap-preset-bar'), null, 'the right preset gets no notice')
+await act(async () => { rightPreset.root.unmount() })
+rightPreset.host.remove()
+
+const unknownPreset = await mountWithPreset(null)
+assert.equal(unknownPreset.host.querySelector('.ap-preset-bar'), null, 'an unknown preset (old host) says nothing')
+await act(async () => { unknownPreset.root.unmount() })
+unknownPreset.host.remove()
+console.log('ok  the session preset drives the notice bar and the + menu availability')
+
+
 // Table layout edits: three-line tables need a wider first column, a rewritten
 // header and the note line under the table.
 const edited = hooks.matrixHtml(
@@ -1797,4 +1884,17 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   const only = regression.build({ dep: 'y', ind: ['x1'] }, { statistics: { tol: false, influence: true } })
   assert.notEqual(only.regression, null, 'influence alone still needs the hint, even with tolerance off')
   console.log('ok  the regression dialog carries the influence switch next to the syntax')
+}
+
+// The preset notice is one whole sentence, so it needs a whole-key entry in the
+// English dictionary; the substring rule alone would leave it Chinese.
+{
+  const dict = JSON.parse(readFileSync(join(root, 'locale', 'en.json'), 'utf8')).strings
+  const notice = '本会话没有启用「数据分析」预设：智能体看不到 pspp_* 工具，但面板本身仍可直接操作数据。新建会话时选「数据分析」预设即可同时启用工具。'
+  hooks.setDictionary(dict)
+  assert.match(hooks.tr(notice), /not using the Data Analysis preset/, 'the notice has an English sentence')
+  assert.equal(hooks.tr(notice).includes('数据分析'), false, 'and no Chinese is left in it')
+  assert.equal(hooks.tr('不再提示'), "Don't show again", 'the dismiss button is translated too')
+  hooks.setDictionary(null)
+  console.log('ok  the preset notice and its dismiss button are in the English dictionary')
 }

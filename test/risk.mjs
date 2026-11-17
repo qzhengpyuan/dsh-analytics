@@ -1,5 +1,5 @@
 import assert from 'node:assert'
-import { describeRiskDifference, normalQuantile, riskDifferenceCi, wilsonInterval } from '../lib/risk.js'
+import { describeRiskDifference, describeRiskMirror, normalQuantile, riskDifferenceCi, wilsonInterval } from '../lib/risk.js'
 import { dropRiskOnStrings } from '../lib/workspace.js'
 
 let checks = 0
@@ -118,7 +118,45 @@ check('RISK is kept away from a string grouping variable, which crashes PSPP', (
   assert.equal(dropRiskOnStrings('CROSSTABS /TABLES=g BY wave /STATISTICS=RISK.', null), null)
 })
 
+check('the note names the event column and both rows, not just row numbers', () => {
+  // PSPP's own Risk Estimate is per column ("For cohort wave = 1"), so a note
+  // that said "第 1 行 / 第一列" looked like the difference was computed backwards.
+  const text = describeRiskDifference(riskDifferenceCi(56, 70, 48, 80, 0.95), {
+    event: { name: 'wave', value: '1', label: '第一波' },
+    other: { name: 'wave', value: '2', label: '第二波' },
+    rows: [{ value: '1', label: '男' }, { value: '2', label: '女' }],
+  })
+  assert.match(text, /事件列 = wave=1「第一波」/)
+  assert.match(text, /第 1 行（男） − 第 2 行（女）/)
+  assert.match(text, /把事件列换成 wave=2「第二波」时差值是相反数，区间关于 0 对称/)
+  // The label must not be swallowed by the old free-form wording.
+  assert.doesNotMatch(text, /第一列的事件/)
+})
+
+check('missing category labels fall back to the column and row positions', () => {
+  const text = describeRiskDifference(riskDifferenceCi(56, 70, 48, 80, 0.95), { event: {}, rows: [{}, {}] })
+  assert.match(text, /事件列 = 第 1 列/)
+  assert.match(text, /第 1 行 − 第 2 行/)
+  assert.doesNotMatch(text, /事件列 = 第 1 列；第 1 行（/)
+  // No options at all still returns the legacy sentence instead of throwing.
+  const bare = describeRiskDifference(riskDifferenceCi(56, 70, 48, 80, 0.95))
+  assert.match(bare, /第 1 行 − 第 2 行/)
+  assert.equal(describeRiskMirror(null), null)
+  assert.match(describeRiskMirror({}), /另一列/)
+})
+
+check('the numbers keep the decimal places the note already used', () => {
+  const text = describeRiskDifference(riskDifferenceCi(56, 70, 48, 80, 0.95), {
+    event: { name: 'wave', value: '1', label: '第一波' },
+    rows: [{ value: '1', label: '男' }, { value: '2', label: '女' }],
+  })
+  assert.match(text, /= 0\.200（0\.800 − 0\.600）/)
+  assert.match(text, /95% 置信区间 0\.052 ~ 0\.334/)
+  // No stray higher precision anywhere in the sentence.
+  assert.doesNotMatch(text, /\d\.\d{4,}/)
+})
+
 Promise.all(pending).then(() => {
   console.log(`\n${checks} checks passed in test/risk.mjs`)
-  if (checks < 6) process.exitCode = 1
+  if (checks < 9) process.exitCode = 1
 })
