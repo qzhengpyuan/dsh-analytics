@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { buildAnalysis, buildTransform, buildChart, analysisExtras, itemsForAgent } from '../lib/tools.js'
 import { computeBar, computeHistogram, computeScatter, computeBox, computeLine, computePie, computeDualLine, renderSvg, buildChartModel, tCritical95, studentTwoSidedP, welchTest, significanceLabel } from '../lib/charts.js'
-import { decodeText, guessDelimiter, importDelimited, parseMissingValues, writeSav } from '../lib/dataset.js'
+import { decodeText, guessDelimiter, importDelimited, parseMissingValues, readDictionary, writeSav } from '../lib/dataset.js'
 import { stringifyCsv } from '../lib/csv.js'
 import { describeFsError, describeEngineError } from '../lib/fserr.js'
 import { sanitizeTableHtml } from '../lib/html.js'
@@ -1109,6 +1109,32 @@ check('a two-factor GLM keeps the interaction in the design and hands over the c
   // A single factor keeps the ONEWAY path: no extra table, engine prints it.
   assert.deepEqual(analysisExtras('glm', { variables: ['y'], factors: ['a'], contrasts: [[2, -1, -1]] }), {})
   assert.match(buildAnalysis('glm', { variables: ['y'], factors: ['a'], contrasts: [[2, -1, -1]] }), /ONEWAY y BY a \/CONTRAST=2 -1 -1\.$/)
+})
+
+check('value labels survive labels that collapse to ?????? in a Windows code page', async () => {
+  // The value-labels table names a variable by its label when it has one; on a
+  // cp1252 Windows build every Chinese label prints as ??????, so three
+  // variables share the same text. The first unmatched one must win.
+  const csv = [
+    'Table: Variables',
+    'Name,Position,Label,Measurement Level,Role,Width,Alignment,Print Format,Write Format',
+    'gender,1,??????,Nominal,Input,1,Left,A1,A1',
+    'age,2,??????,Scale,Input,8,Right,F8.0,F8.0',
+    'score,3,??????,Scale,Input,8,Right,F8.0,F8.0',
+    '',
+    'Table: Value Labels',
+    'Variable Value,,Label',
+    '??????,F,Female',
+    ',M,Male',
+    '',
+  ].join('\n')
+  const variables = await readDictionary(async () => ({ code: 0, stderr: '', outputText: csv }), 'x.sav')
+  assert.deepEqual(variables.find((variable) => variable.name === 'gender').valueLabels, { F: 'Female', M: 'Male' })
+  assert.deepEqual(variables.find((variable) => variable.name === 'age').valueLabels, {})
+  // A block that names variables by their names still resolves.
+  const named = csv.replace('??????,F,Female', 'gender,F,Female')
+  const again = await readDictionary(async () => ({ code: 0, stderr: '', outputText: named }), 'x.sav')
+  assert.deepEqual(again.find((variable) => variable.name === 'gender').valueLabels, { F: 'Female', M: 'Male' })
 })
 
 check('CMH is stripped from the syntax but remembered as requested', async () => {
