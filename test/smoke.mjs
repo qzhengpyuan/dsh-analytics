@@ -551,4 +551,26 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('duplicate indicators survive work.sav:', report.created.join(', '))
 }
 
+// ---- outlier indicators have to survive the trip through work.sav ---------
+{
+  const ws = new Workspace({ id: 'smoke41', engine, root, config: { timeoutMs: 60000 } })
+  await ws.init()
+  await ws.createDataset({
+    variables: [
+      { name: 'score', type: 'numeric', width: 8, decimals: 1 },
+      { name: 'grp', type: 'string', width: 4 },
+    ],
+    rows: [[5, 'a'], [5, 'a'], [5, 'b'], [5, 'b'], [5, 'a'], [5, 'b'], [100, 'a'], [5, 'b']],
+  })
+  await ws.runSyntax('EXECUTE.')
+  const report = ws.identifyOutliers({ variables: ['score'], percentiles: [10, 90], indicators: true })
+  assert.equal(report.flagged, 1, 'one case sits outside the band')
+  assert.equal(report.hits, 1)
+  assert.deepEqual(report.created, ['outlier', 'outlierN'])
+  const ran = await ws.runSyntax('DESCRIPTIVES /VARIABLES=outlier outlierN.')
+  assert.equal(ran.diagnostics.filter((entry) => entry.severity === 'error').length, 0, 'the indicator columns reach the engine')
+  assert.ok(/outlierN/.test(JSON.stringify(ran.items)), 'and the descriptives table lists them')
+  console.log('outlier indicators survive work.sav:', report.created.join(', '))
+}
+
 await rm(root, { recursive: true, force: true })

@@ -1677,6 +1677,21 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   console.log('ok  the duplicate dialog sends key variables only, with the indicators on by default')
 }
 
+// 标识异常个案：对话框要能把百分位带传到宿主（0.41.0）。
+{
+  const spec = hooks.ANALYSIS_SPECS.outliers
+  const plain = spec.build({ variables: ['score'] }, { options: { percentiles: '5,95', indicators: true } })
+  assert.deepEqual(plain.outliers, { variables: ['score'], percentiles: [5, 95], indicators: true })
+  assert.equal(plain.syntax, undefined, 'nothing goes to the engine: PSPP has no unusual-case command')
+  const wide = spec.build({ variables: [] }, { options: { percentiles: '1,99', indicators: false } })
+  assert.deepEqual(wide.outliers.percentiles, [1, 99], 'the picked band reaches the host as two numbers')
+  assert.deepEqual(wide.outliers.variables, [], 'no variables means every numeric one')
+  assert.equal(wide.outliers.indicators, false)
+  const fallback = spec.build({ variables: ['score'] }, undefined)
+  assert.deepEqual(fallback.outliers.percentiles, [5, 95], 'the default band is 5 to 95')
+  console.log('ok  the outlier dialog carries the percentile band, and the indicators default off')
+}
+
 // GLM 的事后检验：面板要能选，构建时走 ONEWAY 那条线（0.38.0）。
 {
   const glm = hooks.ANALYSIS_SPECS.glm

@@ -2537,6 +2537,34 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
           },
         }),
       },
+      outliers: {
+        title: '标识异常个案',
+        hint: '先界定「异常」的口径再点确定：插件对每个选中的变量取它自己的百分位界值，落在带外的取值就算越界（PSPP 没有这条命令，这一步在宿主侧算）。留空变量表示所有数值变量。勾了「创建指示变量」会新增 outlier（1 = 至少一个变量越界）与 outlierN（越界的变量个数），随后可用「数据 → 选择个案」按 outlier = 1 筛出这些个案。',
+        fields: [
+          { key: 'variables', kind: 'multi', label: '要检查的变量（留空用全部数值变量）' },
+        ],
+        groups: [
+          { key: 'options', title: '选项', items: [
+            { key: 'percentiles', label: '界值（百分位带）', kind: 'select', default: '5,95', choices: [
+              ['5,95', '第 5 与第 95 百分位（默认）'],
+              ['10,90', '第 10 与第 90 百分位'],
+              ['2.5,97.5', '第 2.5 与第 97.5 百分位'],
+              ['1,99', '第 1 与第 99 百分位'],
+            ] },
+            { key: 'indicators', label: '创建指示变量（outlier / outlierN）', default: true },
+          ] },
+        ],
+        build: (v, flags) => {
+          const pair = String(flags?.options?.percentiles ?? '5,95').split(',').map((part) => Number(part.trim()))
+          return {
+            outliers: {
+              variables: Array.isArray(v?.variables) ? v.variables : [],
+              percentiles: pair.filter((value) => Number.isFinite(value)),
+              indicators: flags?.options?.indicators === true,
+            },
+          }
+        },
+      },
       casesToVars: {
         title: '个案转变量',
         fields: [
@@ -5260,6 +5288,27 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId, loadRows, rows.length])
 
+      const runOutliers = useCallback(async (payload, title) => {
+        setBusy(true)
+        try {
+          const value = await api('api/outliers', { sessionId, ...payload })
+          setSt(stateOf(value))
+          const result = value.result ?? {}
+          if ((result.created ?? []).length > 0) {
+            const page = await loadRows(0, Math.max(500, rows.length))
+            setRows(page.rows)
+            setTotal(page.total)
+          }
+          const band = `${result.lowPercent ?? 5}%–${result.highPercent ?? 95}%`
+          notify(`${title ?? '标识异常个案'}：按 ${band} 界值查出 ${result.hits ?? 0} 处越界、落在 ${result.flagged ?? 0} 个个案上${(result.created ?? []).length ? `；已新增 ${result.created.join('、')}` : ''}`)
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId, loadRows, rows.length])
+
       const runMissing = useCallback(async (payload, title) => {
         setBusy(true)
         try {
@@ -6115,7 +6164,7 @@ let ITEM_CSV_PENDING = null
               { label: '按关键变量合并…', action: () => setDialog({ kind: 'merge', mode: 'match', path: '', by: '' }) },
             ] },
             { label: '标识重复个案…', action: () => runAnalysis('duplicates') },
-            { label: '标识异常个案…', action: () => notify('标识异常个案还没有实现：它要按变量类型选距离度量（连续变量用马氏距离、分类变量用频次比），PSPP 也没有这条命令。眼下可以先看「描述」里的极值与「探索」的箱线图离群点') },
+            { label: '标识异常个案…', action: () => runAnalysis('outliers') },
           ],
         },
         {
@@ -6803,6 +6852,10 @@ let ITEM_CSV_PENDING = null
               }
               if (built?.duplicates) {
                 await runDuplicates(built.duplicates, spec?.title)
+                return
+              }
+              if (built?.outliers) {
+                await runOutliers(built.outliers, spec?.title)
                 return
               }
               if (built?.missing) {

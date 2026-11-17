@@ -702,6 +702,45 @@ let reportOnly = r.json()
 console.log('a report-only run adds no columns', r.code === 200, (reportOnly.result?.created ?? []).length === 0,
   (reportOnly.state?.dataset?.variables ?? []).length === dupNames.length)
 
+// Identify unusual cases: percentile bands, and the two indicator columns.
+await seed('out01', [
+  { g: 'M', wave: 1, score: 5 }, { g: 'M', wave: 2, score: 5 },
+  { g: 'F', wave: 1, score: 5 }, { g: 'F', wave: 2, score: 5 },
+  { g: 'M', wave: 1, score: 5 }, { g: 'M', wave: 2, score: 5 },
+  { g: 'F', wave: 1, score: 100 }, { g: 'F', wave: 2, score: 5 },
+])
+r = await call('POST', `${base}/api/outliers`, { sessionId: 'out01', variables: ['score'], percentiles: [10, 90], indicators: true })
+let outRes = r.json()
+console.log('identify outliers flags the tail and reports the band', r.code === 200, outRes.result?.flagged === 1,
+  outRes.result?.hits === 1, outRes.result?.lowPercent === 10)
+let outTitles = (outRes.state?.items ?? []).map((item) => item.title ?? '')
+console.log('both tables reach the output panel', outTitles.includes('标识异常个案：变量界值（插件计算）'),
+  outTitles.includes('标识异常个案：越界的个案（插件计算）'))
+let outNames = (outRes.state?.dataset?.variables ?? []).map((variable) => variable.name)
+console.log('the indicator variables become real columns', (outRes.result?.created ?? []).length === 2,
+  outNames.includes('outlier') && outNames.includes('outlierN'), JSON.stringify(outNames))
+let outPage = r.code === 200 ? (await call('POST', `${base}/api/rows`, { sessionId: 'out01', offset: 0, limit: 500 })).json().page : { rows: [] }
+let anyColumn = outNames.indexOf('outlier')
+let countColumn = outNames.indexOf('outlierN')
+let anyValues = (outPage.rows ?? []).map((row) => row[anyColumn])
+let countValues = (outPage.rows ?? []).map((row) => row[countColumn])
+console.log('exactly the seventh case is flagged', JSON.stringify(anyValues) === '[0,0,0,0,0,0,1,0]', JSON.stringify(anyValues))
+console.log('its count column says how many variables it is out on', countValues[6] === 1, JSON.stringify(countValues))
+
+// Report only: no columns, and the dataset stays as clean as it was.
+r = await call('POST', `${base}/api/outliers`, { sessionId: 'out01', variables: ['score'] })
+let outReport = r.json()
+console.log('a report-only run adds no columns', r.code === 200, (outReport.result?.created ?? []).length === 0,
+  (outReport.state?.dataset?.variables ?? []).length === outNames.length)
+// A string variable has no percentile band; the table says so instead of printing NaN.
+r = await call('POST', `${base}/api/outliers`, { sessionId: 'out01', variables: ['g'] })
+let outString = r.json()
+// The session already holds earlier runs, so read the table this call appended.
+let outSummary = (outString.state?.items ?? []).filter((item) => (item.title ?? '') === '标识异常个案：变量界值（插件计算）').at(-1)
+let outBoundRow = (outSummary?.table?.matrix ?? []).find((row) => row[0] === '组') ?? []
+console.log('a string variable is reported as unbounded, not as NaN', r.code === 200, outBoundRow[2] === '·',
+  (outSummary?.table?.notes ?? []).some((note) => note.includes('没有计算界值')), JSON.stringify(outBoundRow))
+
 // Replacing: the fill is one undo step and it reaches the grid's rows.
 r = await call('POST', `${base}/api/missing`, { sessionId: 'mva01', mode: 'replace', variables: ['score'], method: 'linear' })
 let fill = r.json()
@@ -712,7 +751,7 @@ console.log('replace missing values fills and reports the count', r.code === 200
 
 for (const id of ['mva01']) await call('POST', `${base}/api/close`, { sessionId: id })
 
-for (const id of ['pivot01', 'pivot02', 'dup01']) await call('POST', `${base}/api/close`, { sessionId: id })
+for (const id of ['pivot01', 'pivot02', 'dup01', 'out01']) await call('POST', `${base}/api/close`, { sessionId: id })
 
 r = await call('POST', `${base}/api/close`, { sessionId: 'pivot01' })
 
