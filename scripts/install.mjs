@@ -18,6 +18,7 @@ import { createHash } from 'node:crypto'
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const REPO = 'qzhengpyuan/dsh-analytics'
 const argv = process.argv.slice(2)
@@ -47,8 +48,6 @@ function pickProfile() {
   if (found.length === 0) return 'web'
   throw new Error(`这个机器上有多个 profile（${found.join('、')}），请指明要装进哪一个：node scripts/install.mjs <profile> --apply`)
 }
-
-const PROFILE = pickProfile()
 
 function token() {
   for (const name of ['GITHUB_TOKEN', 'GH_TOKEN']) {
@@ -91,7 +90,24 @@ function sha256(buffer) {
 
 let workDir = null
 
+function suffixOf(name) { return (name.match(/-(\w+-\w+)\.tgz$/) ?? [])[1] ?? null }
+
+// Releases carry one tarball per platform (`-linux-x64`, `-win32-x64`, …) from
+// 0.32 on, and one plain name before that. A platform-suffixed tarball carries
+// that platform's engine binary, so falling back to whatever came first would
+// install a plugin whose engine cannot start at all: refuse instead.
+export function pickTarball(candidates, platform = process.platform, arch = process.arch) {
+  const wanted = `-${platform}-${arch}.tgz`
+  const exact = candidates.find((asset) => asset.name.endsWith(wanted))
+  if (exact) return exact
+  const legacy = candidates.filter((asset) => suffixOf(asset.name) === null)
+  if (legacy.length > 0) return legacy[0]
+  const have = candidates.map((asset) => suffixOf(asset.name) ?? '通用').join('、')
+  throw new Error(`这个发布没有 ${platform}-${arch} 的包，只有 ${have}。引擎是按平台打包的，请在对应平台上安装；如果本机就是这个平台，可以在源码目录里跑 npm run pack 自己打一份（需要 engine/${platform}-${arch}）。`)
+}
+
 async function main() {
+  const PROFILE = pickProfile()
   const work = mkdtempSync(join(tmpdir(), 'dsh-analytics-install-'))
   workDir = work
   let tgz
@@ -113,8 +129,7 @@ async function main() {
     // it is there, and fall back to whatever the release does have.
     const candidates = release.assets.filter((asset) => new RegExp(`^dsh-analytics-${version.replace(/\./g, '\\.')}(?:-[a-z0-9-]+)?\\.tgz$`).test(asset.name))
     if (candidates.length === 0) throw new Error(`${release.tag_name} 没有挂 dsh-analytics-${version}*.tgz（资产：${release.assets.map(a => a.name).join(', ') || '无'}）`)
-    const platformSuffix = `-${process.platform}-${process.arch}`
-    const tarball = candidates.find((asset) => asset.name.endsWith(`${platformSuffix}.tgz`)) ?? candidates[0]
+    const tarball = pickTarball(candidates, process.platform, process.arch)
     tgz = join(work, tarball.name)
     const buffer = await download(tarball, tgz)
     const digest = sha256(buffer)
@@ -163,7 +178,9 @@ async function main() {
   console.log('检查：新建会话时预设选择器里应出现「数据分析」')
 }
 
-main()
+const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
+if (invokedDirectly) {
+  main()
   .catch((error) => {
     console.error(`install failed: ${error.message}`)
     if (/fetch failed|ETIMEDOUT|ENOTFOUND|ECONNRESET/i.test(error.message)) {
@@ -174,3 +191,4 @@ main()
   .finally(() => {
     if (workDir) rmSync(workDir, { recursive: true, force: true })
   })
+}

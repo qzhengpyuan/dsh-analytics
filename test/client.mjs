@@ -336,7 +336,10 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
       }
     }
     if (String(url).includes('api/run')) globalThis.__lastRunBody = body
-    if (String(url).includes('api/paste')) globalThis.__lastPasteBody = body
+    if (String(url).includes('api/paste')) {
+      globalThis.__lastPasteBody = body
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { addedCases: 0, addedVariables: 0 }, state: globalThis.__sheetPayload?.state ?? null }) }
+    }
     if (String(url).includes('api/partial')) {
       if (body) globalThis.__lastPartialBody = body
       return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { matrix: [['变量对'], ['age × score']], notes: [] }, state: globalThis.__sheetPayload?.state ?? null }) }
@@ -719,6 +722,11 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   const pasteBody = globalThis.__lastPasteBody
   assert.ok(pasteBody && Array.isArray(pasteBody.cells) && pasteBody.cells.length > 0, 'clearing goes through api/paste')
   assert.ok(pasteBody.cells.every((cell) => cell.value === null), 'every cleared cell is sent as null')
+  // The host answers with state only, so the panel has to patch the rows it is
+  // showing; otherwise the sheet keeps the old numbers until the next reload.
+  const firstCell = container.querySelector('.ap-grid td[data-row="0"][data-column="0"]')
+  assert.ok(firstCell, 'the first cell is on screen')
+  assert.equal(firstCell.textContent.trim(), '', 'the cleared cell goes blank without a reload')
 
   const gridEntryOff = [...container.querySelectorAll('.ap-menu-pop button')].find((button) => button.textContent.trim() === '网格线')
   assert.ok(gridEntryOff, 'reopening shows it off')

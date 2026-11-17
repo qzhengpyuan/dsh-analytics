@@ -6336,6 +6336,23 @@ let ITEM_CSV_PENDING = null
                     const added = []
                     if (value.result?.addedCases) added.push(`新增 ${value.result.addedCases} 个个案`)
                     if (value.result?.addedVariables) added.push(`新增 ${value.result.addedVariables} 个变量`)
+                    // The host answers with state only, which carries the shape
+                    // but not the cells: patch the rows we already show, and
+                    // reload the window when the paste changed the shape.
+                    if (added.length > 0) {
+                      await loadRows(0, Math.max(500, rows.length))
+                    } else {
+                      const byName = new Map((value.state?.dataset?.variables ?? st?.dataset?.variables ?? [])
+                        .map((variable, column) => [variable.name, column]))
+                      setRows((current) => {
+                        const next = current.map((entry) => [...entry])
+                        for (const cell of cells) {
+                          const column = byName.get(cell.variable)
+                          if (next[cell.row] && column !== undefined) next[cell.row][column] = cell.value
+                        }
+                        return next
+                      })
+                    }
                     setToast(`已粘贴 ${cells.length} 个单元格${added.length ? `（${added.join('、')}）` : ''}`)
                     window.setTimeout(() => setToast(null), 2500)
                   } catch (error) {
