@@ -775,6 +775,16 @@ let plainNotes = (r.json().result?.items ?? []).flatMap((item) => item.table?.no
 console.log('without the flag there is no exact note', r.code === 200,
   !plainNotes.some((note) => note.includes('精确检验（插件计算）')))
 
+// 风险差：PSPP 的 Risk Estimate 只给 OR 与 RR，差值与区间由插件算（Newcombe 混合得分）
+r = await call('POST', `${base}/api/run`, {
+  sessionId: 'ex01',
+  syntax: 'CROSSTABS /TABLES=g BY wave /STATISTICS=CHISQ RISK /CELLS=COUNT.',
+})
+let riskNotes = (r.json().result?.items ?? []).flatMap((item) => [...(item.table?.notes ?? []), ...(item.notes ?? [])])
+console.log('the risk difference and its interval reach the risk table', r.code === 200,
+  riskNotes.some((note) => note.includes('风险差（插件计算）') && note.includes('Newcombe')),
+  JSON.stringify(riskNotes.filter((note) => note.includes('风险差')).slice(-1)))
+
 // 精确卡方：同一个枚举器，换个统计量（Pearson 与似然比各一行注文）
 r = await call('POST', `${base}/api/run`, {
   sessionId: 'ex01',

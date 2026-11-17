@@ -601,6 +601,29 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('influence diagnostics:', table.table.matrix[1].join(' | '))
 }
 
+// ---- the RISK statistic that crashes the engine on a string variable --------
+{
+  const ws = new Workspace({ id: 'smoke46', engine, root, config: { timeoutMs: 60000 } })
+  await ws.init()
+  await ws.createDataset({ variables: [
+    { name: 'g', type: 'string', width: 1 },
+    { name: 'wave', type: 'numeric', width: 2, decimals: 0 },
+  ] })
+  for (const [g, wave] of [['M', 1], ['M', 1], ['M', 1], ['M', 2], ['F', 1], ['F', 2], ['F', 2], ['F', 2]]) {
+    ws.appendCase({ g, wave })
+  }
+  // Probed: this exact syntax exits 139 (segfault) and writes no output at all,
+  // so the plugin has to keep RISK away from the engine and do the difference
+  // itself. A crash here would surface as a thrown "no tables" error.
+  const ran = await ws.runSyntax('CROSSTABS /TABLES=g BY wave /STATISTICS=CHISQ RISK /CELLS=COUNT.')
+  const notes = ran.items.flatMap((item) => [...(item.table?.notes ?? []), ...(item.notes ?? [])])
+  assert.ok(notes.some((text) => text.includes('风险差（插件计算）')), 'the difference is computed in the plugin')
+  assert.ok(notes.some((text) => text.includes('没有发给引擎')), 'and the dropped statistic is explained')
+  const riskNote = notes.find((text) => text.includes('风险差（插件计算）'))
+  assert.ok(/0\.500|0\.250|0\.750/.test(riskNote), riskNote)
+  console.log('risk on a string grouping variable:', riskNote.slice(0, 60))
+}
+
 // ---- GLM contrasts, which ONEWAY carries as well ---------------------------
 {
   const ws = new Workspace({ id: 'smoke0430', engine, root, config: { timeoutMs: 60000 } })
