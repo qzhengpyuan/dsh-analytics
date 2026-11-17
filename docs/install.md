@@ -219,6 +219,25 @@ maxIdleMs: 1800000   # 空闲多久释放（默认 30 分钟）
 | 引擎报 `GLIBC_2.xx not found` | 宿主 glibc 比构建机更旧 | 换更老的基线镜像重建引擎 |
 | 改 host 代码不生效 | 插件已加载进内存 | `plugin_manager` 先禁用再启用 `include:analytics` |
 
+## 维护者发版（实测经验）
+
+```bash
+npm test && npm run pack                 # pack 才带引擎；npm run pack --with-engine 会报 Unknown cli flag
+sha256sum dsh-analytics-<版本>-linux-x64.tgz | tee SHA256SUMS
+git tag v<版本> && git push origin master v<版本>
+gh release create v<版本> --title … --notes-file …
+# 资产用 REST 传（/tmp 下的文件 gh 会报文件系统边界）；大文件必须关掉 Expect，
+# 否则经代理会 0 字节发出、GitHub 回 408 "Upload body timed out due to inactivity"
+curl -H "Expect:" -X POST -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/octet-stream" \
+     --data-binary @dsh-analytics-<版本>-linux-x64.tgz \
+     "https://uploads.github.com/repos/<owner>/<repo>/releases/<releaseId>/assets?name=…"
+```
+
+- Release 资产名必须是 `SHA256SUMS`（`scripts/install.mjs` 按这个名字比对）。
+- 传之前先解包自查 `package/cordis.patch.yml` 里 `registerTools` 仍为 `false`（`scripts/pack.mjs` 也会查，但产物要自己再确认一次）。
+- 私有仓库的 Release 资产要带 token 才能下；给别的机器装不方便时，直接把 tgz 放到共享目录让它 `dsh plugin add file:…`。
+
 ## 许可
 
 - 插件 JavaScript：MIT（`LICENSE`）
