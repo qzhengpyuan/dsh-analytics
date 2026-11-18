@@ -387,7 +387,7 @@ check('a table with small expected counts says how many and what to do', () => {
   ]
   annotateCrosstabs(items)
   const note = items[0].notes.find((text) => text.includes('期望频数'))
-  assert.match(note, /6 个格子的期望频数 < 5/, 'the number of thin cells is named')
+  assert.match(note, /6 个单元格的期望频数 < 5/, 'the number of thin cells is named')
   assert.match(note, /2\.00/, 'the smallest expected count is named')
   assert.match(note, /精确卡方 p/, 'a 2×3 table points at the exact test instead of Fisher')
 })
@@ -421,8 +421,51 @@ check('a homogeneity test that fails is stated next to the table', () => {
   ]
   annotateAssumptions(items)
   assert.match(items[0].notes[0], /p = 0\.019/, 'the significance is quoted')
-  assert.match(items[0].notes[0], /不假定等方差/, 'and the row to read instead is named')
+  assert.match(items[0].notes[0], /没有 Welch 行/, 'a one-way ANOVA is not told to read a row it does not print')
   assert.equal(items[1].notes, undefined, 'a variance-homogeneous run gets no note')
+})
+
+check('a variance test that underflows still warns, and a t test names the Welch row', () => {
+  const anova = [{
+    kind: 'table',
+    id: 'levene-zero',
+    title: 'Test of Homogeneity of Variances',
+    table: {
+      caption: 'Test of Homogeneity of Variances',
+      matrix: [
+        ['', 'Levene Statistic', 'df1', 'df2', 'Sig.'],
+        ['Based on Mean', '120.351', '2', '15', '.000'],
+      ],
+    },
+  }]
+  annotateAssumptions(anova)
+  assert.match(anova[0].notes[0], /p < 0\.001/, 'an underflowing significance is not silently dropped')
+  assert.match(anova[0].notes[0], /没有 Welch 行/, 'and the advice fits the ANOVA that produced it')
+
+  const ttest = [
+    {
+      kind: 'table',
+      id: 'group-stats',
+      title: 'Group Statistics',
+      table: { caption: 'Group Statistics', matrix: [['g', 'N', 'Mean'], ['1', '6', '3.5'], ['2', '6', '9.5']] },
+    },
+    {
+      kind: 'table',
+      id: 'independent',
+      title: 'Independent Samples Test',
+      table: {
+        caption: 'Independent Samples Test',
+        matrix: [
+          ['', 'Levene Statistic', 'Sig.', 't', 'df', 'Sig. (2-tailed)'],
+          ['Equal variances assumed', '6.100', '.032', '-2.1', '10', '.062'],
+        ],
+      },
+    },
+  ]
+  annotateAssumptions(ttest)
+  assert.match(ttest[1].notes[0], /p = 0\.032/, 'the t test significance is quoted')
+  assert.match(ttest[1].notes[0], /不假定等方差/, 'and the Welch row is named for a t test')
+  assert.equal(ttest[0].notes, undefined, 'the descriptive table gets nothing')
 })
 
 check("the engine's own Cramer's V is not duplicated", () => {

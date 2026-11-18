@@ -177,7 +177,7 @@
     "关": "Off",
     "关于 PSPP 分析": "About PSPP Analytics",
     "关键字": "Keyword",
-    "关闭": "Close",
+    "关闭": "Close (discard this change)",
     "关闭加权": "Turn Off Weight",
     "关闭数据集": "Close Dataset",
     "关闭这个数据集": "Close this dataset",
@@ -956,9 +956,8 @@
     "关于本插件…": "About this plugin…",
     "设置：统计分析": "Settings: Statistics",
     "这次修改没有写入": "This change was not written",
-    "覆盖：仍然写入我这次修改": "Overwrite: write my change anyway",
     "重载：丢弃我的修改，载入最新数据": "Reload: drop my change and load the current data",
-    "取消：什么都不做": "Cancel: do nothing",
-    "例如 ~/data\n例如 D:\\data": "e.g. ~/data\nor D:\\data"
+    "例如 ~/data\n例如 D:\\data": "e.g. ~/data\nor D:\\data",
+    "覆盖：仍然写入我这次修改（会盖掉对方刚写的内容）": "Overwrite: write my change anyway"
   }
 }

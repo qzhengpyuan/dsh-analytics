@@ -693,6 +693,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-conflict p { margin: 0 0 10px; line-height: 1.6; }
 .ap-conflict-actions { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
 .ap-conflict-actions .ap-btn { text-align: left; }
+.ap-conflict-actions .ap-btn.ap-danger { color: var(--ap-danger); }
 .ap-settings-title { margin: 0; font-size: 13px; font-weight: 600; }
 .ap-settings-row { display: flex; flex-direction: column; gap: 4px; }
 .ap-settings-row label { font-size: 12px; }
@@ -7398,7 +7399,7 @@ let ITEM_CSV_PENDING = null
             title: '这次修改没有写入',
             wide: true,
             hideCancel: true,
-            okText: '关闭',
+            okText: '关闭（放弃这次修改）',
             onOk: () => resolveConflict('cancel'),
             onCancel: () => resolveConflict('cancel'),
           }, h('div', { className: 'ap-conflict' }, [
@@ -7409,21 +7410,17 @@ let ITEM_CSV_PENDING = null
               `你的版本：第 ${conflict.conflict.expected ?? '?'} 次改动 · 磁盘上的版本：第 ${conflict.conflict.actual ?? '?'} 次改动`),
             h('div', { className: 'ap-conflict-actions' }, [
               h('button', {
-                className: 'ap-btn ap-primary',
+                className: 'ap-btn ap-danger',
                 onClick: () => resolveConflict('override'),
                 title: '带着 force 重发刚才那次修改，覆盖对方写进去的内容',
-              }, '覆盖：仍然写入我这次修改'),
+              }, '覆盖：仍然写入我这次修改（会盖掉对方刚写的内容）'),
               h('button', {
                 className: 'ap-btn',
                 onClick: () => resolveConflict('reload'),
                 title: '放弃刚才那次修改，把磁盘上最新的数据读进来',
               }, '重载：丢弃我的修改，载入最新数据'),
-              h('button', {
-                className: 'ap-btn',
-                onClick: () => resolveConflict('cancel'),
-                title: '什么都不做，画面保持原样（下次写入会按最新版本判定）',
-              }, '取消：什么都不做'),
             ]),
+            h('p', { className: 'ap-hint' }, '关闭 = 放弃这次修改，不会写入任何东西（下次写入会按磁盘上的最新版本判定），被拒的值不会留存。'),
             h('p', { className: 'ap-hint' }, '无论选哪个，都已经被记进「冲突记录」：状态栏的角标和导出的表格都会带上次数。'),
           ]))
           : null,
@@ -8573,7 +8570,7 @@ let ITEM_CSV_PENDING = null
         ctx.effect(() => ctx.betterSidebar.registerFileViewer({
           id: 'analytics:data',
           title: () => tr('统计分析'),
-          icon: (size) => ICON(size),
+          icon: (size) => ICON_LINE(size || 16),
           exts: DATA_VIEWER_EXTS,
           priority: 5,
           fetchStrategy: 'none',

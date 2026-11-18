@@ -207,9 +207,9 @@ assert.equal(tabIcon.props.fill, 'none')
 assert.equal(tabIcon.props.stroke, 'currentColor')
 // A refused write is a question, not a lost edit: the three answers and the
 // force-retry they need must all be in the bundle.
-assert.match(bundleSource, /覆盖：仍然写入我这次修改/, 'the dialog offers to write anyway')
+assert.match(bundleSource, /覆盖：仍然写入我这次修改（会盖掉对方刚写的内容）/, 'the dialog offers to write anyway, and says what that costs')
 assert.match(bundleSource, /重载：丢弃我的修改/, 'the dialog offers to drop the edit')
-assert.match(bundleSource, /取消：什么都不做/, 'the dialog offers to do nothing')
+assert.match(bundleSource, /关闭（放弃这次修改）/, 'closing is the do-nothing exit, and the footer says so')
 assert.match(bundleSource, /error\.retry = \(\) => api\(path/, 'the force retry re-sends the same request')
 
 const hooks = globalThis.__AP_TEST_HOOKS__
