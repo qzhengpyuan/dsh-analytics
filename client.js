@@ -8345,7 +8345,7 @@ let ITEM_CSV_PENDING = null
         key: 'allowedDirs',
         label: '允许读写哪些目录（每行一个）',
         kind: 'lines',
-        placeholder: '例如 /mnt/F/数据\n例如 D:\\实验室',
+        placeholder: '例如 ~/data\n例如 D:\\data',
         hint: '插件的打开、保存、导出、合并、转换只在这些目录里工作。默认允许：主目录、当前工作目录、临时目录、/mnt、/tmp。~/.dsh、~/.ssh、~/.gnupg 永远不允许（里面有登录凭据）。要读写别处，把它的上级目录加到这里。',
       },
     ]

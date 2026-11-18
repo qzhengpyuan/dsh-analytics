@@ -1,3 +1,11 @@
+## 0.53.2
+
+- 仓库公开后的清理：把两篇内部计划文档（`plan-0.27.md` / `plan-0.28.md`）移出仓库并加进 `.gitignore`；
+  把开发机相关的示例路径换成通用写法（`Z:\work\…`、`/mnt/data/…`、`D:\data`），界面里的示例同样处理。
+  行为没有任何变化。
+
+`npm test`：31 个套件 / 454 条 ok。
+
 ## 0.53.1
 
 - 期望频数的提示只出现一次：0.53.0 里它既挂在交叉表上、又挂在卡方表上（后者是本来就有的
@@ -350,7 +358,7 @@ Windows 端复验 0.50.2 时抓到三个真问题，这一版都处理了。
   20 万张才发现算不完（那是 44 秒，现在 0.8 秒）。
 - 引擎拒收 `METHOD=EXACT` 这件事现在写进卡方那行表注：小期望频数时直接告诉
   用户勾「精确检验」就是出口，而不是说「没有确切检验可换」。
-- 修两个面板下拉框的老毛病（Win10 复验 0.41.0 时抓到的）：
+- 修两个面板下拉框的老毛病（Windows 复验 0.41.0 时抓到的）：
   - 「标识异常个案」的界值档写成了 `choices`，对话框只读 `options`，所以那个
     下拉里一个选项都没有；
   - 选项表里的 `[value, label]` 元组没有被归一化，于是置信区间水平、分位数、
@@ -481,16 +489,16 @@ Windows 复验 0.33.1 时提出的两条（都是「不发错误、只是结果�
 
 ## 0.32.4
 
-Win10 复验 0.32.3 的三项 PASS（版本号跨 SMB 能刷新、切语言 55/27 ms、多数据集四项独立），只剩 `test/paths.mjs` 两条 Windows 环境下的写法问题：
+Windows 复验 0.32.3 的三项 PASS（版本号跨 SMB 能刷新、切语言 55/27 ms、多数据集四项独立），只剩 `test/paths.mjs` 两条 Windows 环境下的写法问题：
 
-- `a path outside every root is refused with the folder to whitelist` 用正则匹配 `/etc/passwd`，而 Windows 把前导斜杠解析成当前盘符（`X:\etc\passwd`）⇒ 改成断言消息里含 `resolve('/etc/passwd')`。
+- `a path outside every root is refused with the folder to whitelist` 用正则匹配 `/etc/passwd`，而 Windows 把前导斜杠解析成当前盘符（`Z:\etc\passwd`）⇒ 改成断言消息里含 `resolve('/etc/passwd')`。
 - `a symlink into a credential directory is caught` 原本链接进本机真实 `~/.ssh`，那台机器没有这个目录，`checkPath` 自然不报错 ⇒ 改为在临时目录造一个假 home（带 `.ssh`）再链接，既跨平台又不会在别人机器上碰真凭据目录。
 
 全量 330 条断言 / 22 套件。
 
 ## 0.32.3
 
-Win10 复验 0.32.1 时报告「三轮热重载后宿主仍报 0.32.0」，根因在版本号的缓存口径：
+Windows 复验 0.32.1 时报告「三轮热重载后宿主仍报 0.32.0」，根因在版本号的缓存口径：
 
 - `lib/version.js` 原来只按 `mtime` 判缓存。Windows 经 SMB 映射读这份 checkout 时，缓存住的 mtime 可能长时间不变，于是面板一直回报上一个版本。现在改为「最多每秒重读一次」，mtime 只作为一秒内的快速通道。
 - 新增用例：同一个 mtime 下改内容，一秒后必须读到新版本（`utimesSync` 把时间戳钉死，模拟 SMB 的滞后）。
@@ -500,10 +508,10 @@ Win10 复验 0.32.1 时报告「三轮热重载后宿主仍报 0.32.0」，根�
 
 ## 0.32.2
 
-Win10 复验 0.32.0 抓到三条可以直接修的问题。
+Windows 复验 0.32.0 抓到三条可以直接修的问题。
 
 - **切换语言不再等心跳**：设置页保存后立刻在窗口上广播 `ap:locale`，面板当场换语言（原来要等 3 秒一轮的心跳把 `state.locale` 带回来，实测 3 526 ms / 3 046 ms，超出「立即生效」的承诺）。心跳路径仍在，用于别处改设置的情形。
-- **两条测试不再写死 Linux 路径**：`test/build.mjs` 的 THRU 用例改用 `os.tmpdir()`，`test/paths.mjs` 用 `path.resolve('/mnt/F/a')` 算期望值。原先在 Windows 上分别报 `ENOENT: X:\tmp\range-test.sav.source.csv` 与 `['X:\mnt\F\a']`，是测试口径问题，不是产品行为。
+- **两条测试不再写死 Linux 路径**：`test/build.mjs` 的 THRU 用例改用 `os.tmpdir()`，`test/paths.mjs` 用 `path.resolve('/mnt/data/a')` 算期望值。原先在 Windows 上分别报 `ENOENT: Z:\tmp\range-test.sav.source.csv` 与 `['Z:\mnt\data\a']`，是测试口径问题，不是产品行为。
 - **校验文案的期望值改由校验器自己产出**：`test/i18n.mjs` 原来手写「100 到 2000000」，而实现是 1000 到 5000000，导致复验单里出现一处并不存在的「文档与实现不一致」。
 
 全量 329 条断言 / 22 套件。
@@ -527,7 +535,7 @@ Win10 复验 0.32.0 抓到三条可以直接修的问题。
 
 ## 0.31.5
 
-Win10 对 0.31.4 的第 2 项是「部分 PASS」：`diagnostics[].message` 干净了，但两处仍带引擎临时路径。
+Windows 对 0.31.4 的第 2 项是「部分 PASS」：`diagnostics[].message` 干净了，但两处仍带引擎临时路径。
 
 - 「引擎没有产出任何表（…）」这条 400 的表单（`describeFailure`）现在也过 `stripEngineLocation`：用户看到的是「退出码 1：Unknown command \`FREQUENCIS'.」，不是 `C:\...\runs\6-8529db\run.sps:2.1-2.10: error: …`。
 - `describeEngineError` 的自由文本分支同样剥离位置前缀。
@@ -536,14 +544,14 @@ Win10 对 0.31.4 的第 2 项是「部分 PASS」：`diagnostics[].message` 干�
 
 ## 0.31.4
 
-Win10 对 0.31.3 的四项复验全 PASS，它顺手报的两条我一起修了。
+Windows 对 0.31.3 的四项复验全 PASS，它顺手报的两条我一起修了。
 
 - **改设置后面板不跟**（它观察到的真问题）：面板只在心跳变了才重读 state，而心跳的签名里没有表格样式/导出上限这几个「画图用」的设置，于是改完要重开面板才生效。签名的 `view` 里现在带 `tableStyle`/`maxRows`/`maxExportRows`，改设置即刻反映到开着的面板。
 - **引擎自己的临时路径漏到界面**（更早的 P1）：Windows 的 `C:\...\runs\3\run.sps:1.1-1.11:` 前缀会把位置正则顶掉，整行进「自由日志」原样显示；现在显式匹配位置，并把 PSPP 的 `Stopping syntax file processing` 这类记账行丢掉而不是当诊断。
 
 ## 0.31.3
 
-Win10 复验 0.31.0 抓到的两处，加上一处措辞。
+Windows 复验 0.31.0 抓到的两处，加上一处措辞。
 
 - **HTML 导出没跟设置**（真 FAIL）：Word/Excel 按 `maxExportRows` 截，浏览器侧那份 HTML 却按写死的 `EXPORT_ROWS = 2000` 截，于是把上限调成 500 后，导出的 HTML 仍然 2000 行。`api/state` 现在带 `maxExportRows`，面板四个出口读同一个数（`test/routes.mjs` 钉了「state carries the export cap」）。
 - **空字符串的说法**：`Number('') === 0`，于是 `maxExportRows: ""` 报「必须在 100 到 100000 之间，收到 0」。现在明确说「留空表示不改这一项；要设置就写 100 到 100000 之间的整数」。
@@ -647,26 +655,26 @@ Win10 复验 0.31.0 抓到的两处，加上一处措辞。
 
 给「插件能碰哪些文件」立一条边界。这一版没有新功能，修的是**不需要用户犯错也会出事**的那一类。
 
-- 病根：面板是 3080 端口上的网页，`open` / `save` / `export*` / `merge` / `convert` / `readFile` / `saveSyntax` 都接受任意绝对路径。Win10 侧复验员自己签了一个 cookie 就拿到了 `/analytics/api/*` 的全部权限 —— 也就是说「路径是用户输入的」不能当安全边界：一次笔误，或者数据集里某段文字把模型引到一个路径上，就能读走 `~/.dsh/.credentials.yaml`（浏览器 cookie 的签名密钥和 GitHub token 都在里面），或者覆盖任意文件。
+- 病根：面板是 3080 端口上的网页，`open` / `save` / `export*` / `merge` / `convert` / `readFile` / `saveSyntax` 都接受任意绝对路径。Windows 侧复验员自己签了一个 cookie 就拿到了 `/analytics/api/*` 的全部权限 —— 也就是说「路径是用户输入的」不能当安全边界：一次笔误，或者数据集里某段文字把模型引到一个路径上，就能读走 `~/.dsh/.credentials.yaml`（浏览器 cookie 的签名密钥和 GitHub token 都在里面），或者覆盖任意文件。
 - 新增 `lib/paths.js`：白名单 + 硬拒两类目录。默认允许主目录、会话工作目录、系统临时目录，以及 Linux 上的 `/mnt` 与 `/tmp`（Windows 上补 `C:\Temp`）；`~/.dsh`、`~/.ssh`、`~/.gnupg` **即使落在允许的根里也一律拒绝**，并且允许目录加不进这些路径。
 - 所有读写都走 `Workspace.resolvePath()` 这一处闸门（`open`/`save`/`exportCsv`/`exportOffice`/`exportChart`/`exportDocument`/`exportScript`/`writeText`/`mergeFile`/`convert`/`listSheets`，以及工具侧的 `pspp_save` 等）；路由里的 `api/dir`、`api/readFile`、`api/saveSyntax` 三个直接吃路径的入口也接上同一个检查，`api/dir` 的目录清单不再能走到白名单之外。
 - 越界不是静默失败，也不写英文栈：`<路径> 不在允许的目录里：<绝对路径> / 现在允许：… / 要放开就把它的上级目录加到「设置 → 统计分析 → 允许的目录」，比如 <上级目录>`。命中凭据目录另有一句说明。
 - 设置页新增「允许读写哪些目录（每行一个）」（`lib/settings.js` 的 `allowedDirs`，默认空数组）：要读写别处就把上级目录写进去，`~` 会展开，相对路径与非绝对路径会被拒绝，重复项自动合并。
-- 顺带修掉 Win10 判为 FAIL 的「立即生效」：`WorkspaceRegistry.configFor()` 只在创建工作区时读设置，老会话不跟随。现在 `Workspace` 持有 `settingsStore`，`liveConfig()` 每次按需重读（`SettingsStore` 自带 1 秒缓存），`state()` 的 `tableStyle`/`maxRows`、`timeoutMs`/`maxRows` getter 都走它 —— 表格样式与允许目录立即生效，载入上限与超时在下一次使用生效。
+- 顺带修掉 Windows 判为 FAIL 的「立即生效」：`WorkspaceRegistry.configFor()` 只在创建工作区时读设置，老会话不跟随。现在 `Workspace` 持有 `settingsStore`，`liveConfig()` 每次按需重读（`SettingsStore` 自带 1 秒缓存），`state()` 的 `tableStyle`/`maxRows`、`timeoutMs`/`maxRows` getter 都走它 —— 表格样式与允许目录立即生效，载入上限与超时在下一次使用生效。
 - 测试 302 → 310 条：新增 `test/paths.mjs`（10 条：`~` 展开、默认根、相对路径按会话目录解析、越界拒绝的措辞、三个凭据目录、符号链接指向 `~/.ssh` 也被拦、`allowedDirs` 的展开与去重、不允许把凭据目录加进白名单、空路径）；`test/routes.mjs` 补 7 条（`readFile` 拒凭据目录/拒 `/etc/passwd`、`writeText` 拒 `~/.dsh`、`api/dir` 越界与凭据目录都 400、允许目录仍 200）；`test/smoke.mjs` 一条真引擎用例（拒 `/etc` 与 `~/.ssh`、允许目录内仍能保存）；`test/settings.mjs` 一条（已开着的工作区跟随设置变化）。
 
 ## 0.27.3
 
 把 0.27.2 只接到面板的那半个修复补完：**导出的 HTML 也跟表格样式走**。
 
-- 0.27.0 的设置页写着「立即生效，也影响导出的 HTML」，但导出的文件里既没有表格样式的 CSS 规则，表格也只在「手工改过列宽/表头」时才带 class —— 那句话当时不成立。Win10 复验把它点出来了。
+- 0.27.0 的设置页写着「立即生效，也影响导出的 HTML」，但导出的文件里既没有表格样式的 CSS 规则，表格也只在「手工改过列宽/表头」时才带 class —— 那句话当时不成立。Windows 复验把它点出来了。
 - 现在导出样式表里带 `ap-tbl-three` / `ap-tbl-grid` / `ap-tbl-plain` 三套规则，并且**每张表都盖 class**（PSPP 自己吐的裸 `<table>` 也盖），所以面板与导出的 HTML 是同一个版式。
 - 设置页那句提示改成准确说法：「立即生效：面板与『导出输出为 HTML』都跟它走。Word/Excel 导出固定按三线表排版。」
 - 测试：`test/client.mjs` 走真实菜单点「导出输出为 HTML…」，截下 Blob 断言文件里有 `ap-tbl-grid` 类与对应 CSS（顺带把 `URL` 全局绑定补上，之前 jsdom 下走的是 Node 的 `URL`）。
 
 ## 0.27.2
 
-修一个 Win10 复验抓到的「死开关」：设置页里的**输出表格样式存了但不生效**。
+修一个 Windows 复验抓到的「死开关」：设置页里的**输出表格样式存了但不生效**。
 
 - 病根是两套词汇：设置写 `three-line` / `grid`（`lib/settings.js`），面板画表用的是 `default` / `three` / `plain` / `grid` 且只读 `localStorage['ap.tableStyle']` —— 设置页改完，文件变了，表没变，谁也没读它。
 - 现在 `api/state` 带 `tableStyle`（和 `maxRows`），面板把它当默认样式，`视图 → 表格样式` 变成**浏览器内覆盖**（多一项「跟随设置（三线表/全框线）」清掉覆盖）。设置改一次，所有会话的表一起变；想临时看无框线的，不必改共享设置。
@@ -729,7 +737,7 @@ node scripts/install.mjs --apply    # 真的装：装包 + 把 dsh-analytics 加
 
 ## 0.26.5
 
-Win10 复验 0.26.3 时抓到的 P21：**元数据不落盘**，重载后表会把「新建数据集」标成上一份文件。
+Windows 复验 0.26.3 时抓到的 P21：**元数据不落盘**，重载后表会把「新建数据集」标成上一份文件。
 
 - `createDataset()` 只写 `work.sav`，没写 `dataset.json`。于是 `pspp_new` 之后重启宿主，`dataset.json` 还描述着上一次打开的那个 `.csv`，恢复出来的数据集把 3 例新数据的表标成「60 例的 sixty.csv」，连 `sourceSize` 都是旧文件的 —— 来源与数据对不上，比没有来源更糟。现在 `workSav()` 写盘后同步 `rememberDataset()`，侧车文件跟着数据走；`dirty` 也一并记进去。
 - 新建的数据集**重启后能回来**了：以前 `restore()` 只认 `sourcePath` 是字符串的工作区，`origin: 'new'` 的工作区一律当空面板（数据还在 `work.sav` 里，但用户看不到）。现在它也恢复，标签仍是「新建数据集（…，未保存）」。
@@ -742,7 +750,7 @@ Win10 复验 0.26.3 时抓到的 P21：**元数据不落盘**，重载后表会�
 
 一个发版事故，只影响**从 .tgz 安装的人**（用 `link:` 装本仓库目录的不受影响）。
 
-- **0.26.3 的安装包把工具放回了所有会话**。0.26.3 的 tarball 里 `cordis.patch.yml` 带的是 `registerTools: true` —— 也就是 0.26.0 之前的行为：`pspp_*` 23 个工具在**每一个**会话里都注册（约 6.2k token/请求），「只有选中『数据分析』预设才加载」失效。原因是复验期间为了验证逃生门，在共享目录 `X:\code\dsh-analytics`（= 宿主 `/mnt/E`）上临时把它改成 `true`，写回时正好被一个纯文档提交（`9179056`）带上，而打包读的是工作树、不是 git 标签，于是错了的字节进了 Release。
+- **0.26.3 的安装包把工具放回了所有会话**。0.26.3 的 tarball 里 `cordis.patch.yml` 带的是 `registerTools: true` —— 也就是 0.26.0 之前的行为：`pspp_*` 23 个工具在**每一个**会话里都注册（约 6.2k token/请求），「只有选中『数据分析』预设才加载」失效。原因是复验期间为了验证逃生门，在共享目录 `Z:\work\dsh-analytics`（= 宿主 `/mnt/data`）上临时把它改成 `true`，写回时正好被一个纯文档提交（`9179056`）带上，而打包读的是工作树、不是 git 标签，于是错了的字节进了 Release。
 - 三处堵住：`cordis.patch.yml` 回到 `registerTools: false`；`scripts/pack.mjs` 打包前检查工作树、打包后**再解包检查 tarball 自己的那一份**，任何一处出现 `registerTools: true` 就拒绝出包并打印原因；`test/preset.mjs` 早就断言 patch 里是 `false`，这次没拦住只是因为打包发生在测试之后——现在打包自己会拦。
 - 打包脚本顺带打印 `sha256`，省掉每次手工 `sha256sum` 再抄进文档。
 - 校验和：`0.26.4` 的 tgz 与 `0.26.3` 只差这一个字节级别的默认值，但必须重装才算数：`0.26.3` 的包建议直接弃用。
@@ -1004,7 +1012,7 @@ Windows 端验收（独立机器、独立复验员）在功能项全 PASS 之后
 
 ## 0.23.34
 
-Win10 对 0.23.33 的复核又提了一条（P20）和三条改进建议，都在这一版里：
+Windows 对 0.23.33 的复核又提了一条（P20）和三条改进建议，都在这一版里：
 
 - **P20 常数变量的表注重复三次**：同一个常数预测变量既会从自己那一行（`projectionFit` 返回 null）产生一条注，又会从它跟其余每个变量组成的每一对里各产生一条，于是三预测变量的模型里同一句话出现三次。改为按变量名去重（`constantSeen` 集合 + `noteConstant()`），一个常数变量一条注。回归测试从 19 项加到 20 项，并且断言 `notes.filter(n => n.includes('是常数')).length === 1`，另加「两个常数变量恰好两条注」。
 - **隐藏数据页的缺失格不再写空单元格**：原来缺失值写成一个空的 `inlineStr` 单元格，Excel 里看着是空白，但 `COUNTA` 把 `""` 算成有值，于是「这列有多少个有效值」比表里的 N 大。现在 `sheetXml()` 支持 `omitEmptyCells`，数据页整格不写。`test/office.mjs` 断言缺失格没有 `<c>`、相邻格照常写入、单元格总数正好等于「表头 + 非缺失值」。
@@ -1013,7 +1021,7 @@ Win10 对 0.23.33 的复核又提了一条（P20）和三条改进建议，都�
 
 ## 0.23.33
 
-Win10 复核（0.23.30 / 0.23.31）提出两条，都是会给出错误结论的问题：
+Windows 复核（0.23.30 / 0.23.31）提出两条，都是会给出错误结论的问题：
 
 - **P18 缺失值变成 0（会算错）**：PSPP 导出 CSV 时把系统缺失写成**一个空格**，`readData()` 先用原串判空再 `trim()`，于是 `' '` 躲过判空、`Number('') === 0` 把每个缺失值读成真正的 0。影响保存后重开、`persist` 运行后的全部数据（面板、隐藏数据页、`pspp_data`、后续所有分析）。现在先 `trim()` 再判空。`test/smoke.mjs` 增加「缺失值往返」用例：建含缺失的数据集 → 存盘 → 重开 → `persist` 运行，三步都要求 `[[1,null],[2,3],[null,5]]`。
 - **P19 共线表把可估变量也标成 0/∞**：`collinearityTable()` 原来用正规方程求 1 − R²，其余预测变量本身共线时方程奇异，就把每一个预测变量都打成 `0.000` / `∞`。改用「投影到列空间」求 R²（带重正交化的 MGS，秩亏时自动退化成列空间基），于是 `a`、`b` 完全相同时 `c` 的容忍度恢复为真实值 0.772 / VIF 1.295；只有**本变量落在其余变量的张成里**（残差相对范数 ≤ 1e-9）才写 `0.000`/`∞`。常数列改为「—」并单独给注，不写 0。
@@ -1043,7 +1051,7 @@ Win10 复核（0.23.30 / 0.23.31）提出两条，都是会给出错误结论的
 
 ## 0.23.30
 
-Win10 侧复核 0.23.29 挑出的问题，逐条修：
+Windows 侧复核 0.23.29 挑出的问题，逐条修：
 
 - **会话回收会丢数据（P17）**：0.23.28 的 `evictIdle()` 直接 `close()` 掉数据集，再 `ensure()` 时 `restore()` 因为 `dataset.json` 已被删而返回 null——文档说的「下次请求自动重开」不成立，未保存的改动也会丢。改成 `Workspace.release()`：先把脏数据写进 `work.sav`，再只释放个案行，变量/标签/值标签/多选题集合留在内存，撤销栈清空，会话仍然开着；下一次请求 `hydrate()` 从 `work.sav` 读回行，分析可以照常跑。`evictIdle()` 变 async，`ensure()` 里 `await`。`close()` 也改成 `await rememberDataset()`（原来是 `void`，删除与写入可能互相覆盖）。
 - **转置会静默丢字符串列**：`FLIP` 只保留数值列，字符串列变成缺失值、变量名变 `VAR000…` 并多出 `CASE_LBL`。`Workspace.flip()` 现在遇到字符串变量直接报错并列出会丢的列，`api/flip` 需要 `force: true`；面板弹「转置数据」确认框，勾「我明白」才能继续。
@@ -1107,7 +1115,7 @@ Win10 侧复核 0.23.29 挑出的问题，逐条修：
 
 ## 0.23.24
 
-- **偏相关矩阵**（③，Win10 排的最后一项功能）：对话框多一个「表格形式」，选「矩阵」就出变量 × 变量的星号网格（对角线 1、上下对称），适合多变量共用一个控制集时排版；工具 `pspp_partial` 加 `layout`（`rows`/`matrix`）。整张矩阵**共用一次列表删除**——只保留分析变量与控制变量都齐全的个案，否则各单元格在不同个案集上算出的 r 摆在一起看会误导；`df = N − 控制变量个数 − 2` 写在表注里，自由度 ≤ 0 时整表给「—」并说明原因。
+- **偏相关矩阵**（③，Windows 排的最后一项功能）：对话框多一个「表格形式」，选「矩阵」就出变量 × 变量的星号网格（对角线 1、上下对称），适合多变量共用一个控制集时排版；工具 `pspp_partial` 加 `layout`（`rows`/`matrix`）。整张矩阵**共用一次列表删除**——只保留分析变量与控制变量都齐全的个案，否则各单元格在不同个案集上算出的 r 摆在一起看会误导；`df = N − 控制变量个数 − 2` 写在表注里，自由度 ≤ 0 时整表给「—」并说明原因。
 - 控制变量共线、字符串变量、变量名不存在、同一变量既分析又控制这四类输入错误，矩阵形式与逐对形式给同样的报错。
 - 测试：`test/tables.mjs` 增 2 项（矩阵与逐对表数值必须一致且对称、四类错误与自由度不足），`test/routes.mjs` 增 1 项（`api/partial` 带 `layout:"matrix"`）。
 
@@ -1118,9 +1126,9 @@ Win10 侧复核 0.23.29 挑出的问题，逐条修：
 
 ## 0.23.22
 
-- **版本号不再被模块缓存粘住**（热重载验证的真问题）：`lib/tools.js` 用 `createRequire(...)('../package.json')` 读版本，Node 会把 JSON 模块缓存到进程结束，于是热重载后 `pspp_status.plugin.version` 与面板状态栏仍报旧版本——Win10 每轮验收都靠这个字段判断「新代码有没有生效」，报错版本会让人以为热重载失败。新增 `lib/version.js`（`pluginInfo()` 按 mtime 读盘，只在不变化时复用），`index.js`、`lib/tools.js`、`lib/workspace.js` 的 `state()` 全部改用它，面板与工具现在报的是磁盘上的真实版本。
+- **版本号不再被模块缓存粘住**（热重载验证的真问题）：`lib/tools.js` 用 `createRequire(...)('../package.json')` 读版本，Node 会把 JSON 模块缓存到进程结束，于是热重载后 `pspp_status.plugin.version` 与面板状态栏仍报旧版本——Windows 每轮验收都靠这个字段判断「新代码有没有生效」，报错版本会让人以为热重载失败。新增 `lib/version.js`（`pluginInfo()` 按 mtime 读盘，只在不变化时复用），`index.js`、`lib/tools.js`、`lib/workspace.js` 的 `state()` 全部改用它，面板与工具现在报的是磁盘上的真实版本。
 - 测试：`test/build.mjs` 增一项（`pluginInfo()` 必须等于 `package.json` 的 version/name，且两次调用一致）。
-- 这一条也是给 Win10 的说明：上一版 0.23.21 热重载后若 `pspp_status` 仍报 0.23.20，原因就是这个缓存，不是热重载没生效。
+- 这一条也是给 Windows 的说明：上一版 0.23.21 热重载后若 `pspp_status` 仍报 0.23.20，原因就是这个缓存，不是热重载没生效。
 
 ## 0.23.21
 
@@ -1131,12 +1139,12 @@ Win10 侧复核 0.23.29 挑出的问题，逐条修：
 
 ## 0.23.20
 
-- **控制变量完全共线时给对结论**（P11a，Win10 复验发现）：原来正规方程奇异、高斯消元除以零主元后拿到全零残差，于是报「残差没有变异，算不出偏相关（控制变量把两个变量都解释完了）」，看起来像变量被解释干净了，实际是控制变量之间共线。现在主元判据改成相对阈值（`1e-10 × 矩阵最大元素`），奇异时直接报「控制变量之间完全共线（或其中某个是常数），无法求残差：请删掉一个控制变量（当前控制：…）」。相对阈值也顺手修掉了两个边界：原先绝对的 `1e-12` 会把量级 1e6 的良态方程判成奇异，也会漏掉 1e-3 量级的近共线。
+- **控制变量完全共线时给对结论**（P11a，Windows 复验发现）：原来正规方程奇异、高斯消元除以零主元后拿到全零残差，于是报「残差没有变异，算不出偏相关（控制变量把两个变量都解释完了）」，看起来像变量被解释干净了，实际是控制变量之间共线。现在主元判据改成相对阈值（`1e-10 × 矩阵最大元素`），奇异时直接报「控制变量之间完全共线（或其中某个是常数），无法求残差：请删掉一个控制变量（当前控制：…）」。相对阈值也顺手修掉了两个边界：原先绝对的 `1e-12` 会把量级 1e6 的良态方程判成奇异，也会漏掉 1e-3 量级的近共线。
 - **字符串变量直接报错**（P11c）：原来字符串列读成 null，走列表删除后 N=0，提示「有效个案 0 个」——像是数据空了。现在 `variables` 或 `controls` 里出现非数值变量就报「偏相关只能用于数值变量：s 是字符串变量」。面板只列数值变量不会碰到，工具路径会。
 - **`pspp_status` 的 capabilities 补上偏相关**（P11b）：`analyses` 加 `partial`、`tables` 加 `partial（偏相关）`。agent 只读 capabilities 时不会再以为没有这个能力。
 - 备注措辞：没有控制变量时不再说「对控制变量做回归」，改为说明「这里的 r 就是普通的 Pearson 相关；df = 有效个案数 − 2」。
 - 测试：`test/tables.mjs` 增 3 项（共线控制变量必须报共线、字符串变量必须报错、无控制时的备注措辞），`test/routes.mjs` 增 1 项（`api/partial` 遇字符串变量返 400）。
-- 复核口径提醒（Win10 提出）：拿 PSPP 自己算残差再 `CORRELATIONS` 时，那张表的 `Sig.` 按 `N−2` 算，偏相关的 p 必须按 `N−k−2` 重算；两者只有 r 可比。
+- 复核口径提醒（Windows 提出）：拿 PSPP 自己算残差再 `CORRELATIONS` 时，那张表的 `Sig.` 按 `N−2` 算，偏相关的 p 必须按 `N−k−2` 重算；两者只有 r 可比。
 
 ## 0.23.19
 
@@ -1158,7 +1166,7 @@ Win10 侧复核 0.23.29 挑出的问题，逐条修：
 ## 0.23.15
 
 - **导出对话框的公式提示补上重算说明**：xlsx 刻意不写 `<calcPr fullCalcOnLoad>`（否则打开就重算，绕过「缓存值 = PSPP 打印值」的设计），所以改完输入单元格后要按 Ctrl+Alt+F9 手动重算；提示里写明了，免得被当成公式坏了。
-- **README 更正热重载结论**：此前写「Windows 安装里 disable → enable 不生效、要重启」，2026-11-14 在 Win10 上实测不成立——停用再启用后 `pspp_status.plugin.version` 直接变成新版本，进程未重启。真实差别只有两点：插件目录走 SMB 链接时，Windows 重定向器会缓存远程文件元数据约 10 秒（太快重载会读到旧 mtime），以及浏览器里的 `client.js` 要刷新页面才会换成新界面。
+- **README 更正热重载结论**：此前写「Windows 安装里 disable → enable 不生效、要重启」，2026-11-14 在 Windows 上实测不成立——停用再启用后 `pspp_status.plugin.version` 直接变成新版本，进程未重启。真实差别只有两点：插件目录走 SMB 链接时，Windows 重定向器会缓存远程文件元数据约 10 秒（太快重载会读到旧 mtime），以及浏览器里的 `client.js` 要刷新页面才会换成新界面。
 
 ## 0.23.14
 
@@ -1170,18 +1178,18 @@ Win10 侧复核 0.23.29 挑出的问题，逐条修：
 
 ## 0.23.13
 
-- **交叉表的卡方检验表补上 p 值公式**（Win10 P9）：`CROSSTABS /STATISTICS=CHISQ` 打印的 `Chi-Square Tests` 表把检验名放在行标签（Pearson Chi-Square / Likelihood Ratio / Continuity Correction / Linear-by-Linear Association），统计量在 `Value` 列、自由度在 `df` 列、p 值在 `Asymptotic Sig. (2-tailed)` 列，此前只有表头叫 `Chi-square` 的表（NPAR 的 Test Statistics）才会写公式，交叉表这张一直是死的数值。现在按行标签识别卡方类检验，写 `_xlfn.CHISQ.DIST.RT(Value, df)`；`Fisher's Exact Test`（精确检验，不是卡方尾）与 `N of Valid Cases` 跳过。
+- **交叉表的卡方检验表补上 p 值公式**（Windows P9）：`CROSSTABS /STATISTICS=CHISQ` 打印的 `Chi-Square Tests` 表把检验名放在行标签（Pearson Chi-Square / Likelihood Ratio / Continuity Correction / Linear-by-Linear Association），统计量在 `Value` 列、自由度在 `df` 列、p 值在 `Asymptotic Sig. (2-tailed)` 列，此前只有表头叫 `Chi-square` 的表（NPAR 的 Test Statistics）才会写公式，交叉表这张一直是死的数值。现在按行标签识别卡方类检验，写 `_xlfn.CHISQ.DIST.RT(Value, df)`；`Fisher's Exact Test`（精确检验，不是卡方尾）与 `N of Valid Cases` 跳过。
 - **图表可以指定归属表**（B2）：图形对话框（条形/直方/箱线/折线/饼/面积/散点）新增「导出时图表归属（可选）」下拉，列出当前输出里已有的表。选了就在导出 Word/Excel 时把这张图嵌进那张表（Word 表内 `wp:inline`，Excel 该表所在工作表的 `oneCellAnchor`），不选仍按来源 runId 自动配对。显式指定是权威的：指定的表已经不在了，图就单独成段/单独成表，不会退回去猜。
 - `pspp_chart` 新增 `tableId` 参数（取值为此前输出的表 id），agent 侧同样能显式绑定。
 
 ## 0.23.12
 
-Win10 侧 0.23.11 复核提出的四条（P4–P7），逐条处理：
+Windows 侧 0.23.11 复核提出的四条（P4–P7），逐条处理：
 
 - **P7（真问题，最要紧）**：`CHISQ.DIST.RT`、`T.DIST.2T` 是 Excel 2010 才有函数，OOXML 里必须写成 `_xlfn.CHISQ.DIST.RT(...)`、`_xlfn.T.DIST.2T(...)`，否则真 Excel 打开显示 `#NAME?`。LibreOffice 会容忍缺前缀，所以此前的 LibreOffice 重算全绿并不能证明 Excel 里没问题。现在三处（Logistic 的 Sig.、t 检验的 Sig. (2-tailed)、卡方的 Asymp. Sig.）都带前缀，单测断言公式文本以 `_xlfn.` 开头。
 - **P5（真问题）**：有效百分比原来把有效合计写成字面量（`C3/63*100`），改计数不会跟随；改为 `C3/SUM(C3:C4)*100`，与百分比列一样跟着数据走。
 - **P6（改进）**：累计百分比首行原先 `SUM(E3:E3)` 单格求和，改为直接引用 `E3`，后续行仍是累加。
-- **P4（未复现）**：Win10 报告「合计行百分比单元格 s=0、显示 100 而不是 100.0%」。用同规模数据（60 例、两类）在本机复跑，合计行百分比单元格是 `s="4"`（`0.0"%"`），LibreOffice 重算显示 `100`——格式化后应为 `100.0%`；导出文件已附上供对照。若 Win10 仍能稳定复现，需要他们提供那份 xlsx。
+- **P4（未复现）**：Windows 报告「合计行百分比单元格 s=0、显示 100 而不是 100.0%」。用同规模数据（60 例、两类）在本机复跑，合计行百分比单元格是 `s="4"`（`0.0"%"`），LibreOffice 重算显示 `100`——格式化后应为 `100.0%`；导出文件已附上供对照。若 Windows 仍能稳定复现，需要他们提供那份 xlsx。
 - **P8（不采纳）**：没有 `<calcPr fullCalcOnLoad="1"/>` 是刻意的——加了会让 Excel 打开即按单元格重算，绕过「缓存值 = PSPP 打印值」的设计；想要的正是「打开看到原值，改输入才重算」。
 ## 0.23.11
 
@@ -1281,8 +1289,8 @@ Win10 侧 0.23.11 复核提出的四条（P4–P7），逐条处理：
 
 ### 修复
 
-- **D7：重跑之后日志承诺的共线性表不再缺席**。上一版里 agent 侧只要显式传了 `statistics:["TOL"]` 或 `["ALL"]`，`analysisExtras()` 就直接不传 regression 提示；引擎一崩、自动重跑去掉 TOL 之后，日志仍写「容忍度与 VIF 见下面的『共线性诊断（插件计算）』」，但那张表根本没生成（Win10 上 24 次显式 TOL 运行里崩 3 次，3 次都缺表）。现在提示始终随语法一起传下去，重跑后会补齐该表；若引擎自己真打印了可用的容忍度，则不再重复输出。
-- **D8：`/STATISTICS=ALL` 的兜底重跑真正生效**。旧逻辑只摘掉 `TOL` 这一个词，`ALL` 还留在语法里、照样把 TOL 带回来，于是重跑同样崩溃、照样零张表（Win10 实测 8 次挂 2 次）。现在 `TOL` 与 `ALL` 一并去除，摘空时降级为 `COEFF R ANOVA CI BCOV`；另外只改 `REGRESSION` 语句的 `/STATISTICS`，不会误改 `FREQUENCIES /STATISTICS=ALL` 这类别的命令。
+- **D7：重跑之后日志承诺的共线性表不再缺席**。上一版里 agent 侧只要显式传了 `statistics:["TOL"]` 或 `["ALL"]`，`analysisExtras()` 就直接不传 regression 提示；引擎一崩、自动重跑去掉 TOL 之后，日志仍写「容忍度与 VIF 见下面的『共线性诊断（插件计算）』」，但那张表根本没生成（Windows 上 24 次显式 TOL 运行里崩 3 次，3 次都缺表）。现在提示始终随语法一起传下去，重跑后会补齐该表；若引擎自己真打印了可用的容忍度，则不再重复输出。
+- **D8：`/STATISTICS=ALL` 的兜底重跑真正生效**。旧逻辑只摘掉 `TOL` 这一个词，`ALL` 还留在语法里、照样把 TOL 带回来，于是重跑同样崩溃、照样零张表（Windows 实测 8 次挂 2 次）。现在 `TOL` 与 `ALL` 一并去除，摘空时降级为 `COEFF R ANOVA CI BCOV`；另外只改 `REGRESSION` 语句的 `/STATISTICS`，不会误改 `FREQUENCIES /STATISTICS=ALL` 这类别的命令。
 - **D8：报错带上退出码与引擎原文**。以前「退出码非 0 且零张表」的提示是 `引擎没有产出任何表：引擎没有给出原因`——前缀重复，还把引擎真正那句 `gsl_blas_dsymm: matrix/vector sizes are not conformant` 丢了。现在格式为 `引擎没有产出任何表（退出码 19：src/math/linreg.c:261:gsl_blas_dsymm: ...）`，stderr 为空时回落到 stdout 的最后一行。
 - **引擎打印的容忍度只在可信时才采用**：PSPP 在退化拟合下会把容忍度写成 `.00`、VIF 写成 `+Infinit`，即使本次没崩。现在只有当引擎那列数值都是有限值、落在 0–1、且与插件重算结果的差 ≤ 0.02 时才跳过插件表；不一致时仍输出重算表，并注明引擎数值不可用。
 

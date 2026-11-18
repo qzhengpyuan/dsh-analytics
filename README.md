@@ -193,7 +193,7 @@ npm pack                     # 打 tgz（含 engine/）
 | 改的是 | 生效方式 |
 | --- | --- |
 | `client.js`（面板界面） | 刷新页面即可；`npx dsh-plugin-toolkit dev .` 会在拷过去之后自动重载 |
-| `lib/*.js`、`index.js`、`cordis.patch.yml` 的配置（后端一半：工具、路由、引擎调用） | `plugin_manager` 的 disable → enable 即可，**不用重启**：宿主自带的 `dsh-hmr` 在重载时会比对已加载模块的 `ino:size:mtime`，改过的模块被剔出 ESM 缓存后重新求值。Linux 与 Windows 两端实测都成立（2026-11-14 Win10 用 `pspp_status` 的 `plugin.version` 复核过）。前提是**改完再等一下再重载**——插件目录若走 SMB 链接（如 `link:X:\code\dsh-analytics`），Windows 重定向器会缓存远程文件元数据约 10 秒，太快重载会读到旧 mtime、判定「没变」 |
+| `lib/*.js`、`index.js`、`cordis.patch.yml` 的配置（后端一半：工具、路由、引擎调用） | `plugin_manager` 的 disable → enable 即可，**不用重启**：宿主自带的 `dsh-hmr` 在重载时会比对已加载模块的 `ino:size:mtime`，改过的模块被剔出 ESM 缓存后重新求值。Linux 与 Windows 两端实测都成立（2026-11-14 Windows 用 `pspp_status` 的 `plugin.version` 复核过）。前提是**改完再等一下再重载**——插件目录若走 SMB 链接（如 `link:Z:\work\dsh-analytics`），Windows 重定向器会缓存远程文件元数据约 10 秒，太快重载会读到旧 mtime、判定「没变」 |
 
 面板的 `client.js` 由宿主从磁盘读取，改完**刷新页面**就是新的；后端的版本号读的是每次现读的 `package.json`（0.23.8 起不再用模块缓存的 JSON），所以 `plugin.version` 变化等于后端模块真的换过。
 

@@ -142,7 +142,6 @@
     "低值": "Low",
     "例 ·": "cases · ",
     "例 · ": "cases · ",
-    "例如 /mnt/F/数据\n例如 D:\\实验室": "e.g. /mnt/F/data\nor D:\\Lab",
     "例如：认同的品牌": "e.g. brands you identify with",
     "例；分析、保存与导出仍在完整数据上跑": " cases; analyses, saving and export still use the full data",
     "保存": "Save",
@@ -959,6 +958,7 @@
     "这次修改没有写入": "This change was not written",
     "覆盖：仍然写入我这次修改": "Overwrite: write my change anyway",
     "重载：丢弃我的修改，载入最新数据": "Reload: drop my change and load the current data",
-    "取消：什么都不做": "Cancel: do nothing"
+    "取消：什么都不做": "Cancel: do nothing",
+    "例如 ~/data\n例如 D:\\data": "e.g. ~/data\nor D:\\data"
   }
 }
