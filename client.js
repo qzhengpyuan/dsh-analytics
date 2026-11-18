@@ -5,7 +5,7 @@
  * same surface the agent tools drive.
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-analytics',
+  id: 'dsh-analytics-pspp',
   factory(require) {
     const React = require('react')
     const { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } = React
@@ -6317,7 +6317,7 @@ let ITEM_CSV_PENDING = null
             return tr(`${escapeForExport(which)} · ${from.caseCount} 例 · ${from.varCount} 变量${size ? ` · ${size}` : ''}${when ? ` · 打开于 ${escapeForExport(when)}` : ''}`)
           })
           parts.push(`<hr><p class="ap-export-note"><b>${tr('数据来源：')}</b><br>` + lines.map((line) => tr(line)).join('<br>') + '</p>')
-          parts.push(`<p class="ap-export-note">${tr('（由 dsh-analytics 生成，引擎 GNU PSPP；改动数据后请重新运行分析。）')}</p>`)
+          parts.push(`<p class="ap-export-note">${tr('（由 dsh-analytics-pspp 生成，引擎 GNU PSPP；改动数据后请重新运行分析。）')}</p>`)
         }
         const blob = new Blob([parts.join('\n')], { type: 'text/html;charset=utf-8' })
         const url = URL.createObjectURL(blob)

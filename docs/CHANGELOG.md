@@ -1,3 +1,12 @@
+## 0.49.1
+
+- 修：改名到 `dsh-analytics-pspp` 后侧栏「统计分析」页签消失。客户端包在
+  `__ModuleLoader__.load({ id })` 里写死了旧的包名 `dsh-analytics`，而页面按
+  包名查找模块，于是浏览器报
+  `dsh-analytics-pspp: import failed: … loaded without registering` —— 包加载了、
+  却按旧名字注册，页签的 `registerTab` 从未执行。改成跟 `package.json` 一致，
+  并把这条钉进 `test/build.mjs`（包名一改，id 必须跟着改）。
+
 ## 0.49.0
 
 改名：npm 上的 `dsh-analytics` 是别人的包（rainfun 的 FinOps / token 统计插件，0.4.0，

@@ -893,6 +893,18 @@ await check('apply() registers both route prefixes once webServer arrives', asyn
   assert.equal(provided.analytics.config.registerTools, undefined)
 })
 
+// The client bundle is a package of its own: the page looks it up by the
+// package name, so the id inside `__ModuleLoader__.load({ id })` has to match
+// package.json. It once did not, and the tab silently vanished from the
+// sidebar after a rename — the bundle loaded but never registered.
+check('the client bundle registers itself under the published package name', () => {
+  const name = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).name
+  const source = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
+  const match = /__ModuleLoader__\.load\(\{\s*id:\s*'([^']+)'/.exec(source)
+  assert.ok(match, 'client.js must call __ModuleLoader__.load with a string id')
+  assert.equal(match[1], name)
+})
+
 // Quartiles use the (n-1)p interpolation, which is what PSPP's own
 // PERCENTILES does: for 1..8 it prints 2.8 / 4.5 / 6.3, i.e. 2.75 / 4.5 / 6.25.
 // A report claimed PSPP gives 3 / 5 / 6; the engine says otherwise, so this
