@@ -31,7 +31,7 @@ if (withEngine) {
 
 // 0.26.3 shipped a tarball whose bundle patch carried `registerTools: true`,
 // which mounts the pspp_* tools in every session instead of only the
-// 「数据分析」 preset. Nothing in the unit tests can catch that, because they
+// 「统计分析」 preset. Nothing in the unit tests can catch that, because they
 // read the working tree, so the pack step checks the bytes it is about to ship.
 const shipped = readFileSync(join(root, 'cordis.patch.yml'), 'utf8')
 if (!/registerTools:\s*false/.test(shipped) || /registerTools:\s*true/.test(shipped)) {

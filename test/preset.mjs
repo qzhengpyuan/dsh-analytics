@@ -86,7 +86,7 @@ await check('the bundle patch ships the preset and mounts the scoped tools', () 
   assert.match(patch, /name: '@deepseek-ai\/dsh-agent-preset'/)
   assert.match(patch, /id: analytics\b[\s\S]*?registerTools: false/)
   assert.match(patch, /name: 'dsh-analytics-pspp\/tools'/)
-  assert.match(patch, /name: 数据分析/)
+  assert.match(patch, /name: 统计分析/)
 })
 
 console.log(`\n${passed} passed, ${failed} failed`)

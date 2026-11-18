@@ -627,7 +627,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-row { display:flex; gap:8px; align-items:center; }
 /* 11px 是正文下限：说明文字/状态栏之外不再出现更小的字 */
 .ap-hint { color:var(--ap-text-2); font-size:11px; }
-/* 预设提示条：会话没选「数据分析」预设时，智能体看不到 pspp_* 工具，但面板
+/* 预设提示条：会话没选「统计分析」预设时，智能体看不到 pspp_* 工具，但面板
    照常可用。底色从 --ap-accent 混出来（不写死亮色），暗色主题下不会刷白。 */
 .ap-preset-bar { display:flex; align-items:center; gap:8px; flex:none; padding:4px 8px;
   background:color-mix(in srgb, var(--ap-accent) 12%, var(--ap-panel));
@@ -6966,7 +6966,7 @@ let ITEM_CSV_PENDING = null
         presetId && presetId !== 'analytics' && !presetBannerHidden
           ? h('div', { className: 'ap-preset-bar', role: 'status' },
             h('span', { className: 'ap-preset-bar-text' },
-              tr('本会话没有启用「数据分析」预设：智能体看不到 pspp_* 工具，但面板本身仍可直接操作数据。新建会话时选「数据分析」预设即可同时启用工具。')),
+              tr('本会话没有启用「统计分析」预设：智能体看不到 pspp_* 工具，但面板本身仍可直接操作数据。新建会话时选「统计分析」预设即可同时启用工具。')),
             h('button', {
               className: 'ap-preset-bar-close',
               onClick: () => {
@@ -8364,7 +8364,7 @@ let ITEM_CSV_PENDING = null
           dedupeKey: (tab) => tab?.meta?.docId ?? 'primary',
           order: 30,
           // Greyed out in better-sidebar's "+" menu unless the session runs the
-          // 数据分析 preset: without it the agent cannot see the pspp_* tools,
+          // 统计分析 preset: without it the agent cannot see the pspp_* tools,
           // so opening a fresh tab from the menu is the wrong move. null means
           // the host told us nothing (old host, test context) — stay available.
           available: (tabCtx, tabScope) => {

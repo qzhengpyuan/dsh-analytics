@@ -6,7 +6,7 @@
 #                    publishes that registry as the `analytics` service. The
 #                    Client half registers the SPSS-style tab through
 #                    dsh-better-sidebar, so the panel is available everywhere.
-#   preset-analytics Agent preset「数据分析」. Its plugin list carries the
+#   preset-analytics Agent preset「统计分析」. Its plugin list carries the
 #                    preset-scoped mount `dsh-analytics/tools`, which registers
 #                    the `pspp_*` tools. A session that does not select this
 #                    preset never sees them, which is the whole point: 23 tool
@@ -27,7 +27,7 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: analytics
-        name: 数据分析
+        name: 统计分析
         description: SPSS 风格统计分析：pspp_* 工具 + 侧栏数据面板，不占用其它会话的上下文
         order: 8
         plugins:

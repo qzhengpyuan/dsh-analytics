@@ -175,7 +175,7 @@ async function main() {
   }
   console.log()
   console.log('重载：设置 → 插件 → dsh-analytics-pspp 关一次再开（面板里已打开的数据集会清空）')
-  console.log('检查：新建会话时预设选择器里应出现「数据分析」')
+  console.log('检查：新建会话时预设选择器里应出现「统计分析」')
 }
 
 const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href

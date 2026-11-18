@@ -195,7 +195,7 @@ assert.equal(hooks.pathJoin('C:\\psppdata\\中文目录', 'new.sav'), 'C:\\psppd
 assert.equal(hooks.pathJoin('C:\\', 'a.sav'), 'C:\\a.sav', 'joining at a drive root keeps one separator')
 assert.equal(hooks.pathJoin('/tmp/数据', 'a.sav'), '/tmp/数据/a.sav')
 
-// Agent preset (0.47.0): the panel works without the 数据分析 preset, but the
+// Agent preset (0.47.0): the panel works without the 统计分析 preset, but the
 // agent cannot see the pspp_* tools, so the panel says so and better-sidebar
 // greys the "+" entry out. The only source is the host projection; anything it
 // cannot answer is "unknown" and must change nothing.
@@ -278,7 +278,7 @@ const mountWithPreset = async (preset) => {
 const otherPreset = await mountWithPreset('other')
 const presetBar = otherPreset.host.querySelector('.ap-preset-bar')
 assert.ok(presetBar, 'a session on another preset gets the notice bar, not a blank panel')
-assert.match(presetBar.textContent, /数据分析/, 'the notice names the preset')
+assert.match(presetBar.textContent, /统计分析/, 'the notice names the preset')
 assert.match(presetBar.textContent, /pspp_\*/, 'and says what the agent loses')
 assert.match(otherPreset.host.textContent, /分析/, 'the panel itself still renders')
 await act(async () => { presetBar.querySelector('.ap-preset-bar-close').click() })
@@ -2213,10 +2213,10 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
 // English dictionary; the substring rule alone would leave it Chinese.
 {
   const dict = JSON.parse(readFileSync(join(root, 'locale', 'en.json'), 'utf8')).strings
-  const notice = '本会话没有启用「数据分析」预设：智能体看不到 pspp_* 工具，但面板本身仍可直接操作数据。新建会话时选「数据分析」预设即可同时启用工具。'
+  const notice = '本会话没有启用「统计分析」预设：智能体看不到 pspp_* 工具，但面板本身仍可直接操作数据。新建会话时选「统计分析」预设即可同时启用工具。'
   hooks.setDictionary(dict)
-  assert.match(hooks.tr(notice), /not using the Data Analysis preset/, 'the notice has an English sentence')
-  assert.equal(hooks.tr(notice).includes('数据分析'), false, 'and no Chinese is left in it')
+  assert.match(hooks.tr(notice), /not using the Statistics preset/, 'the notice has an English sentence')
+  assert.equal(hooks.tr(notice).includes('统计分析'), false, 'and no Chinese is left in it')
   assert.equal(hooks.tr('不再提示'), "Don't show again", 'the dismiss button is translated too')
   hooks.setDictionary(null)
   console.log('ok  the preset notice and its dismiss button are in the English dictionary')
