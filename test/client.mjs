@@ -69,7 +69,7 @@ function makeContext() {
     slots: {
       inject(name, run) {
         assert.ok(
-          ['settings.section', 'sidebar.panellist', 'main'].includes(name),
+          ['sidebar.panellist', 'main'].includes(name),
           `unexpected slot: ${name}`,
         )
         run()
@@ -106,10 +106,10 @@ plugin.apply(ctx)
 assert.equal(registered.tabs.length, 1, 'exactly one tab is registered')
 assert.equal(registered.tabs[0].id, 'analytics')
 assert.equal(registered.viewers.length, 1, 'exactly one data-file viewer is registered')
-assert.equal(registered.settings.length, 1, 'the plugin puts one page under 设置 → 插件')
-assert.equal(registered.settings[0].id, 'analytics')
-assert.equal(registered.settings[0].label, '统计分析')
-assert.equal(typeof registered.settings[0].component, 'function', 'the settings page must render something')
+// The harness settings page is deliberately left alone: the knobs belong to
+// the workbench's own 设置 menu, and a second copy in 设置 → 插件 meant two
+// places to look for the same value.
+assert.equal(registered.settings.length, 0, 'no page is added to the harness settings')
 assert.equal(registered.viewers[0].id, 'analytics:data')
 assert.deepEqual(registered.viewers[0].exts, ['sav', 'por', 'sys', 'dta'])
 
@@ -121,6 +121,16 @@ assert.equal(registered.panels[0].id, 'analytics')
 assert.equal(registered.panels[0].order, 60)
 assert.equal(registered.panels[0].label(), '统计分析', 'the row is labelled like the workbench')
 assert.equal(typeof registered.panels[0].component, 'function', 'the row draws an icon')
+// The row sits next to outline glyphs from the harness' own set (16×16 box,
+// fill="none", round caps, currentColor), so a filled blue badge read as a
+// guest from another app. Assert the vocabulary, not the picture.
+const rowIcon = registered.panels[0].component()
+assert.equal(rowIcon.type, 'svg', 'the row icon is an svg element')
+assert.equal(rowIcon.props.viewBox, '0 0 16 16', 'the row icon uses the harness 16-unit box')
+assert.equal(rowIcon.props.fill, 'none', 'line art, not a filled badge')
+assert.equal(rowIcon.props.stroke, 'currentColor', 'one asset serves the light and the dark theme')
+assert.equal(rowIcon.props.strokeLinecap, 'round')
+assert.equal(Number(rowIcon.props.strokeWidth) > 0, true, 'the stroke has a width')
 assert.equal(registered.main.length, 1, 'one main-column page for the row to open')
 assert.equal(registered.main[0].key, 'analytics', 'the row id and the main key must match')
 assert.equal(typeof registered.main[0].component, 'function', 'the main-column page must render')
@@ -142,6 +152,7 @@ await act(async () => {
 const text = () => container.textContent.replace(/\s+/g, ' ')
 assert.match(text(), /文件/, 'the menu bar renders')
 assert.match(text(), /分析/, 'the analysis menu renders')
+assert.match(text(), /设置/, 'the workbench carries its own 设置 menu')
 assert.equal(container.querySelector('.ap-doctabs'), null, 'an empty workbench shows no document strip')
 
 await act(async () => { clientRoot.unmount() })
@@ -179,6 +190,15 @@ assert.match(viewerHost.textContent, /已交给「统计分析」打开/, 'the v
 assert.deepEqual(closed, [{ sessionId: 'session-test', id: 'tab2' }],
   'the handoff closes the editor tab and leaves the analytics tab alone')
 await act(async () => { viewerRoot.unmount() })
+
+// The harness settings page must stay free of a 统计分析 page: the knobs live
+// in the panel's own menu now, and two copies of one value is how a user ends
+// up editing the wrong one.
+const bundleSource = readFileSync(join(root, 'client.js'), 'utf8')
+assert.ok(!bundleSource.includes("inject('settings.section'"), 'no page is registered in the harness settings')
+// A refused write leaves a mark in the status bar, because a toast that faded
+// five seconds ago cannot answer "did somebody overwrite my data".
+assert.match(bundleSource, /ap-status-conflicts/, 'the status bar can show a conflict count')
 
 const hooks = globalThis.__AP_TEST_HOOKS__
 
@@ -1844,7 +1864,7 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   const root = window.document.createElement('div')
   const reactRoot = createRoot(root)
   await act(async () => {
-    reactRoot.render(React.createElement(registered.settings[0].component))
+    reactRoot.render(React.createElement(hooks.settingsForm, { onDone: () => {} }))
     await new Promise((resolve) => setTimeout(resolve, 120))
   })
   const text = root.textContent

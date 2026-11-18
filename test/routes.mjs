@@ -533,6 +533,20 @@ if (r.code !== 409 || refused.conflict?.expected !== staleRevision || refused.co
 }
 const kept = refused.state
 r = await call('POST', `${base}/api/rows`, { sessionId: wsid, start: 0, count: 5 })
+// The refused write is not just announced: it is kept, so hours later the
+// question "did anything try to overwrite my data?" still has an answer.
+console.log('   conflict kept', refused.state?.conflictCount === 1, refused.state?.lastConflict?.route === 'api/cell')
+if (refused.state?.conflictCount !== 1) throw new Error('a refused write must be recorded on the workspace')
+if (refused.state?.lastConflict?.expected !== staleRevision) throw new Error('the record must keep both revisions')
+if (refused.state?.lastConflict?.route !== 'api/cell') throw new Error('the record must say which route was refused')
+// Kept on disk, not only in memory: the panel is closed by the time anyone
+// asks, and a restart must not erase the fact that a write was refused.
+{
+  const meta = JSON.parse(await readFile(join(home, 'analytics', wsid, 'dataset.json'), 'utf8'))
+  const kept1 = Array.isArray(meta.conflicts) && meta.conflicts.length === 1
+  console.log('   conflict survived to dataset.json', kept1, meta.conflicts?.[0]?.route)
+  if (!kept1) throw new Error('a refused write must be written to dataset.json')
+}
 console.log('   value not overwritten', r.json().page.rows[0]?.[0] === 13, kept?.lastWriter === writerB)
 if (r.json().page.rows[0]?.[0] !== 13) throw new Error('the refused write must not reach the data')
 // The same write with the current revision goes through, and an explicit force

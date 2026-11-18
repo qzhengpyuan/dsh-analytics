@@ -234,6 +234,7 @@ await check('each table carries its own source line, not just the document foote
         sourceSize: 46462,
         runId: 3,
         digest: 'a1b2c3d4',
+        conflicts: 2,
       },
     }],
   })
@@ -243,6 +244,7 @@ await check('each table carries its own source line, not just the document foote
   // two re-runs of the same file apart.
   assert.match(document, /运行 #3/, 'the stamp names the run that produced the table')
   assert.match(document, /数据指纹 a1b2c3d4/, 'the stamp carries the fingerprint of the data')
+  assert.match(document, /冲突记录 2 次/, 'a reader is told that two windows fought over this data')
   assert.ok(document.indexOf('来源：a.sav') > document.indexOf('</w:tbl>'), 'the stamp follows the table')
   assert.match(document, /数据来源：/, 'the document footer is still there')
 })

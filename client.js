@@ -392,6 +392,9 @@ body[data-ds-dark-theme] .ap-root {
   min-width:0; overflow:hidden; text-overflow:ellipsis; }
 .ap-status .ap-status-right > * { min-width:0; overflow:hidden; text-overflow:ellipsis; }
 .ap-status .ap-status-version { color:var(--ap-text-3); font-variant-numeric:tabular-nums; cursor:default; }
+/* A refused write is not a warning that goes away: the count stays for as long
+   as the data does, and the title says where the detail lives. */
+.ap-status .ap-status-conflicts { color: var(--ap-danger); font-variant-numeric:tabular-nums; cursor:default; }
 .ap-status .ap-chip { height:16px; font-size:11px; }
 .ap-chip { display:inline-flex; align-items:center; gap:4px; padding:0 6px; border:1px solid var(--ap-line-4);
   border-radius:9px; background:var(--ap-button); color:var(--ap-text); height:16px; line-height:16px; }
@@ -679,6 +682,8 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
   padding:0 6px; font:inherit; font-size:11px; color:var(--ap-text-2); cursor:pointer; }
 .ap-preset-bar-close:hover { background:var(--ap-hover); color:var(--ap-text); }
 .ap-settings { max-width: 640px; display: flex; flex-direction: column; gap: 10px; }
+/* Inside the modal the dialog already provides the frame and the padding. */
+.ap-settings.ap-settings-embedded { max-width: none; }
 .ap-settings-title { margin: 0; font-size: 13px; font-weight: 600; }
 .ap-settings-row { display: flex; flex-direction: column; gap: 4px; }
 .ap-settings-row label { font-size: 12px; }
@@ -715,6 +720,35 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       h('rect', { key: 'b3', x: 35, y: 31, width: 7, height: 19, rx: 1.5, fill: '#fff' }),
       h('rect', { key: 'b4', x: 46, y: 20, width: 7, height: 30, rx: 1.5, fill: '#fff' }),
       h('path', { key: 'line', d: 'M12 24 C22 12, 30 30, 40 18 S54 12, 54 12', fill: 'none', stroke: '#8cc8ff', strokeWidth: 2.6, strokeLinecap: 'round' }),
+    ])
+
+    /**
+     * The line-art twin of the panel's icon.
+     *
+     * Every other row in 全局面板 is an outline glyph from the harness' icon set
+     * (16×16 box, fill="none", round caps, stroke = currentColor, width 1–1.3),
+     * so a filled blue badge with white bars looked like a guest from another
+     * app. This is drawn in the same vocabulary. `currentColor` is what makes
+     * one asset work on a light and a dark theme — there is no need for a black
+     * copy and a white copy.
+     */
+    const ICON_LINE = (size = 16, strokeWidth = 1.3) => h('svg', {
+      width: size,
+      height: size,
+      viewBox: '0 0 16 16',
+      fill: 'none',
+      stroke: 'currentColor',
+      strokeWidth,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      'aria-hidden': true,
+      style: { display: 'block' },
+    }, [
+      h('path', { key: 'axis', d: 'M2.6 2.4v11h10.8' }),
+      h('path', { key: 'b1', d: 'M5.2 11.2V8.4' }),
+      h('path', { key: 'b2', d: 'M8 11.2V5.6' }),
+      h('path', { key: 'b3', d: 'M10.8 11.2V7' }),
+      h('path', { key: 'trend', d: 'M4.6 6.1 7.2 3.9l2 1.5L13 2.8' }),
     ])
 
     /* ------------------------------------------------------------- dialogs */
@@ -5340,7 +5374,7 @@ let ITEM_CSV_PENDING = null
       // menu, Up/Down walks its items, Enter runs one, Esc closes. The panel had
       // no keyboard path into the menus at all, which also made it untestable in
       // a browser that cannot click a 12 px target reliably.
-      const MENU_MNEMONICS = { f: '文件', e: '编辑', v: '视图', d: '数据', t: '转换', a: '分析', g: '图形', u: '实用程序', h: '帮助' }
+      const MENU_MNEMONICS = { f: '文件', e: '编辑', v: '视图', d: '数据', t: '转换', a: '分析', g: '图形', u: '实用程序', s: '设置', h: '帮助' }
       // Read the labels off the DOM: the menu list itself is built further down
       // this component, and a hook may not depend on something declared later.
       const menuButtonLabels = () => [...(menuBarRef.current?.querySelectorAll('.ap-menu-button') ?? [])].map((node) => node.textContent)
@@ -6775,6 +6809,13 @@ let ITEM_CSV_PENDING = null
           ],
         },
         {
+          label: '设置', items: [
+            { label: '选项…', action: () => setDialog({ kind: 'settings' }) },
+            { sep: true },
+            { label: '关于本插件…', action: () => notify('内置 PSPP 引擎 + SPSS 风格工作台；统计过程由 PSPP 执行。') },
+          ],
+        },
+        {
           label: '帮助', items: [
             { label: '关于 PSPP 分析', action: () => notify('内置 PSPP 引擎 + SPSS 风格工作台；统计过程由 PSPP 执行。') },
           ],
@@ -7289,10 +7330,27 @@ let ITEM_CSV_PENDING = null
                 onClick: () => setDialog({ kind: 'importNotes', notes: st.importNotes }),
               }, `导入说明 ${st.importNotes.length}`)
               : null,
+            st?.conflictCount > 0
+              ? h('span', {
+                key: 'conflicts',
+                className: 'ap-status-conflicts',
+                title: `${st.conflictCount} 次写入被拒：另一个窗口在你编辑期间改过这份数据，那几次修改没有写入（原因见 设置 → 选项 → 冲突记录；导出的表格会带上次数）`,
+              }, `冲突 ${st.conflictCount}`)
+              : null,
             st?.version
               ? h('span', { className: 'ap-status-version', title: `插件版本 ${st.version}（改后端代码后停用再启用本插件即可生效，但要重新打开数据文件）` }, `v${st.version}`)
               : null)),
         toast ? h('div', { className: 'ap-toast' }, toast) : null,
+        dialog?.kind === 'settings'
+          ? h(Modal, {
+            title: '设置：统计分析',
+            wide: true,
+            hideCancel: true,
+            okText: '关闭',
+            onOk: () => setDialog(null),
+            onCancel: () => setDialog(null),
+          }, h(SettingsForm, { onDone: () => setDialog(null) }))
+          : null,
         dialog?.kind === 'importNotes'
           ? h(Modal, {
             title: '导入说明：列名为什么改了',
@@ -8202,7 +8260,15 @@ let ITEM_CSV_PENDING = null
       },
     ]
 
-    function SettingsTab() {
+    /**
+     * The settings form, drawn inside the panel's own dialog.
+     *
+     * It used to live in the harness' settings page (`settings.section`). Two
+     * places to change the same three knobs meant the user had to remember
+     * which one they had opened, and the panel's copy could not say "these are
+     * this workbench's settings" at all.
+     */
+    function SettingsForm({ onDone }) {
       const [data, setData] = useState(null)
       const [form, setForm] = useState(null)
       const [status, setStatus] = useState('')
@@ -8266,14 +8332,13 @@ let ITEM_CSV_PENDING = null
         }
       }, [form])
 
-      if (error && !data) return h('div', { className: 'ap-root ap-settings' }, h('p', { className: 'ap-error' }, `设置读不出来：${error}`))
+      if (error && !data) return h('div', { className: 'ap-settings' }, h('p', { className: 'ap-error' }, `设置读不出来：${error}`))
 
-      if (!data || !form) return h('div', { className: 'ap-root ap-settings' }, h('p', { className: 'ap-hint' }, '正在读取设置…'))
+      if (!data || !form) return h('div', { className: 'ap-settings' }, h('p', { className: 'ap-hint' }, '正在读取设置…'))
 
       const set = (key, value) => setForm((current) => ({ ...current, [key]: value }))
 
-      return h('div', { className: 'ap-root ap-settings' }, [
-        h('h3', { key: 'title', className: 'ap-settings-title' }, '统计分析'),
+      return h('div', { className: 'ap-settings ap-settings-embedded' }, [
         h('p', { key: 'where', className: 'ap-hint' },
           `设置文件：${data.path}${data.exists ? '' : '（还没创建，保存后生成）'}`),
         data.problems?.length > 0
@@ -8334,13 +8399,26 @@ let ITEM_CSV_PENDING = null
           h('p', { key: 'p', className: 'ap-hint' }, data.deploymentOnly.registerTools.note),
         ]),
         h('div', { key: 'actions', className: 'ap-settings-actions' }, [
-          h('button', { key: 'save', type: 'button', className: 'ap-btn ap-primary', disabled: busy, onClick: save },
-            busy ? '保存中…' : '保存'),
+          h('button', {
+            key: 'save',
+            type: 'button',
+            className: 'ap-btn ap-primary',
+            disabled: busy,
+            onClick: async () => { await save(); onDone?.() },
+          }, busy ? '保存中…' : '保存'),
           h('button', { key: 'reload', type: 'button', className: 'ap-btn', disabled: busy, onClick: load }, '重新读取'),
+          h('button', { key: 'cancel', type: 'button', className: 'ap-btn', disabled: busy, onClick: () => onDone?.() }, '取消'),
         ]),
         status ? h('p', { key: 'status', className: 'ap-hint ap-settings-ok' }, status) : null,
         error ? h('p', { key: 'err', className: 'ap-error' }, error) : null,
       ].filter(Boolean))
+    }
+
+    if (typeof globalThis !== 'undefined' && globalThis.__AP_TEST_HOOKS__) {
+      // The form moved out of the harness settings page and into the panel's own
+      // dialog; tests still need a handle on it, and a dialog is one click away
+      // from a test that does not want to drive the menu.
+      globalThis.__AP_TEST_HOOKS__.settingsForm = SettingsForm
     }
 
     // Data files that only a statistics tool can make sense of. Clicking one in
@@ -8360,13 +8438,9 @@ let ITEM_CSV_PENDING = null
     }
 
     return {
-      // `slots` is the settings shell: without it the panel is reachable but the
-      // plugin has no page in 设置, so every knob would stay a YAML edit.
-      //
-      // The seat is `settings.section`: this build's settings panel lists one
-      // page per entry there (a whole page, unlike `settings.general.item`,
-      // which contributes a single row). `settings.plugins.tab` does not exist
-      // in this version — registering there silently mounts nothing.
+      // `slots` is the sidebar shell: the left column's panel list and the main
+      // area are slots, not services. The harness' own settings page is
+      // deliberately left alone — this plugin's knobs live in its own 设置 menu.
       inject: ['betterSidebar', 'slots'],
       apply(ctx) {
         // The tab label and the data-file viewer title are drawn by the sidebar,
@@ -8381,12 +8455,9 @@ let ITEM_CSV_PENDING = null
             : null))
           .catch(() => { /* the panel will ask again when it opens */ })
         if (ctx.slots) {
-          ctx.slots.inject('settings.section', () => ctx.slots.register({
-            name: 'settings.section',
-            id: 'analytics',
-            order: 80,
-            label: '统计分析',
-          }, () => h(SettingsTab)))
+          // Deliberately NOT registered in `settings.section`: the knobs belong
+          // to this workbench (编辑 → 设置…), and a second copy in the harness'
+          // settings page meant two places to look and two ways to get it wrong.
           // The left column's global panel list — the same rows 免费搜索, SSH and
           // 上下文洞察 sit in. A better-sidebar tab lives in the right column and
           // the bottom workbench: without this registration the workbench cannot
@@ -8397,7 +8468,7 @@ let ITEM_CSV_PENDING = null
             id: 'analytics',
             order: 60,
             label: () => tr('统计分析'),
-          }, () => ICON(18)))
+          }, () => ICON_LINE(16)))
           ctx.slots.inject('main', () => ctx.slots.register({
             name: 'main',
             key: 'analytics',
