@@ -513,6 +513,38 @@ if (afterA.lastWriter !== writerA || afterB.lastWriter !== writerB || !(afterB.r
   throw new Error('state must name the writer of the last change')
 }
 
+// A write from a client that does not name itself is a tool call, not "the
+// previous panel": the panel must be able to tell those apart.
+r = await call('POST', `${base}/api/cell`, { sessionId: wsid, row: 0, variable: 'x', value: 11 })
+const toolWrite = r.json().state
+console.log('tool write has no owner', toolWrite.lastWriter === null, toolWrite.revision > afterB.revision)
+if (toolWrite.lastWriter !== null) throw new Error('a write with no writer must not inherit the previous one')
+
+// Optimistic concurrency: the panel sends the revision it was looking at, so a
+// stale write is refused instead of quietly replacing somebody else's numbers.
+const staleRevision = toolWrite.revision
+await call('POST', `${base}/api/cell`, { sessionId: wsid, writer: writerB, row: 0, variable: 'x', value: 13 })
+r = await call('POST', `${base}/api/cell`, { sessionId: wsid, writer: writerA, row: 0, variable: 'x', value: 99, baseRevision: staleRevision })
+const refused = r.json()
+console.log('stale write refused', r.code, refused.ok === false, refused.conflict?.actual === staleRevision + 1)
+console.log('   winner kept', refused.state?.dataset?.caseCount >= 1)
+if (r.code !== 409 || refused.conflict?.expected !== staleRevision || refused.conflict?.actual !== staleRevision + 1) {
+  throw new Error('a write on top of an unread revision must come back as 409 with both revisions')
+}
+const kept = refused.state
+r = await call('POST', `${base}/api/rows`, { sessionId: wsid, start: 0, count: 5 })
+console.log('   value not overwritten', r.json().page.rows[0]?.[0] === 13, kept?.lastWriter === writerB)
+if (r.json().page.rows[0]?.[0] !== 13) throw new Error('the refused write must not reach the data')
+// The same write with the current revision goes through, and an explicit force
+// is still allowed for a panel that has already asked the user.
+r = await call('POST', `${base}/api/cell`, { sessionId: wsid, writer: writerA, row: 0, variable: 'x', value: 21, baseRevision: staleRevision + 1 })
+console.log('fresh write accepted', r.code, r.json().state?.lastWriter === writerA)
+if (r.code !== 200) throw new Error('a write carrying the current revision must be accepted')
+r = await call('POST', `${base}/api/cell`, { sessionId: wsid, writer: writerA, row: 0, variable: 'x', value: 22, baseRevision: 0, force: true })
+console.log('forced write accepted', r.code, r.json().state?.lastWriter === writerA)
+if (r.code !== 200) throw new Error('force must bypass the revision check')
+console.log('ok  a write on top of a revision this window has not read is refused, and force still bypasses it')
+
 r = await call('POST', `${base}/api/close`, { sessionId: sid2 })
 console.log('doc2 closed', r.code, r.json().state.dataset === null)
 

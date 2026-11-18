@@ -97,7 +97,27 @@ window.__ModuleLoader__.load({
     // (the left column's launcher and a Session's tab both open the same
     // docId), each with its own rows and undo stack: without a name the second
     // writer silently wins and the first one never learns its grid is stale.
-    const WRITER = `panel-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`
+    // Which window is this? Kept in localStorage so the same browser keeps the
+    // same name across reloads (a fresh name every time made "another window"
+    // impossible to tell apart from "me, five minutes ago"), plus a per-tab
+    // suffix so two windows of that browser are still distinct.
+    const WRITER = (() => {
+      let base = ''
+      try { base = localStorage.getItem('ap.writerBase') ?? '' } catch { /* private mode */ }
+      if (!/^panel-[a-z0-9]{6,12}$/.test(base)) {
+        base = `panel-${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36)}`
+        try { localStorage.setItem('ap.writerBase', base) } catch { /* private mode */ }
+      }
+      return `${base}-${Math.random().toString(36).slice(2, 6)}`
+    })()
+    // The revision this panel last saw. Writes carry it so the host can refuse a
+    // change made on top of data this window has not read.
+    const REVISION_GUARDED = new Set([
+      'api/cell', 'api/paste', 'api/case', 'api/variable', 'api/run', 'api/sort',
+      'api/flip', 'api/restructure', 'api/merge', 'api/missing', 'api/replace',
+      'api/mrset', 'api/valuelabels', 'api/duplicates', 'api/outliers',
+    ])
+    let KNOWN_REVISION = null
 
     // A hung request used to freeze the panel for good: the poll skipped while
     // busy and never ran again. Every call gets a deadline instead.
@@ -109,8 +129,15 @@ window.__ModuleLoader__.load({
         : body
       // Every POST names the panel that sent it; the host records it on writes
       // so the other window can be told that its copy is stale.
-      const payload = base !== undefined && base && typeof base === 'object' && base.sessionId !== undefined
-        ? { ...base, writer: WRITER }
+      const named = base !== undefined && base && typeof base === 'object' && base.sessionId !== undefined
+      const payload = named
+        ? {
+          ...base,
+          writer: WRITER,
+          ...(KNOWN_REVISION !== null && REVISION_GUARDED.has(path) && base.baseRevision === undefined && base.force !== true
+            ? { baseRevision: KNOWN_REVISION }
+            : {}),
+        }
         : base
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
@@ -138,7 +165,19 @@ window.__ModuleLoader__.load({
       } catch {
         throw new Error(text.slice(0, 200) || `request failed (${response.status})`)
       }
-      if (!response.ok || value?.ok === false) throw new Error(value?.error ?? `request failed (${response.status})`)
+      if (!response.ok || value?.ok === false) {
+        const error = new Error(value?.error ?? `request failed (${response.status})`)
+        if (value && typeof value.conflict === 'object' && value.conflict) error.conflict = value.conflict
+        if (value && typeof value.state === 'object' && value.state) error.state = value.state
+        // The losing state is the true one: a retry has to be based on it.
+        if (error.state && Number.isFinite(Number(error.state.revision))) KNOWN_REVISION = Number(error.state.revision)
+        throw error
+      }
+      // Every answer that carries a state keeps this panel's idea of the
+      // revision fresh, so the next write is checked against what it has
+      // actually read rather than against the previous render.
+      const answered = value?.state ?? value?.result?.state
+      if (answered && Number.isFinite(Number(answered.revision))) KNOWN_REVISION = Number(answered.revision)
       return value
     }
 
@@ -164,8 +203,11 @@ window.__ModuleLoader__.load({
       if (!previous || previous.revision === null || previous.revision === undefined) return null
       const revision = Number(next.revision ?? 0)
       const lastWriter = typeof next.lastWriter === 'string' ? next.lastWriter : null
-      if (!lastWriter || lastWriter === selfWriter) return null
       if (revision === Number(previous.revision)) return null
+      // No name means a tool call (or a client that does not identify itself):
+      // the numbers changed under this window all the same.
+      if (!lastWriter) return '数据已被对话里的分析改写：已载入最新内容'
+      if (lastWriter === selfWriter) return null
       return '数据已被另一个窗口修改：已载入最新内容，正在编辑的格子请重新确认'
     }
 
@@ -5401,9 +5443,14 @@ let ITEM_CSV_PENDING = null
       const [browser, setBrowser] = useState(null)
       const [labelsDialog, setLabelsDialog] = useState(null)
 
+      const toastTimer = useRef(0)
       const notify = (message) => {
         setToast(message)
-        window.setTimeout(() => setToast(null), 4200)
+        // Keep the handle: two notices in a row used to leave the first timer
+        // running, and it cleared the second toast about a second after it
+        // appeared (which is exactly when a user is still reading it).
+        if (toastTimer.current) window.clearTimeout(toastTimer.current)
+        toastTimer.current = window.setTimeout(() => { toastTimer.current = 0; setToast(null) }, 5000)
       }
 
       // Another window may be editing the same workspace: each panel keeps its
@@ -5434,6 +5481,25 @@ let ITEM_CSV_PENDING = null
         }
         lastWrite.current = { revision, writer }
       }, [st])
+
+      // A 409 from the host means this window tried to write on top of data it
+      // had not read. The change did not happen, so say that plainly and pull
+      // the state that won instead of leaving the user to guess.
+      const writeFailed = (error) => {
+        const conflict = error?.conflict
+        if (conflict) {
+          const who = typeof conflict.lastWriter === 'string' && conflict.lastWriter
+            ? '（最后写入：另一个窗口）'
+            : '（最后写入：对话里的分析）'
+          notify(`另一个窗口已经改过这份数据${who}：这次修改没有写入，已载入最新内容`)
+          if (error.state) setSt(error.state)
+          loadRows(0, Math.max(500, rows.length))
+            .then((page) => { setRows(page.rows); setTotal(page.total) })
+            .catch(() => { /* the next tick reads it anyway */ })
+          return
+        }
+        notify(error.message)
+      }
 
       const refresh = useCallback(async () => {
         const value = await api(stateUrl(sessionId))
@@ -5471,7 +5537,7 @@ let ITEM_CSV_PENDING = null
             await work()
             if (label) notify(label)
           } catch (error) {
-            notify(error.message)
+            writeFailed(error)
           } finally {
             setBusy(false)
           }
@@ -6454,7 +6520,7 @@ let ITEM_CSV_PENDING = null
           // keypress goes nowhere.
           if (cause?.focus) window.setTimeout(() => document.querySelector('.ap-grid-wrap')?.focus({ preventScroll: true }), 0)
         } catch (error) {
-          notify(error.message)
+          writeFailed(error)
         }
       }, [sessionId, st])
 

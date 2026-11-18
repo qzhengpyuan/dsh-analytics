@@ -2299,6 +2299,11 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.equal(notice(null, { revision: 5, lastWriter: 'panel-other' }, self), null, 'the first state is the baseline')
   assert.equal(notice({ revision: 4 }, { revision: 5, lastWriter: self }, self), null, 'my own write is not news')
   assert.equal(notice({ revision: 5 }, { revision: 5, lastWriter: 'panel-other' }, self), null, 'an unchanged revision is not news')
-  assert.equal(notice({ revision: 4 }, { revision: 5, lastWriter: null }, self), null, 'a tool call has no panel to blame')
+  assert.equal(
+    notice({ revision: 4 }, { revision: 5, lastWriter: null }, self),
+    '数据已被对话里的分析改写：已载入最新内容',
+    'a write with no name is a tool call, and it still gets said out loud',
+  )
+  assert.equal(notice({ revision: 4 }, { revision: 5 }, self), '数据已被对话里的分析改写：已载入最新内容', 'a host without lastWriter is treated the same way')
   console.log('ok  a write from another window is announced, a self-write and the first state are not')
 }
