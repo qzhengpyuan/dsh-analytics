@@ -472,6 +472,21 @@ console.log('active tab', r.code, r.json().result?.active === sid2)
 r = await call('POST', `${base}/api/active`, { sessionId: sid, docId: sid })
 console.log('active back', r.code, r.json().result?.active === sid)
 
+// The left column's global panel inherits no Session: it asks what is open and
+// adopts the most recently used one, so it shows the data the conversation
+// beside it is working on instead of an empty document.
+r = await call('GET', `${base}/api/workspaces`)
+const workspaces = r.json().result?.workspaces ?? []
+const ordered = workspaces.every((row, index) => index === 0 || workspaces[index - 1].lastUsedAt >= row.lastUsedAt)
+console.log('workspaces listed', r.code, workspaces.length >= 2)
+console.log('   newest first', ordered, workspaces.every((row) => typeof row.name === 'string' && row.caseCount > 0))
+// The registry sanitises the tab id (`~` becomes `_`), so compare prefixes.
+const peers = workspaces.filter((row) => String(row.docId).startsWith(sid)).length >= 2
+console.log('   peers listed', peers)
+// The panel adopts workspaces[0], so an empty or wrongly ordered list is a
+// silent return to the empty document it was fixed for.
+if (workspaces.length < 2 || !ordered || !peers) throw new Error('api/workspaces must list the open datasets, newest first')
+
 r = await call('POST', `${base}/api/close`, { sessionId: sid2 })
 console.log('doc2 closed', r.code, r.json().state.dataset === null)
 

@@ -2221,3 +2221,66 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   hooks.setDictionary(null)
   console.log('ok  the preset notice and its dismiss button are in the English dictionary')
 }
+
+// 左栏的全局面板没有会话来继承（0.50.1）：它必须自己去认已经打开的数据集，
+// 否则会话里明明有数据，面板却停在一个空文档上、看起来像另一套数据。
+{
+  const host = window.document.createElement('div')
+  window.document.body.appendChild(host)
+  const root = createRoot(host)
+  const posts = []
+  const state = {
+    id: 'session-recent',
+    version: '0.50.1',
+    engine: { source: 'bundled', bin: '/engine/pspp' },
+    locale: 'zh',
+    tableStyle: 'three-line',
+    dataset: {
+      name: 'sixty.sav',
+      sourcePath: '/tmp/sixty.sav',
+      caseCount: 60,
+      variables: [{ name: 'age', label: '年龄' }],
+    },
+    items: [],
+    log: [],
+  }
+  window.fetch = async (url, options) => {
+    const body = options?.body ? JSON.parse(options.body) : null
+    posts.push({ url: String(url), body })
+    if (String(url).includes('api/workspaces')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          ok: true,
+          result: {
+            workspaces: [
+              { docId: 'session-recent', name: 'sixty.sav', caseCount: 60, dirty: false },
+              { docId: 'session-older', name: 'extra.sav', caseCount: 6, dirty: true },
+            ],
+          },
+        }),
+      }
+    }
+    if (String(url).includes('api/heartbeat')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, signal: {} }) }
+    }
+    return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state }) }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    root.render(React.createElement(registered.main[0].component))
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  })
+  assert.ok(posts.some((call) => call.url.includes('api/workspaces')), 'the launcher asks what is already open')
+  // The first state read happens before the answer arrives (there is nothing to
+  // ask about yet); the adoption has to re-read with the dataset it chose.
+  const stateCalls = posts.filter((call) => call.url.includes('api/state'))
+  assert.match(String(stateCalls.at(-1)?.url), /sessionId=session-recent/, 'it opens the most recently used dataset')
+  const titles = [...host.querySelectorAll('.ap-doctab-title')].map((node) => node.textContent)
+  assert.deepEqual(titles, ['sixty.sav', 'extra.sav'], 'every open dataset is listed, newest first')
+  assert.ok(host.textContent.includes('sixty.sav'), 'the adopted dataset is the one on screen')
+  await act(async () => { root.unmount() })
+  host.remove()
+  console.log('ok  the left panel adopts the dataset that is already open')
+}

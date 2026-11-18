@@ -5103,6 +5103,27 @@ let ITEM_CSV_PENDING = null
       // uses real tabs, and its panels keep this list at a single entry.
       const [docId, setDocId] = useState(initialDocId)
       const [docs, setDocs] = useState([{ id: initialDocId, title: '' }])
+      // The left column's global panel is root-scoped: it inherits no Session,
+      // so it used to start on the empty 'default' document while the
+      // conversation beside it already held data, and the two looked like
+      // different programs. Adopt the dataset that is already open instead —
+      // the most recently used one — and put the rest in the document strip.
+      const [adopted, setAdopted] = useState(Boolean(initialDocId))
+      useEffect(() => {
+        if (adopted) return undefined
+        let alive = true
+        api('api/workspaces')
+          .then((payload) => {
+            if (!alive) return
+            const rows = Array.isArray(payload?.result?.workspaces) ? payload.result.workspaces : []
+            if (rows.length === 0) return
+            setDocs(rows.map((row) => ({ id: row.docId, title: row.name || '', dirty: row.dirty === true })))
+            setDocId(rows[0].docId)
+          })
+          .catch(() => { /* nothing open yet: stay on the empty document */ })
+          .finally(() => { if (alive) setAdopted(true) })
+        return () => { alive = false }
+      }, [adopted])
       const sessionId = docId
       const tabPath = typeof tab?.path === 'string' ? tab.path : (typeof tab?.meta?.openPath === 'string' ? tab.meta.openPath : '')
       const [st, setSt] = useState(null)
