@@ -487,6 +487,14 @@ console.log('   peers listed', peers)
 // silent return to the empty document it was fixed for.
 if (workspaces.length < 2 || !ordered || !peers) throw new Error('api/workspaces must list the open datasets, newest first')
 
+// A dataset whose rows were released (idle sweep) still lives on disk, and the
+// launcher has to keep offering it: listing only resident workspaces made
+// datasets vanish from the panel after a quiet half hour.
+const otherId = workspaces.map((row) => row.docId).find((id) => id !== sid)
+await registry.get(otherId).release()
+const released = (await registry.recent()).find((row) => row.docId === otherId)
+console.log('released still listed', Boolean(released), released?.released === true, released?.caseCount > 0)
+
 r = await call('POST', `${base}/api/close`, { sessionId: sid2 })
 console.log('doc2 closed', r.code, r.json().state.dataset === null)
 
