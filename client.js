@@ -8238,6 +8238,21 @@ let ITEM_CSV_PENDING = null
             order: 80,
             label: '统计分析',
           }, () => h(SettingsTab)))
+          // The left column's global panel list — the same rows 免费搜索, SSH and
+          // 上下文洞察 sit in. A better-sidebar tab lives in the right column and
+          // the bottom workbench: without this registration the workbench cannot
+          // be reached from the place a user actually looks, and a collapsed
+          // bottom panel leaves no visible entry at all.
+          ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
+            name: 'sidebar.panellist',
+            id: 'analytics',
+            order: 60,
+            label: () => tr('统计分析'),
+          }, () => ICON(18)))
+          ctx.slots.inject('main', () => ctx.slots.register({
+            name: 'main',
+            key: 'analytics',
+          }, () => h(App, { ctx, visible: true })))
         }
         if (!ctx.betterSidebar) return
         ctx.effect(() => ctx.betterSidebar.registerFileViewer({

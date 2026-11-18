@@ -57,7 +57,7 @@ function loadBundle(file) {
   })
 }
 
-const registered = { tabs: [], viewers: [], settings: [] }
+const registered = { tabs: [], viewers: [], settings: [], panels: [], main: [] }
 function makeContext() {
   const services = {
     betterSidebar: {
@@ -67,8 +67,21 @@ function makeContext() {
       closeTab() {},
     },
     slots: {
-      inject(name, run) { assert.equal(name, 'settings.section'); run(); return () => {} },
-      register(definition, component) { registered.settings.push({ ...definition, component }); return () => {} },
+      inject(name, run) {
+        assert.ok(
+          ['settings.section', 'sidebar.panellist', 'main'].includes(name),
+          `unexpected slot: ${name}`,
+        )
+        run()
+        return () => {}
+      },
+      register(definition, component) {
+        const bucket = definition.name === 'sidebar.panellist' ? registered.panels
+          : definition.name === 'main' ? registered.main
+            : registered.settings
+        bucket.push({ ...definition, component })
+        return () => {}
+      },
     },
     locale: { register() { return () => {} }, bind: () => (key) => key },
   }
@@ -99,6 +112,18 @@ assert.equal(registered.settings[0].label, '统计分析')
 assert.equal(typeof registered.settings[0].component, 'function', 'the settings page must render something')
 assert.equal(registered.viewers[0].id, 'analytics:data')
 assert.deepEqual(registered.viewers[0].exts, ['sav', 'por', 'sys', 'dta'])
+
+// The left column's global panel list is the entry a user actually looks for.
+// A better-sidebar tab alone stays invisible while the bottom panel is
+// collapsed, which is exactly how the workbench went missing after a restart.
+assert.equal(registered.panels.length, 1, 'one row in the left global panel list')
+assert.equal(registered.panels[0].id, 'analytics')
+assert.equal(registered.panels[0].order, 60)
+assert.equal(registered.panels[0].label(), '统计分析', 'the row is labelled like the workbench')
+assert.equal(typeof registered.panels[0].component, 'function', 'the row draws an icon')
+assert.equal(registered.main.length, 1, 'one main-column page for the row to open')
+assert.equal(registered.main[0].key, 'analytics', 'the row id and the main key must match')
+assert.equal(typeof registered.main[0].component, 'function', 'the main-column page must render')
 
 const container = window.document.getElementById('root')
 const clientRoot = createRoot(container)
