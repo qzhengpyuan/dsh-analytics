@@ -442,6 +442,10 @@ check('a variance test that underflows still warns, and a t test names the Welch
   assert.match(anova[0].notes[0], /p < 0\.001/, 'an underflowing significance is not silently dropped')
   assert.match(anova[0].notes[0], /没有 Welch 行/, 'and the advice fits the ANOVA that produced it')
 
+  // PSPP prints two header rows here: the Levene group and the t test group
+  // sit above "F | Sig. | t | df | Sig. (2-tailed)", and the "not assumed" row
+  // leaves the Levene columns blank. Reading "the last number in the row" would
+  // pick up the t test's own p instead of Levene's.
   const ttest = [
     {
       kind: 'table',
@@ -456,14 +460,17 @@ check('a variance test that underflows still warns, and a t test names the Welch
       table: {
         caption: 'Independent Samples Test',
         matrix: [
-          ['', 'Levene Statistic', 'Sig.', 't', 'df', 'Sig. (2-tailed)'],
-          ['Equal variances assumed', '6.100', '.032', '-2.1', '10', '.062'],
+          ['', '', "Levene's Test for Equality of Variances", '', 'T-Test for Equality of Means', '', '', '', ''],
+          ['', '', 'F', 'Sig.', 't', 'df', 'Sig. (2-tailed)', '', ''],
+          ['', '', '', '', '', '', '', 'Lower', 'Upper'],
+          ['score', 'Equal variances assumed', '140.46', '.000', '.00', '10.00', '.999', '-2.1', '2.1'],
+          ['', 'Equal variances not assumed', '', '', '.00', '5.00', '.999', '-3.0', '3.0'],
         ],
       },
     },
   ]
   annotateAssumptions(ttest)
-  assert.match(ttest[1].notes[0], /p = 0\.032/, 'the t test significance is quoted')
+  assert.match(ttest[1].notes[0], /p < 0\.001/, 'the blank cells of the not-assumed row do not hide the significance')
   assert.match(ttest[1].notes[0], /不假定等方差/, 'and the Welch row is named for a t test')
   assert.equal(ttest[0].notes, undefined, 'the descriptive table gets nothing')
 })

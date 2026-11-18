@@ -1,3 +1,14 @@
+## 0.53.4
+
+- **t 检验的方差齐性注文一直没出现**：PSPP 的 `Independent Samples Test` 是两行表头（上面一行写
+  `Levene's Test for Equality of Variances`，下面一行才是 `F | Sig. | t | df | Sig. (2-tailed)`）。
+  0.53.3 在含 “Levene” 的那一行里找 “Sig.” 列，找不到就跳过了 —— 所以只有单因素方差分析那条路会提示。
+  现在扫整个表头块找真正写着 `Sig.` 的那一行取列号，并且优先取 `Equal variances assumed` 那一行
+  （`not assumed` 一行把 Levene 列留空，读出来会被当成缺值）。
+- 回归用例换成 PSPP 的两行表头形状（含 `not assumed` 空行），旧的简化夹具正是漏掉这个 bug 的原因。
+
+`npm test`：31 个套件 / 455 条 ok。
+
 ## 0.53.3
 
 - **方差齐性提示在 p 打不出来时才会失效**：PSPP 把小于 0.0005 的 p 打成 `.000`，原来把它当 0 滤掉了 ——
