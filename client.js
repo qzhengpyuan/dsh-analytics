@@ -93,14 +93,25 @@ window.__ModuleLoader__.load({
     // paths and the file dialogs resolve against the session, not the server.
     let ACTIVE_CWD
 
+    // Names this panel instance to the host. Two panels can show one workspace
+    // (the left column's launcher and a Session's tab both open the same
+    // docId), each with its own rows and undo stack: without a name the second
+    // writer silently wins and the first one never learns its grid is stale.
+    const WRITER = `panel-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`
+
     // A hung request used to freeze the panel for good: the poll skipped while
     // busy and never ran again. Every call gets a deadline instead.
     const API_TIMEOUT_MS = 180000
 
     async function api(path, body) {
-      const payload = body !== undefined && ACTIVE_CWD && body.cwd === undefined
+      const base = body !== undefined && ACTIVE_CWD && body.cwd === undefined
         ? { ...body, cwd: ACTIVE_CWD }
         : body
+      // Every POST names the panel that sent it; the host records it on writes
+      // so the other window can be told that its copy is stale.
+      const payload = base !== undefined && base && typeof base === 'object' && base.sessionId !== undefined
+        ? { ...base, writer: WRITER }
+        : base
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
       let response
@@ -139,6 +150,25 @@ window.__ModuleLoader__.load({
      * accepting both costs one line and stops a whole panel from painting
      * "尚未打开数据集" while the data was right there in the response.
      */
+    /**
+     * Should this panel announce that somebody else changed the data?
+     *
+     * Two panels can show one workspace (the left column's launcher and a
+     * Session's tab name the same docId); each keeps its own rows and undo
+     * stack, so a write by one silently invalidates the other. Returns the text
+     * to show, or null when this state is the panel's own write (or the first
+     * one it has seen, which is not news).
+     */
+    function foreignWriteNotice(previous, next, selfWriter) {
+      if (!next || typeof next !== 'object') return null
+      if (!previous || previous.revision === null || previous.revision === undefined) return null
+      const revision = Number(next.revision ?? 0)
+      const lastWriter = typeof next.lastWriter === 'string' ? next.lastWriter : null
+      if (!lastWriter || lastWriter === selfWriter) return null
+      if (revision === Number(previous.revision)) return null
+      return '数据已被另一个窗口修改：已载入最新内容，正在编辑的格子请重新确认'
+    }
+
     function stateOf(value) {
       if (value && typeof value === 'object') {
         if (value.state && typeof value.state === 'object') return value.state
@@ -1059,6 +1089,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       globalThis.__AP_TEST_HOOKS__.setDictionary = setDictionary
       globalThis.__AP_TEST_HOOKS__.h = h
       globalThis.__AP_TEST_HOOKS__.gridCommand = gridCommand
+      globalThis.__AP_TEST_HOOKS__.foreignWriteNotice = foreignWriteNotice
     }
 
     /**
@@ -5374,6 +5405,35 @@ let ITEM_CSV_PENDING = null
         setToast(message)
         window.setTimeout(() => setToast(null), 4200)
       }
+
+      // Another window may be editing the same workspace: each panel keeps its
+      // own rows and undo stack, so the one that did not write would otherwise
+      // keep showing (and keep editing) data the host no longer has.
+      const lastWrite = useRef({ revision: null, writer: null })
+      useEffect(() => {
+        if (!st) return
+        const revision = Number(st.revision ?? 0)
+        const writer = typeof st.lastWriter === 'string' ? st.lastWriter : null
+        const seen = lastWrite.current
+        // The first state is the baseline: opening the panel is not a change
+        // somebody else just made.
+        if (seen.revision === null) {
+          lastWrite.current = { revision, writer }
+          return
+        }
+        const notice = foreignWriteNotice(seen, st, WRITER)
+        if (notice) {
+          notify(notice)
+          // The state carries shape and metadata; the cells on screen came from
+          // api/rows, so the values have to be re-read or the notice would sit
+          // on top of a grid that still shows the numbers the other window just
+          // replaced.
+          loadRows(0, Math.max(500, rows.length))
+            .then((page) => { setRows(page.rows); setTotal(page.total) })
+            .catch(() => { /* the next interaction will read them anyway */ })
+        }
+        lastWrite.current = { revision, writer }
+      }, [st])
 
       const refresh = useCallback(async () => {
         const value = await api(stateUrl(sessionId))

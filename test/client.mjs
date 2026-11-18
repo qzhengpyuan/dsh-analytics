@@ -2268,10 +2268,12 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state }) }
   }
   globalThis.fetch = window.fetch
+  console.log('   before render')
   await act(async () => {
     root.render(React.createElement(registered.main[0].component))
     await new Promise((resolve) => setTimeout(resolve, 150))
   })
+  console.log('   after render')
   assert.ok(posts.some((call) => call.url.includes('api/workspaces')), 'the launcher asks what is already open')
   // The first state read happens before the answer arrives (there is nothing to
   // ask about yet); the adoption has to re-read with the dataset it chose.
@@ -2283,4 +2285,20 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   await act(async () => { root.unmount() })
   host.remove()
   console.log('ok  the left panel adopts the dataset that is already open')
+}
+
+// 两个窗口可以同时显示同一个工作区（左栏那行和会话页签指向同一个 docId）。
+// 判断「这一份是不是别人刚改的」必须是一个能单测的纯函数，否则只能靠肉眼。
+{
+  const notice = hooks.foreignWriteNotice
+  const self = 'panel-me'
+  assert.equal(
+    notice({ revision: 4 }, { revision: 5, lastWriter: 'panel-other' }, self),
+    '数据已被另一个窗口修改：已载入最新内容，正在编辑的格子请重新确认',
+  )
+  assert.equal(notice(null, { revision: 5, lastWriter: 'panel-other' }, self), null, 'the first state is the baseline')
+  assert.equal(notice({ revision: 4 }, { revision: 5, lastWriter: self }, self), null, 'my own write is not news')
+  assert.equal(notice({ revision: 5 }, { revision: 5, lastWriter: 'panel-other' }, self), null, 'an unchanged revision is not news')
+  assert.equal(notice({ revision: 4 }, { revision: 5, lastWriter: null }, self), null, 'a tool call has no panel to blame')
+  console.log('ok  a write from another window is announced, a self-write and the first state are not')
 }

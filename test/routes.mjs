@@ -495,6 +495,24 @@ await registry.get(otherId).release()
 const released = (await registry.recent()).find((row) => row.docId === otherId)
 console.log('released still listed', Boolean(released), released?.released === true, released?.caseCount > 0)
 
+// Two windows can hold one workspace (the left launcher and a Session's tab name
+// the same docId). Each writes under its own name so the other can be told its
+// grid is stale instead of silently overwriting it.
+const writerA = 'panel-aaa'
+const writerB = 'panel-bbb'
+const wsid = 'writer-session'
+await call('POST', `${base}/api/new`, { sessionId: wsid, cwd: home, writer: writerA, variables: [{ name: 'x', type: 'numeric' }] })
+await call('POST', `${base}/api/case`, { sessionId: wsid, writer: writerA, values: { x: 1 } })
+r = await call('POST', `${base}/api/cell`, { sessionId: wsid, writer: writerA, row: 0, variable: 'x', value: 7 })
+const afterA = r.json().state
+r = await call('POST', `${base}/api/cell`, { sessionId: wsid, writer: writerB, row: 0, variable: 'x', value: 9 })
+const afterB = r.json().state
+console.log('writer recorded', afterA.lastWriter === writerA, afterA.revision > 0)
+console.log('writer switches', afterB.lastWriter === writerB, afterB.revision > afterA.revision)
+if (afterA.lastWriter !== writerA || afterB.lastWriter !== writerB || !(afterB.revision > afterA.revision)) {
+  throw new Error('state must name the writer of the last change')
+}
+
 r = await call('POST', `${base}/api/close`, { sessionId: sid2 })
 console.log('doc2 closed', r.code, r.json().state.dataset === null)
 
