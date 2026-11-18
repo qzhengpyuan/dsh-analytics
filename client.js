@@ -6428,7 +6428,9 @@ let ITEM_CSV_PENDING = null
               const size = typeof from.sourceSize === 'number'
                 ? (from.sourceSize < 1024 ? `${from.sourceSize} B` : `${(from.sourceSize / 1024).toFixed(1)} KB`)
                 : null
-              parts.push(`<p class="ap-export-source">${escapeForExport(tr(`来源：${which} · ${from.caseCount} 例${size ? ` · ${size}` : ''}${when ? ` · 打开于 ${when}` : ''}`))}</p>`)
+              const runNo = Number.isFinite(Number(from.runId)) && Number(from.runId) > 0 ? ` · 运行 #${Number(from.runId)}` : ''
+              const digest = typeof from.digest === 'string' && from.digest ? ` · 数据指纹 ${from.digest}` : ''
+              parts.push(`<p class="ap-export-source">${escapeForExport(tr(`来源：${which} · ${from.caseCount} 例${size ? ` · ${size}` : ''}${when ? ` · 打开于 ${when}` : ''}${runNo}${digest}`))}</p>`)
             }
             // The caveats (separation, skipped variables) are part of the table:
             // an HTML copy without them reads as if nothing was wrong.

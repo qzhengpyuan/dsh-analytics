@@ -225,11 +225,24 @@ await check('each table carries its own source line, not just the document foote
     items: [{
       kind: 'table',
       table: { caption: 'Descriptives', matrix: [['', 'score'], ['Mean', '60']] },
-      provenance: { origin: 'file', name: 'a.sav', caseCount: 60, varCount: 3, openedAt: 1794804225859, sourceSize: 46462 },
+      provenance: {
+        origin: 'file',
+        name: 'a.sav',
+        caseCount: 60,
+        varCount: 3,
+        openedAt: 1794804225859,
+        sourceSize: 46462,
+        runId: 3,
+        digest: 'a1b2c3d4',
+      },
     }],
   })
   const document = unzip(docx)['word/document.xml'].toString('utf8')
   assert.match(document, /来源：a\.sav · 60 例 · 45\.4 KB · 打开于 /, 'the table names its own source')
+  // Which run, and which bytes: a reader handed one table must be able to tell
+  // two re-runs of the same file apart.
+  assert.match(document, /运行 #3/, 'the stamp names the run that produced the table')
+  assert.match(document, /数据指纹 a1b2c3d4/, 'the stamp carries the fingerprint of the data')
   assert.ok(document.indexOf('来源：a.sav') > document.indexOf('</w:tbl>'), 'the stamp follows the table')
   assert.match(document, /数据来源：/, 'the document footer is still there')
 })

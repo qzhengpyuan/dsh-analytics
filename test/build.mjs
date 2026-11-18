@@ -864,6 +864,23 @@ await check('the reported version comes from the manifest on disk, not a cached 
   assert.deepEqual(pluginInfo(), pluginInfo())
 })
 
+await check('the dataset fingerprint notices an edited value', async () => {
+  const { dataDigest } = await import('../lib/workspace.js')
+  const base = {
+    variables: [{ name: 'x', type: 'numeric' }, { name: 'y', type: 'string' }],
+    rows: [[1, 'a'], [2, 'b'], [3, 'c']],
+  }
+  const first = dataDigest(base)
+  assert.match(first, /^[0-9a-f]{8}$/u, 'the digest is eight hex digits')
+  assert.equal(dataDigest({ ...base, rows: [[1, 'a'], [2, 'b'], [3, 'c']] }), first, 'same data, same digest')
+  // A single edited cell has to move it: the whole point is telling two re-runs
+  // of "the same file" apart.
+  assert.notEqual(dataDigest({ ...base, rows: [[1, 'a'], [2, 'b'], [3, 'd']] }), first, 'an edited value moves the digest')
+  assert.notEqual(dataDigest({ ...base, variables: [{ name: 'x', type: 'numeric', label: '变量' }] }), first, 'a new label moves it too')
+  assert.equal(dataDigest(null), null, 'no dataset, no digest')
+  console.log('ok  the dataset fingerprint changes when the data does')
+})
+
 await check('apply() registers both route prefixes once webServer arrives', async () => {
   // Regression guard: 0.23.22 dropped the `pkg` binding but left one reference
   // inside the webServer callback, so tools still worked while every /analytics
