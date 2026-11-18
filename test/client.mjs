@@ -1863,8 +1863,11 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   globalThis.fetch = window.fetch
   const root = window.document.createElement('div')
   const reactRoot = createRoot(root)
+  // 保存 lives in the dialog footer now (a tall form would hide its own buttons
+  // below the fold), so the form hands its save function to whoever renders it.
+  const saveRef = { current: null }
   await act(async () => {
-    reactRoot.render(React.createElement(hooks.settingsForm, { onDone: () => {} }))
+    reactRoot.render(React.createElement(hooks.settingsForm, { onDone: () => {}, saveRef }))
     await new Promise((resolve) => setTimeout(resolve, 120))
   })
   const text = root.textContent
@@ -1878,9 +1881,8 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   const selects = [...root.querySelectorAll('select')]
   assert.equal(selects[0].value, 'zh', 'the language select comes back from the file')
   assert.equal(selects[1].value, 'grid', 'the table style select comes back from the file')
-  const save = [...root.querySelectorAll('button')].find((button) => button.textContent === '保存')
-  assert.ok(save, 'there is a save button')
-  await act(async () => { save.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 60)) })
+  assert.equal(typeof saveRef.current, 'function', 'the form hands its save function to the dialog')
+  await act(async () => { await saveRef.current(); await new Promise((resolve) => setTimeout(resolve, 60)) })
   assert.equal(posts.length, 1, 'saving posts once')
   const textarea = root.querySelector('textarea')
   assert.equal(textarea.value, '/mnt/F/data', 'the allowed directories come back one per line')

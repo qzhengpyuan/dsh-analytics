@@ -5490,6 +5490,9 @@ let ITEM_CSV_PENDING = null
       // Another window may be editing the same workspace: each panel keeps its
       // own rows and undo stack, so the one that did not write would otherwise
       // keep showing (and keep editing) data the host no longer has.
+      // The settings dialog's footer owns 保存: a form tall enough to need
+      // scrolling would otherwise hide its own buttons below the fold.
+      const settingsSave = useRef(null)
       const lastWrite = useRef({ revision: null, writer: null })
       useEffect(() => {
         if (!st) return
@@ -7345,11 +7348,15 @@ let ITEM_CSV_PENDING = null
           ? h(Modal, {
             title: '设置：统计分析',
             wide: true,
-            hideCancel: true,
-            okText: '关闭',
-            onOk: () => setDialog(null),
+            okText: '保存',
+            cancelText: '取消',
+            onOk: async () => {
+              const save = settingsSave.current
+              const saved = typeof save === 'function' ? await save() : true
+              if (saved) setDialog(null)
+            },
             onCancel: () => setDialog(null),
-          }, h(SettingsForm, { onDone: () => setDialog(null) }))
+          }, h(SettingsForm, { onDone: () => setDialog(null), saveRef: settingsSave }))
           : null,
         dialog?.kind === 'importNotes'
           ? h(Modal, {
@@ -8268,7 +8275,7 @@ let ITEM_CSV_PENDING = null
      * which one they had opened, and the panel's copy could not say "these are
      * this workbench's settings" at all.
      */
-    function SettingsForm({ onDone }) {
+    function SettingsForm({ onDone, saveRef }) {
       const [data, setData] = useState(null)
       const [form, setForm] = useState(null)
       const [status, setStatus] = useState('')
@@ -8299,10 +8306,11 @@ let ITEM_CSV_PENDING = null
       useEffect(() => { load() }, [load])
 
       const save = useCallback(async () => {
-        if (!form) return
+        if (!form) return false
         setBusy(true)
         setError('')
         setStatus('')
+        let savedOk = false
         try {
           const payload = await api('api/settings', {
             patch: {
@@ -8319,6 +8327,7 @@ let ITEM_CSV_PENDING = null
           })
           setData(payload)
           setStatus('已保存。界面语言、表格样式、允许的目录、导出上限立即生效；载入上限与超时在下一次使用生效。')
+          savedOk = true
           // The panel adopts the language without waiting for the 3 s heartbeat.
           try {
             window.dispatchEvent(new window.CustomEvent('ap:locale', { detail: form.uiLanguage }))
@@ -8330,7 +8339,16 @@ let ITEM_CSV_PENDING = null
         } finally {
           setBusy(false)
         }
+        return savedOk
       }, [form])
+
+      // The dialog footer calls this; without the dialog (a test, or a caller
+      // that renders the form on its own) nothing has to be registered.
+      useEffect(() => {
+        if (!saveRef) return undefined
+        saveRef.current = save
+        return () => { saveRef.current = null }
+      }, [save, saveRef])
 
       if (error && !data) return h('div', { className: 'ap-settings' }, h('p', { className: 'ap-error' }, `设置读不出来：${error}`))
 
@@ -8399,16 +8417,10 @@ let ITEM_CSV_PENDING = null
           h('p', { key: 'p', className: 'ap-hint' }, data.deploymentOnly.registerTools.note),
         ]),
         h('div', { key: 'actions', className: 'ap-settings-actions' }, [
-          h('button', {
-            key: 'save',
-            type: 'button',
-            className: 'ap-btn ap-primary',
-            disabled: busy,
-            onClick: async () => { await save(); onDone?.() },
-          }, busy ? '保存中…' : '保存'),
+          // 保存 lives in the dialog footer; this row only carries the reread.
           h('button', { key: 'reload', type: 'button', className: 'ap-btn', disabled: busy, onClick: load }, '重新读取'),
-          h('button', { key: 'cancel', type: 'button', className: 'ap-btn', disabled: busy, onClick: () => onDone?.() }, '取消'),
-        ]),
+          busy ? h('span', { key: 'busy', className: 'ap-hint' }, '保存中…') : null,
+        ].filter(Boolean)),
         status ? h('p', { key: 'status', className: 'ap-hint ap-settings-ok' }, status) : null,
         error ? h('p', { key: 'err', className: 'ap-error' }, error) : null,
       ].filter(Boolean))
