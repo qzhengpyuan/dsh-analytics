@@ -487,6 +487,15 @@ console.log('   peers listed', peers)
 // silent return to the empty document it was fixed for.
 if (workspaces.length < 2 || !ordered || !peers) throw new Error('api/workspaces must list the open datasets, newest first')
 
+// `?limit=` is what keeps days-old machines honest: twenty rows by default, and
+// the answer has to say whether it cut something.
+r = await call('GET', `${base}/api/workspaces?limit=1`)
+const one = r.json().result ?? {}
+console.log('workspaces limited', r.code, (one.workspaces ?? []).length === 1, one.total >= 2, one.truncated === true)
+if ((one.workspaces ?? []).length !== 1 || one.truncated !== true || !(one.total >= 2)) throw new Error('api/workspaces?limit=1 must return one row and say it was cut')
+r = await call('GET', `${base}/api/workspaces?limit=abc`)
+console.log('   a bad limit falls back to the default', r.code, (r.json().result?.workspaces ?? []).length >= 2, r.json().result?.limit === 20)
+
 // A dataset whose rows were released (idle sweep) still lives on disk, and the
 // launcher has to keep offering it: listing only resident workspaces made
 // datasets vanish from the panel after a quiet half hour.

@@ -199,6 +199,18 @@ assert.ok(!bundleSource.includes("inject('settings.section'"), 'no page is regis
 // A refused write leaves a mark in the status bar, because a toast that faded
 // five seconds ago cannot answer "did somebody overwrite my data".
 assert.match(bundleSource, /ap-status-conflicts/, 'the status bar can show a conflict count')
+// The right panel's tab is the same workbench as the left row, so it wears the
+// same outline glyph instead of the product badge.
+const tabIcon = registered.tabs[0].icon(16)
+assert.equal(tabIcon.props.viewBox, '0 0 16 16', 'the sidebar tab icon is 16-unit line art too')
+assert.equal(tabIcon.props.fill, 'none')
+assert.equal(tabIcon.props.stroke, 'currentColor')
+// A refused write is a question, not a lost edit: the three answers and the
+// force-retry they need must all be in the bundle.
+assert.match(bundleSource, /覆盖：仍然写入我这次修改/, 'the dialog offers to write anyway')
+assert.match(bundleSource, /重载：丢弃我的修改/, 'the dialog offers to drop the edit')
+assert.match(bundleSource, /取消：什么都不做/, 'the dialog offers to do nothing')
+assert.match(bundleSource, /error\.retry = \(\) => api\(path/, 'the force retry re-sends the same request')
 
 const hooks = globalThis.__AP_TEST_HOOKS__
 

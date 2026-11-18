@@ -1,7 +1,7 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
 import { collinearityTable, durbinWatsonTable, influenceTable } from '../lib/regression.js'
-import { annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
+import { annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
 const failures = []
@@ -364,6 +364,65 @@ check("a crosstab without engine Cramer's V gets the row and the note", () => {
   const small = items[1].notes.find((text) => text.includes('期望频数'))
   assert.match(small, /Fisher's Exact Test/)
   assert.match(small, /Exact Sig\./)
+})
+
+check('a table with small expected counts says how many and what to do', () => {
+  // 2×3 with 12 cases: every expected count is 2, so the approximation is gone.
+  const items = [
+    {
+      kind: 'table',
+      id: 'xtab',
+      title: 'a × b',
+      table: {
+        caption: 'a × b',
+        matrix: [
+          ['', '', '', 'b', '', '', 'Total'],
+          ['', '', '', 'x', 'y', 'z', ''],
+          ['a', 'p', 'Count', '2', '2', '2', '6'],
+          ['', 'q', 'Count', '2', '2', '2', '6'],
+          ['Total', '', 'Count', '4', '4', '4', '12'],
+        ],
+      },
+    },
+  ]
+  annotateCrosstabs(items)
+  const note = items[0].notes.find((text) => text.includes('期望频数'))
+  assert.match(note, /6 个格子的期望频数 < 5/, 'the number of thin cells is named')
+  assert.match(note, /2\.00/, 'the smallest expected count is named')
+  assert.match(note, /精确卡方 p/, 'a 2×3 table points at the exact test instead of Fisher')
+})
+
+check('a homogeneity test that fails is stated next to the table', () => {
+  const items = [
+    {
+      kind: 'table',
+      id: 'levene',
+      title: 'Test of Homogeneity of Variances',
+      table: {
+        caption: 'Test of Homogeneity of Variances',
+        matrix: [
+          ['', 'Levene Statistic', 'df1', 'df2', 'Sig.'],
+          ['Based on Mean', '4.812', '2', '21', '.019'],
+        ],
+      },
+    },
+    {
+      kind: 'table',
+      id: 'levene-ok',
+      title: 'Test of Homogeneity of Variances',
+      table: {
+        caption: 'Test of Homogeneity of Variances',
+        matrix: [
+          ['', 'Levene Statistic', 'df1', 'df2', 'Sig.'],
+          ['Based on Mean', '0.412', '2', '21', '.667'],
+        ],
+      },
+    },
+  ]
+  annotateAssumptions(items)
+  assert.match(items[0].notes[0], /p = 0\.019/, 'the significance is quoted')
+  assert.match(items[0].notes[0], /不假定等方差/, 'and the row to read instead is named')
+  assert.equal(items[1].notes, undefined, 'a variance-homogeneous run gets no note')
 })
 
 check("the engine's own Cramer's V is not duplicated", () => {

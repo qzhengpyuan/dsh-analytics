@@ -955,6 +955,10 @@
     "设置": "Settings",
     "选项…": "Options…",
     "关于本插件…": "About this plugin…",
-    "设置：统计分析": "Settings: Statistics"
+    "设置：统计分析": "Settings: Statistics",
+    "这次修改没有写入": "This change was not written",
+    "覆盖：仍然写入我这次修改": "Overwrite: write my change anyway",
+    "重载：丢弃我的修改，载入最新数据": "Reload: drop my change and load the current data",
+    "取消：什么都不做": "Cancel: do nothing"
   }
 }

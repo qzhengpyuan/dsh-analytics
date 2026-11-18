@@ -169,6 +169,12 @@ window.__ModuleLoader__.load({
         const error = new Error(value?.error ?? `request failed (${response.status})`)
         if (value && typeof value.conflict === 'object' && value.conflict) error.conflict = value.conflict
         if (value && typeof value.state === 'object' && value.state) error.state = value.state
+        // A conflict is the one error the user can answer: 覆盖 re-sends this
+        // very request with force, so the button needs the request itself, not
+        // a copy of the values it happened to carry.
+        if (error.conflict && body !== undefined) {
+          error.retry = () => api(path, { ...body, force: true })
+        }
         // The losing state is the true one: a retry has to be based on it.
         if (error.state && Number.isFinite(Number(error.state.revision))) KNOWN_REVISION = Number(error.state.revision)
         throw error
@@ -684,6 +690,9 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-settings { max-width: 640px; display: flex; flex-direction: column; gap: 10px; }
 /* Inside the modal the dialog already provides the frame and the padding. */
 .ap-settings.ap-settings-embedded { max-width: none; }
+.ap-conflict p { margin: 0 0 10px; line-height: 1.6; }
+.ap-conflict-actions { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.ap-conflict-actions .ap-btn { text-align: left; }
 .ap-settings-title { margin: 0; font-size: 13px; font-weight: 600; }
 .ap-settings-row { display: flex; flex-direction: column; gap: 4px; }
 .ap-settings-row label { font-size: 12px; }
@@ -5224,7 +5233,15 @@ let ITEM_CSV_PENDING = null
             if (!alive) return
             const rows = Array.isArray(payload?.result?.workspaces) ? payload.result.workspaces : []
             if (rows.length === 0) return
-            setDocs(rows.map((row) => ({ id: row.docId, title: row.name || '', dirty: row.dirty === true })))
+            // Where a document came from decides whether a stale one is
+            // expected: 'default' is the panel's own scratch document, which
+            // outlives every session, so the tab has to say so.
+            setDocs(rows.map((row) => ({
+              id: row.docId,
+              title: row.name || '',
+              dirty: row.dirty === true,
+              sessionId: row.sessionId ?? '',
+            })))
             setDocId(rows[0].docId)
           })
           .catch(() => { /* nothing open yet: stay on the empty document */ })
@@ -5433,6 +5450,9 @@ let ITEM_CSV_PENDING = null
         return () => window.removeEventListener('keydown', onKey, true)
       }, [menu])
       const [busy, setBusy] = useState(false)
+      // Set when the host refused a write: the dialog at the bottom of this
+      // component turns it into a question instead of a lost edit.
+      const [conflict, setConflict] = useState(null)
       // Column widths live here so the data grid and the variable view's
       // "列" column edit the same numbers (localStorage remembers them).
       const [rowHeight, setRowHeight] = useState(() => {
@@ -5520,22 +5540,46 @@ let ITEM_CSV_PENDING = null
       }, [st])
 
       // A 409 from the host means this window tried to write on top of data it
-      // had not read. The change did not happen, so say that plainly and pull
-      // the state that won instead of leaving the user to guess.
+      // had not read. The change did not happen. Rather than deciding for the
+      // user — silently dropping their edit, or silently overwriting the other
+      // window — the panel asks: 覆盖 re-sends the request with force, 重载
+      // throws this edit away and reads what won, 取消 leaves the screen alone.
       const writeFailed = (error) => {
-        const conflict = error?.conflict
-        if (conflict) {
-          const who = typeof conflict.lastWriter === 'string' && conflict.lastWriter
-            ? '（最后写入：另一个窗口）'
-            : '（最后写入：对话里的分析）'
-          notify(`另一个窗口已经改过这份数据${who}：这次修改没有写入，已载入最新内容`)
-          if (error.state) setSt(error.state)
-          loadRows(0, Math.max(500, rows.length))
-            .then((page) => { setRows(page.rows); setTotal(page.total) })
-            .catch(() => { /* the next tick reads it anyway */ })
+        if (error?.conflict) {
+          setConflict(error)
           return
         }
         notify(error.message)
+      }
+
+      const reloadRows = async () => {
+        const page = await loadRows(0, Math.max(500, rows.length))
+        setRows(page.rows)
+        setTotal(page.total)
+      }
+
+      const resolveConflict = async (choice) => {
+        const error = conflict
+        setConflict(null)
+        if (!error) return
+        if (choice === 'cancel') return
+        setBusy(true)
+        try {
+          if (choice === 'override') {
+            const value = await error.retry()
+            setSt(stateOf(value))
+            notify('这次修改已经强制写入')
+          } else {
+            if (error.state) setSt(error.state)
+            notify('已丢弃这次修改，载入了最新的数据')
+          }
+          await reloadRows()
+        } catch (next) {
+          if (next?.conflict) { setConflict(next); return }
+          notify(next.message)
+        } finally {
+          setBusy(false)
+        }
       }
 
       const refresh = useCallback(async () => {
@@ -7095,7 +7139,9 @@ let ITEM_CSV_PENDING = null
             },
             h('button', {
               className: 'ap-doctab-title',
-              title: doc.id === sessionId ? status : (doc.title || doc.id),
+              title: doc.id === sessionId
+                ? status
+                : `${doc.title || doc.id}${doc.sessionId === 'default' ? '（面板默认文档，可能来自上一轮）' : doc.sessionId ? `（会话 ${doc.sessionId.slice(-6)}）` : ''}`,
               onClick: () => switchDoc(doc.id),
             }, doc.title || (doc.id === sessionId ? st?.dataset?.name : '') || '数据集'),
             h('button', {
@@ -7344,6 +7390,43 @@ let ITEM_CSV_PENDING = null
               ? h('span', { className: 'ap-status-version', title: `插件版本 ${st.version}（改后端代码后停用再启用本插件即可生效，但要重新打开数据文件）` }, `v${st.version}`)
               : null)),
         toast ? h('div', { className: 'ap-toast' }, toast) : null,
+        // The refused write becomes a question. Three answers, and the one the
+        // user picks is the one that happens — nothing here overwrites data or
+        // throws an edit away on its own.
+        conflict
+          ? h(Modal, {
+            title: '这次修改没有写入',
+            wide: true,
+            hideCancel: true,
+            okText: '关闭',
+            onOk: () => resolveConflict('cancel'),
+            onCancel: () => resolveConflict('cancel'),
+          }, h('div', { className: 'ap-conflict' }, [
+            h('p', null, conflict.conflict.lastWriter
+              ? '另一个窗口在你编辑期间改过这份数据，所以这次修改被拒绝了。磁盘上现在是对方的那一版。'
+              : '对话里的分析在你编辑期间改过这份数据，所以这次修改被拒绝了。磁盘上现在是分析结果那一版。'),
+            h('p', { className: 'ap-hint' },
+              `你的版本：第 ${conflict.conflict.expected ?? '?'} 次改动 · 磁盘上的版本：第 ${conflict.conflict.actual ?? '?'} 次改动`),
+            h('div', { className: 'ap-conflict-actions' }, [
+              h('button', {
+                className: 'ap-btn ap-primary',
+                onClick: () => resolveConflict('override'),
+                title: '带着 force 重发刚才那次修改，覆盖对方写进去的内容',
+              }, '覆盖：仍然写入我这次修改'),
+              h('button', {
+                className: 'ap-btn',
+                onClick: () => resolveConflict('reload'),
+                title: '放弃刚才那次修改，把磁盘上最新的数据读进来',
+              }, '重载：丢弃我的修改，载入最新数据'),
+              h('button', {
+                className: 'ap-btn',
+                onClick: () => resolveConflict('cancel'),
+                title: '什么都不做，画面保持原样（下次写入会按最新版本判定）',
+              }, '取消：什么都不做'),
+            ]),
+            h('p', { className: 'ap-hint' }, '无论选哪个，都已经被记进「冲突记录」：状态栏的角标和导出的表格都会带上次数。'),
+          ]))
+          : null,
         dialog?.kind === 'settings'
           ? h(Modal, {
             title: '设置：统计分析',
@@ -8507,8 +8590,8 @@ let ITEM_CSV_PENDING = null
         ctx.effect(() => ctx.betterSidebar.registerTab({
           id: 'analytics',
           title: () => tr('统计分析'),
-          description: () => tr('统计分析工作台（内置 GNU PSPP 引擎）：数据视图、语法、输出与常用过程'),
-          icon: (size) => ICON(size),
+          description: () => tr('统计分析工作台（内置 GNU PSPP 引擎）：与左侧「统计分析」面板是同一份数据、同一个引擎'),
+          icon: (size) => ICON_LINE(size || 16),
           // One tab per open data file (SPSS opens a Data Editor per file);
           // the primary tab is deduped under 'primary'.
           single: false,
