@@ -54,7 +54,7 @@ node scripts/install.mjs --offline /path/to/dsh-analytics-pspp-<版本>.tgz   # 
 
 要点：
 
-- **token**：仓库是私有的，脚本按 `GITHUB_TOKEN` / `GH_TOKEN` → `~/.dsh/.credentials.yaml` 的 `refs.GITHUB_TOKEN` 顺序找；两处都没有就报「仓库是私有的，需要 GITHUB_TOKEN」而不是 404。
+- **token（可选）**：仓库 2026-11-18 起已公开，匿名即可下载；脚本仍按 `GITHUB_TOKEN` / `GH_TOKEN` → `~/.dsh/.credentials.yaml` 的 `refs.GITHUB_TOKEN` 顺序找，找到就带上（匿名限流时更稳），找不到也照常下载。
 - **profile 名**：不写就用唯一的那个；机器上有多个 profile 时脚本会报错并列出名字（以前写死 `web`，在只有 `desktop` 的机器上会装进不存在的 profile）。
 - **代理**：Node 的 `fetch` 默认不读代理变量，走代理要 `NODE_USE_ENV_PROXY=1 https_proxy=… node scripts/install.mjs`。
 - **按最新发布取版本号**：脚本读 `releases/latest` 的 tag，不写死版本；`SHA256SUMS` 里有这个资产就比对，没有就打印校验和并提示「未能自动比对」（0.27.0 起的发布都有）。
@@ -91,7 +91,7 @@ npm run pack:portable   # → dsh-analytics-<版本>-portable.tgz（不含引擎
 ```
 
 - **自带引擎版**：解包即用，只能给同一平台（`engine/<平台>-<架构>/`）。本机这份压缩后 13 MB。
-- **通用版**：装完在插件目录跑一次 `npm run engine:fetch` 取回本机平台的引擎（9.8 MB）。私有仓库需要 `GITHUB_TOKEN` 环境变量或 `~/.dsh/.credentials.yaml` 里的 `refs.GITHUB_TOKEN`；公开仓库不需要。
+- **通用版**：装完在插件目录跑一次 `npm run engine:fetch` 取回本机平台的引擎（9.8 MB）。仓库已公开，匿名即可；有 `GITHUB_TOKEN` 或 `~/.dsh/.credentials.yaml` 里的 `refs.GITHUB_TOKEN` 时脚本会自动带上。
 
 安装（两种包一样，用一个空目录当宿主）：
 
@@ -236,7 +236,7 @@ curl -H "Expect:" -X POST -H "Authorization: Bearer $TOKEN" \
 
 - Release 资产名必须是 `SHA256SUMS`（`scripts/install.mjs` 按这个名字比对）。
 - 传之前先解包自查 `package/cordis.patch.yml` 里 `registerTools` 仍为 `false`（`scripts/pack.mjs` 也会查，但产物要自己再确认一次）。
-- 私有仓库的 Release 资产要带 token 才能下；给别的机器装不方便时，直接把 tgz 放到共享目录让它 `dsh plugin add file:…`。
+- 仓库已公开，Release 资产匿名可下；网络受限的机器仍可把 tgz 放到共享目录让它 `dsh plugin add file:…`。
 
 ## 许可
 

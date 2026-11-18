@@ -24,7 +24,7 @@ node scripts/install.mjs web --apply    # 真的装：装进 profile + 把 dsh-a
 # 之后：设置 → 插件 → dsh-analytics 关一次再开
 ```
 
-- 私有仓库要 token：`GITHUB_TOKEN`，或 `~/.dsh/.credentials.yaml` 里的 `refs.GITHUB_TOKEN`（脚本自己读）。
+- 仓库已公开（2026-11-18 起），一条命令安装不再需要 token；脚本仍会在有 `GITHUB_TOKEN` / `~/.dsh/.credentials.yaml` 的 `refs.GITHUB_TOKEN` 时带上它（撞上 GitHub 的匿名限流时更稳）。
 - 走代理时加 `NODE_USE_ENV_PROXY=1`（Node 的 `fetch` 默认不读 `https_proxy`）。
 - 想手动装：`dsh plugin --profile <profile> add file:<tgz>`，再把 `"dsh-analytics"` 加进 `~/.dsh/profiles/<profile>/package.json` 的 `dsh.profile.bundles`。
 - 这个包**没有发到 npm**：`dsh-analytics` 这个名字在 npm 上已被别的包占用（0.4.0），换名字只会把文档拆成两份。
@@ -47,7 +47,7 @@ Host 与 UI 共用**同一组 `Workspace` 方法**，所以"用户在对话框�
 
 - 目录布局：`engine/<process.platform>-<process.arch>/{bin,libexec,lib}`，每个平台一份预编译产物；`bin/` 是设好动态库搜索路径的启动器，`libexec/` 是真正的二进制
 - 解析顺序：`config.engineDir` → 环境变量 `DSH_ANALYTICS_ENGINE`（旧名 `DSH_ANALYTICS_PSPP_ENGINE` 仍认）→ 包内 `engine/<平台>-<架构>/` → 包内扁平 `engine/` → 系统 `pspp`；动态库变量按平台选（Linux `LD_LIBRARY_PATH`、macOS `DYLD_LIBRARY_PATH`、Windows `PATH`）
-- 生成：`npm run engine:fetch`（从 `engine-v*` Release 拉本机平台那份，私有仓库用 `GITHUB_TOKEN` / `~/.dsh/.credentials.yaml`）、`node scripts/bundle-engine.mjs --from-prefix <prefix> --platform linux-x64`（导入容器里 configure 出来的 prefix），或 `npm run bundle-engine`（从本机 `dnf install pspp` 直接抓）
+- 生成：`npm run engine:fetch`（从 `engine-v*` Release 拉本机平台那份，需要时用 `GITHUB_TOKEN` / `~/.dsh/.credentials.yaml`）、`node scripts/bundle-engine.mjs --from-prefix <prefix> --platform linux-x64`（导入容器里 configure 出来的 prefix），或 `npm run bundle-engine`（从本机 `dnf install pspp` 直接抓）
 - **`engine/` 不进 Git**（二进制）：克隆后按需重建；运行插件本身不需要系统装 PSPP
 - 打包时**跳过 glibc 家族**（libc/libm/libpthread/…）改用宿主 glibc：把发行版 glibc 塞进 `LD_LIBRARY_PATH` 在别的系统上会直接崩。所以引擎的最低 glibc = **构建机**的 glibc；仓库里的这份是在 **AlmaLinux 8（glibc 2.28）** 上重编的，覆盖 RHEL/Alma/Rocky 8+、Ubuntu 18.10+、Debian 10+、openSUSE Leap 15+（旧版 Fedora 44 编译产物要求 2.43，仅 Fedora 44 能跑，已弃用）
 - 引擎能力：PSPP 2.1.3 的实现范围（`FREQUENCIES` `DESCRIPTIVES` `CROSSTABS` `T-TEST` `ONEWAY` `GLM` `CORRELATIONS` `REGRESSION` `LOGISTIC REGRESSION` `FACTOR` `RELIABILITY` `NPAR TESTS` `EXAMINE` `MEANS` `CTABLES` `ROC` `QUICK CLUSTER`、数据管理与宏、`GRAPH /BAR` `/HISTOGRAM` `/SCATTERPLOT`），以及任意 `pspp_run` 语法
