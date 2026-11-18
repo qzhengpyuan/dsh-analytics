@@ -26,6 +26,32 @@ class Res {
   get text() { return this.body.toString('utf8') }
 }
 
+// The web server can come up before the connection service. A handler that
+// captured the empty slot at mount time answers 401 to every request for the
+// rest of the process, which is exactly what a panel sees as "cannot reach the
+// host". The lookup has to happen per request.
+{
+  let link
+  const late = createHandler({
+    registry,
+    getConnection: () => link,
+    config: {},
+    settings: settingsStore,
+  })
+  const request = {
+    method: 'GET',
+    url: '/analytics/api/heartbeat',
+    headers: { host: '127.0.0.1:3080' },
+  }
+  const before = new Res()
+  await late(request, before)
+  if (before.code !== 401) throw new Error(`without a connection the handler must fail closed, got ${before.code}`)
+  link = { requestRejection: () => undefined }
+  const after = new Res()
+  await late(request, after)
+  if (after.code !== 200) throw new Error(`a connection that arrived later must be used, got ${after.code}`)
+}
+
 const call = async (method, url, body) => {
   const payload = body ? JSON.stringify(body) : null
   const req = {

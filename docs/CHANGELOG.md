@@ -1,3 +1,10 @@
+## 0.49.2
+
+- 修：面板打不开数据 —— 宿主半在 `webServer` 就绪时抓了一次 `connection`
+  （浏览器会话校验服务），而它可能比 `webServer` 晚到，于是抓到的永远是空槽，
+  每个请求都被 `authorize()` 以 401 挡掉（`/analytics/api/settings` 在真浏览器里
+  就是 401）。改成每次请求现取，`test/routes.mjs` 加一条「连接晚到也要能用」的用例。
+
 ## 0.49.1
 
 - 修：改名到 `dsh-analytics-pspp` 后侧栏「统计分析」页签消失。客户端包在

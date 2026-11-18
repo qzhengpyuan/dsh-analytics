@@ -99,8 +99,14 @@ export function apply(ctx, config = {}) {
   // of silently skipping the routes when `ctx.get('webServer')` is still empty.
   ctx.inject(['webServer'], (scoped) => {
     const webServer = scoped.get('webServer')
-    const connection = scoped.get('connection')
-    const handler = createHandler({ registry, connection, config: settings, settings: settingsStore })
+    // Looked up per request: `connection` can arrive after `webServer`, and a
+    // handler that captured an empty slot would answer 401 to every call.
+    const handler = createHandler({
+      registry,
+      getConnection: () => scoped.get('connection'),
+      config: settings,
+      settings: settingsStore,
+    })
     console.log(`[dsh-analytics] ${pluginInfo().version} routes ready (registerTools=${settings.registerTools === true})`)
     // Register the current prefix plus the pre-rename one.
     scoped.effect(() => {
