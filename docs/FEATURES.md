@@ -1,6 +1,6 @@
 # dsh-analytics 功能说明
 
-> 版本 0.53.4 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 版本 0.54.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
 > 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
 > **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 23 个 agent 工具，让模型能在对话里直接分析、转换、画图。这些工具不再是「装了插件就有」，而是挂在插件自带的「统计分析」Agent 预设里（见 §9）。
 
@@ -268,6 +268,8 @@ SPSS 每打开一个文件就多一个数据编辑器窗口；这里对应「多
 - **Cramér's V**：请求了卡方就在方表上追加 `V = sqrt(χ²/(N·(min(r,c)−1)))`；2×2 说明它就是 φ；引擎自己在 `Symmetric Measures` 给了 V 时不重复追加，只核对一致；行列数或有效 N 对不上（比如分层表、合并单元格）就不写——宁可没有，也不给一个口径说不清的数。
 - **小样本提示**：2×2 且期望频数 < 5 的格子存在时，表注点名「看同表的 Fisher's Exact Test 行（Exact Sig.）」。PSPP 本来就算这一行，以前是插件没引导用户去看。
 - **Kappa**：`/STATISTICS=… KAPPA`，透出 PSPP 的 `Symmetric Measures`（κ / ASE / Approx. T），并按 Landis & Koch 分档注在表下；非方表说明「即使引擎打了数字也解释不了」，没请求时说清怎么请求。开 Kappa 时会顺带保留 `CHISQ`，因为 V 与小样本提示挂在卡方表上。
+- **连续性校正（0.54.0）**：2×2 的 `Chi-Square Tests` 里引擎自己给了 `Continuity Correction` 行时，表注指向那一行（个案不多时它比 Pearson 保守）；期望频数不足时「看 Fisher」那条已经把话说全，不重复第二遍。
+- **过程前提提示（0.53.0 起，0.54.0 补齐）**：方差齐性、正态性、回归样本量三件事都由 `lib/workspace.js` 的 `annotateAssumptions` / `annotateNormality` / `annotateSampleSize` 从引擎已经打出来的表里读——`Tests of Normality` 的 Shapiro-Wilk p < 0.05 时点名变量（`p < 0.001` 一律这么写），t 检验的方差齐性按两行表头的 `Sig.` 列取（0.53.4），单因素方差分析不谎称有 Welch 行（0.53.3），回归个案数不到「预测变量 × 10」时给出实际比例与建议。表头一律扫整个表头块找真正写着 `Sig.` 的那一行，并取最后一个 `Sig.` 列（同时打 K-S 与 S-W 时右边才是 S-W）。
 
 ### 6.2 比较平均值
 
@@ -709,7 +711,7 @@ npm run bundle-engine   # 从系统 PSPP 重新打包 engine/<本机平台>/
 node scripts/bundle-engine.mjs --from-prefix out --platform linux-x64   # 从容器里编好的 prefix 导入
 ```
 
-- 测试：`npm test` 依次跑 31 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/flow/poll、设置存储、路径白名单、预设挂载、缺失值、重复个案、异常个案、精确检验与风险差、分层卡方、多因子对比、引擎崩溃文案），全绿时共 454 条 ok 断言（没有 pdftotext 的机器少 1 条） —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」，`crash` 覆盖引擎缺陷 banner 的中文文案（Linux 139 与 Windows 3 同一条分支、不泄露 build_system、普通语法错误不被误判）。
+- 测试：`npm test` 依次跑 31 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/flow/poll、设置存储、路径白名单、预设挂载、缺失值、重复个案、异常个案、精确检验与风险差、分层卡方、多因子对比、引擎崩溃文案），全绿时共 458 条 ok 断言（没有 pdftotext 的机器少 1 条） —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」，`crash` 覆盖引擎缺陷 banner 的中文文案（Linux 139 与 Windows 3 同一条分支、不泄露 build_system、普通语法错误不被误判）。
 - smoke：真实引擎跑一遍打开 → 分析 → 保存。
 - routes：43 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收、`api/heartbeat`、新增的 `api/settings`）。
 

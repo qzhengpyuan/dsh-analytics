@@ -1,7 +1,7 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
 import { collinearityTable, durbinWatsonTable, influenceTable } from '../lib/regression.js'
-import { annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
+import { annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateNormality, annotateSampleSize, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
 const failures = []
@@ -829,6 +829,74 @@ check("influence diagnostics use the hat matrix, not an inverse that collinearit
 
   assert.equal(influenceTable(dataset, { dependent: 'y', independents: [] }), null)
   assert.equal(influenceTable({ variables: [], rows: [] }, { dependent: 'y', independents: ['x'] }), null)
+})
+
+
+// The engine prints the normality test; a run that shows "Sig. .000" next to a
+// t test and says nothing is how a non-statistician ends up quoting a p value
+// that assumes a normal distribution. The shape below is PSPP's real output.
+check('a normality test that fails is stated next to the table', () => {
+  const make = (p) => [{
+    kind: 'table',
+    table: { caption: 'Tests of Normality', matrix: [['', 'Shapiro-Wilk', '', ''], ['', 'Statistic', 'df', 'Sig.'], ['score', '.87', '12', p]] },
+    notes: [],
+  }]
+  const quiet = make('.06')
+  annotateNormality(quiet)
+  assert.deepEqual(quiet[0].notes, [], 'p = .06 is not a warning')
+
+  const bad = make('.000')
+  annotateNormality(bad)
+  assert.equal(bad[0].notes.length, 1)
+  assert.match(bad[0].notes[0], /正态性检验/)
+  assert.match(bad[0].notes[0], /score/)
+  assert.match(bad[0].notes[0], /p < 0\.001/, 'an underflowed p is still reported as a failure')
+  assert.match(bad[0].notes[0], /非参数检验/)
+
+  // Two variables in one table: only the offending one is named.
+  const two = [{
+    kind: 'table',
+    table: { caption: 'Tests of Normality', matrix: [['', 'Shapiro-Wilk', '', ''], ['', 'Statistic', 'df', 'Sig.'], ['age', '.98', '12', '.970'], ['score', '.61', '12', '.000']] },
+    notes: [],
+  }]
+  annotateNormality(two)
+  assert.match(two[0].notes[0], /score/)
+  assert.ok(!two[0].notes[0].includes('age'), 'the normal variable is not named')
+})
+
+check('a 2×2 table points at the continuity correction row', () => {
+  const items = [
+    {
+      kind: 'table',
+      table: { caption: 'g × w', matrix: [['', '', '', 'w', '', 'Total'], ['', '', '', '1.00', '2.00', ''], ['g', '1.00', 'Count', '30', '10', '40'], ['', '2.00', 'Count', '12', '28', '40'], ['Total', '', 'Count', '42', '38', '80']] },
+      notes: [],
+    },
+    {
+      kind: 'table',
+      table: { caption: 'Chi-Square Tests', matrix: [['', 'Value', 'df', 'Asymptotic Sig. (2-tailed)'], ['Pearson Chi-Square', '14.55', '1', '.000'], ['Continuity Correction', '13.11', '1', '.000'], ['N of Valid Cases', '80', '', '']] },
+      notes: [],
+    },
+  ]
+  annotateCrosstabs(items)
+  assert.ok(items[1].notes.some((text) => text.includes('连续性校正')), 'the correction row is named')
+  assert.ok(items[1].notes.some((text) => text.includes('Continuity Correction')), 'and named in both languages')
+})
+
+check('a regression with too few cases per predictor says so', () => {
+  const small = [{ kind: 'table', table: { caption: 'ANOVA', matrix: [['', 'Sum of Squares', 'df', 'Mean Square', 'F', 'Sig.'], ['Regression', '1.0', '2', '0.5', '1.0', '.400']] }, notes: [] }]
+  const dataset = {
+    variables: [{ name: 'y', type: 'numeric' }, { name: 'a', type: 'numeric' }, { name: 'b', type: 'numeric' }],
+    rows: Array.from({ length: 12 }, (_, index) => [index, index % 3, index % 5]),
+  }
+  annotateSampleSize(small, dataset, { dependent: 'y', independents: ['a', 'b'] })
+  assert.equal(small[0].notes.length, 1)
+  assert.match(small[0].notes[0], /样本量 12/)
+  assert.match(small[0].notes[0], /6\.0/, 'the ratio is printed, not just the warning')
+
+  const roomy = [{ kind: 'table', table: { caption: 'ANOVA', matrix: [['', 'Sum of Squares']] }, notes: [] }]
+  annotateSampleSize(roomy, { variables: [], rows: new Array(40).fill([1, 2, 3]) }, { dependent: 'y', independents: ['a', 'b'] })
+  assert.deepEqual(roomy[0].notes, [], '40 cases for 2 predictors is enough')
+  assert.deepEqual(annotateSampleSize(roomy, { variables: [], rows: [] }, null), roomy, 'no regression, no note')
 })
 
 console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)
