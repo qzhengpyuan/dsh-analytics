@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/
 import { homedir, tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 
-import { resolveEngine } from '../lib/engine.js'
+import { resolveEngine, runProcess } from '../lib/engine.js'
 import { Workspace, WorkspaceRegistry, describeFailure } from '../lib/workspace.js'
 import { quoteSyntaxPath } from '../lib/dataset.js'
 
@@ -682,6 +682,17 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   assert.match(said, /缺陷/)
   assert.doesNotMatch(said, /build_system|run\.sps/)
   console.log('crash banner survives exec:', said.slice(0, 60))
+}
+
+// Crashes are reported through the exit code and stderr; the core file PSPP
+// would otherwise drop into /var/lib/systemd/coredump is noise. The wrapper that
+// sets the limit must not touch argv either (spaces and non-ASCII survive).
+if (process.platform !== 'win32') {
+  const limit = await runProcess('/bin/sh', ['-c', 'ulimit -c'])
+  assert.equal(limit.stdout.trim(), '0', `core limit is ${limit.stdout.trim()}`)
+  const echo = await runProcess('/bin/sh', ['-c', 'printf "%s|" "$@"', 'x', 'two words', 'ü'])
+  assert.equal(echo.stdout, 'two words|ü|', `args came through as ${echo.stdout}`)
+  console.log('engine children run without core dumps, argv unchanged')
 }
 
 // Teardown must not be able to fail the run on its own: on Windows a workspace

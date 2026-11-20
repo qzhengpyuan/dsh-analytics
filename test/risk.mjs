@@ -118,6 +118,21 @@ check('RISK is kept away from a string grouping variable, which crashes PSPP', (
   assert.equal(dropRiskOnStrings('CROSSTABS /TABLES=g BY wave /STATISTICS=RISK.', null), null)
 })
 
+check('a name the dataset cannot explain is treated as risky too', () => {
+  // `RECODE`/temporary variables and inline expressions never make it into
+  // dataset.variables, and PSPP crashes on a string anywhere in the table — so
+  // an unknown name has to count against RISK rather than for it.
+  const dataset = { variables: [{ name: 'g', type: 'numeric' }] }
+  const guarded = dropRiskOnStrings('CROSSTABS /TABLES=g BY tmp /STATISTICS=CHISQ RISK.', dataset)
+  assert.ok(guarded, 'the guard fires on an unknown name')
+  assert.deepEqual(guarded.variables, [])
+  assert.deepEqual(guarded.unknown, ['TMP'])
+  assert.ok(!/RISK/i.test(guarded.syntax))
+
+  // Inline recode values are numbers, not variables: nothing to be unknown about.
+  assert.equal(dropRiskOnStrings('CROSSTABS /TABLES=g BY g /STATISTICS=RISK.', dataset), null)
+})
+
 check('the note names the event column and both rows, not just row numbers', () => {
   // PSPP's own Risk Estimate is per column ("For cohort wave = 1"), so a note
   // that said "第 1 行 / 第一列" looked like the difference was computed backwards.
