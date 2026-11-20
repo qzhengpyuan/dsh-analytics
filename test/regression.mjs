@@ -425,6 +425,41 @@ check('a homogeneity test that fails is stated next to the table', () => {
   assert.equal(items[1].notes, undefined, 'a variance-homogeneous run gets no note')
 })
 
+check('a blank significance cell is not read as p = 0', () => {
+  // Number('') is 0, so a table whose Levene column is empty used to trigger the
+  // loudest warning the plugin has: "variance differs, p < 0.001".
+  const blank = [{
+    kind: 'table',
+    id: 'levene-blank',
+    title: 'Test of Homogeneity of Variances',
+    table: {
+      caption: 'Test of Homogeneity of Variances',
+      matrix: [
+        ['', 'Levene Statistic', 'df1', 'df2', 'Sig.'],
+        ['Based on Mean', '', '2', '15', ''],
+      ],
+    },
+  }]
+  annotateAssumptions(blank)
+  assert.equal(blank[0].notes, undefined, 'no p value means no variance warning')
+
+  const partial = [{
+    kind: 'table',
+    id: 'levene-partial',
+    title: 'Test of Homogeneity of Variances',
+    table: {
+      caption: 'Test of Homogeneity of Variances',
+      matrix: [
+        ['', 'Levene Statistic', 'df1', 'df2', 'Sig.'],
+        ['Based on Median', '1.100', '2', '15', '.021'],
+        ['Based on Mean', '', '2', '15', ''],
+      ],
+    },
+  }]
+  annotateAssumptions(partial)
+  assert.match(partial[0].notes[0], /p = 0\.021/, 'a later row with a real p value still counts')
+})
+
 check('a variance test that underflows still warns, and a t test names the Welch row', () => {
   const anova = [{
     kind: 'table',

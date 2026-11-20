@@ -703,6 +703,13 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   assert.match(said, /0 行/, `empty dataset said: ${said}`)
   console.log('a run on an empty dataset says why nothing came back')
 
+  // Anything reading item.notes (the panel, a tool result, another plugin)
+  // should get a list even when a table carries no hints.
+  const plainState = workspace.state()
+  assert.ok(plainState.items.length > 0, 'the run produced tables')
+  assert.ok(plainState.items.every((item) => Array.isArray(item.notes)), 'every table has a notes list')
+  console.log('every table in the state carries a notes list')
+
   // Importing through syntax on an empty dataset is a legitimate data step: it
   // must not be reported as "no cases".
   const csv = join(root, 'import-empty.csv')
