@@ -1,3 +1,9 @@
+## 0.54.31
+
+`BEGIN DATA … END DATA` 之间的内联数据也交给引号状态机了，但数据行本身不是语法：一行 `1 'Bob. DESCRIPTIVES x'` 里的 `. DESCRIPTIVES` 仍会被当成一条分析命令。`splitStatements()` 现在把整块数据并成一条语句，分类只看 `BEGIN DATA`（导入）。
+
+32 个套件 / 502 条 ok（regression 62）。
+
 ## 0.54.30
 
 Win10 0.54.24 报告 V4-②：`classifyScript()` 的语句切分不认引号。`/(?<=\.)\s+/` 会把 `TITLE 'Step 1. Descriptives by group'.` 从字符串中间切开，于是：

@@ -1242,6 +1242,16 @@ check('a period inside a quoted string is not a statement boundary', () => {
   assert.deepEqual(splitStatements('COMPUTE z = 1.5. FREQUENCIES g.'), ['COMPUTE z = 1.5.', 'FREQUENCIES g.'])
 })
 
+check('inline data is data, not syntax', () => {
+  // A value can read like a command: `1 'Bob. DESCRIPTIVES x'` inside BEGIN DATA
+  // used to count as an analysis and produce a false "nothing was produced".
+  const script = "BEGIN DATA\n1 'step. DESCRIPTIVES share'\n2 'x. COMPUTE y'\nEND DATA."
+  const status = classifyScript(script)
+  assert.equal(status.loadsData, true, 'inline data defines the dataset')
+  assert.equal(status.asksForResults, false, 'data rows are not commands')
+  assert.equal(status.changesData, false, 'data rows are not data steps either')
+})
+
 check('a matrix block is not a data step', () => {
   // MATRIX … END MATRIX carries a COMPUTE of its own; reading it as a data step
   // made an empty run look like "you changed the data first".
