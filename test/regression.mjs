@@ -921,4 +921,76 @@ check('a table of pairwise comparisons says how many chances it took', () => {
   assert.equal((single[0].notes ?? []).length, 0, 'one comparison is not a family')
 })
 
+
+await check('a mixed run keeps the two variance advices on their own tables', async () => {
+  // ONEWAY prints Levene in "Test of Homogeneity of Variances"; a t test keeps
+  // it inside "Independent Samples Test". One syntax can contain both, and each
+  // table must get the sentence that matches it.
+  const anova = {
+    kind: 'table',
+    table: {
+      caption: 'Test of Homogeneity of Variances',
+      matrix: [
+        ['', 'Levene Statistic', 'df1', 'df2', 'Sig.'],
+        ['score', '120.35', '2', '15', '.000'],
+      ],
+      notes: [],
+    },
+  }
+  const ttest = {
+    kind: 'table',
+    table: {
+      caption: 'Independent Samples Test',
+      matrix: [
+        ['', '', "Levene's Test for Equality of Variances", '', 'T-Test for Equality of Means', ''],
+        ['', '', 'F', 'Sig.', 't', 'Sig. (2-tailed)'],
+        ['score', 'Equal variances assumed', '140.46', '.000', '3.20', '.010'],
+        ['', 'Equal variances not assumed', '', '', '4.10', '.004'],
+      ],
+      notes: [],
+    },
+  }
+  const items = [anova, ttest]
+  annotateAssumptions(items)
+  const anovaSaid = (anova.notes ?? []).join(' ')
+  const ttestSaid = (ttest.notes ?? []).join(' ')
+  assert.match(anovaSaid, /没有 Welch 行/)
+  assert.doesNotMatch(anovaSaid, /不假定等方差/)
+  assert.match(ttestSaid, /不假定等方差/)
+  assert.doesNotMatch(ttestSaid, /没有 Welch 行/)
+})
+
+await check('the collinearity note stays on a coefficient table', async () => {
+  const ttest = {
+    kind: 'table',
+    table: {
+      caption: 'Independent Samples Test',
+      matrix: [
+        ['', '', "Levene's Test for Equality of Variances", '', 'T-Test for Equality of Means', ''],
+        ['', '', 'F', 'Sig.', 't', 'Sig. (2-tailed)'],
+        ['score', 'Equal variances assumed', '1.00', '.400', 'NaN', 'NaN'],
+      ],
+      notes: [],
+    },
+  }
+  annotateNonFiniteCoefficients([ttest])
+  assert.equal((ttest.notes ?? []).length, 0, 'a t test is not a regression coefficient table')
+
+  const coefficients = {
+    kind: 'table',
+    table: {
+      caption: 'Coefficients',
+      matrix: [
+        ['', 'Unstandardized Coefficients', '', 'Standardized Coefficients', '', 't', 'Sig.'],
+        ['Model', 'B', 'Std. Error', 'Beta', '', '', ''],
+        ['1', 'NaN', 'NaN', '', '', 'NaN', 'NaN'],
+      ],
+      notes: [],
+    },
+  }
+  annotateNonFiniteCoefficients([coefficients])
+  const said = (coefficients.notes ?? []).join(' ')
+  assert.match(said, /共线性诊断/)
+})
+
 console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)
