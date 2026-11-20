@@ -33,6 +33,11 @@ check('windows file errors are explained', () => {
   assert.ok(explainMessage("An error occurred while opening 'x.sav': No such file or directory.").includes('路径'))
 })
 
+check('a syntax complaint and a missing file both get a hint', () => {
+  assert.ok(explainMessage('T-TEST: Syntax error expecting TESTVAL, GROUPS, PAIRS, VARIABLES, MISSING, or CRITERIA.').includes('语法错误'))
+  assert.ok(explainMessage("Could not open `/nonexistent/file.csv' for reading as a data file: 没有那个文件或目录.").includes('文件打不开'))
+})
+
 check('an unrecognised message yields no hint', () => {
   assert.equal(explainMessage('the moon is made of cheese'), null)
 })

@@ -1,7 +1,7 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
 import { collinearityTable, durbinWatsonTable, influenceTable } from '../lib/regression.js'
-import { annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
+import { nearestVariableName, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
 const failures = []
@@ -592,6 +592,14 @@ check("a blank Cramer's V cell does not become zero association", () => {
   const row = items[1].table.matrix.find((candidate) => /Cramér's V/i.test(String((candidate ?? []).join(' '))))
   assert.ok(row, 'the plugin still adds its own row')
   assert.ok(!/^0(\.0+)?$/.test(String(row[2] ?? '').trim()), `a blank engine cell must not produce 0, got ${row[2]}`)
+})
+
+check('a typo in a variable name gets the nearest real name', () => {
+  const variables = [{ name: 'score' }, { name: 'group' }, { name: 'age' }]
+  assert.match(nearestVariableName('DESCRIPTIVES: scroe is not a variable name.', variables), /最接近的是 score/)
+  assert.match(nearestVariableName('DESCRIPTIVES: groupp is not a variable name.', variables), /最接近的是 group/)
+  assert.doesNotMatch(nearestVariableName('FREQUENCIES: income_total is not a variable name.', variables), /最接近的是/)
+  assert.equal(nearestVariableName('no complaint here', variables), '')
 })
 
 check('the collinearity note does not point at a table this run never printed', () => {

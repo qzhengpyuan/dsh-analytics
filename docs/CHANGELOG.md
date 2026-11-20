@@ -1,3 +1,13 @@
+## 0.54.19
+
+分析失败时的报错一直只有引擎原文（`FREQUENCIES: nosuchvar is not a variable name.`），中文解释只挂在「转换文件」那条路径上。现在运行失败也接上同一套解释，并且变量名写错时直接给最接近的那个：
+
+- `FREQUENCIES nosuchvar.` → 「引擎没有产出任何表（退出码 1：FREQUENCIES: nosuchvar is not a variable name.） —— 数据集里没有叫 nosuchvar 的变量」
+- `DESCRIPTIVES scroe.` → 「… —— 数据集里没有叫 scroe 的变量，最接近的是 score」（编辑距离，容差随名字长度放宽，差太远就只说没有）
+- 语法错误与文件打不开也补齐了规则（`Syntax error expecting …`、`Could not open … for reading` 以前匹配不到，只回引擎原文）
+
+32 个套件 / 470 条 ok（regression 51、messages 9）。
+
 ## 0.54.18
 
 - `api/version` 之前回 `{"version": null}`：给路由传的是 `settings`（只有用户偏好），没带 `pluginVersion`。现在宿主侧把 `pluginInfo().version` 一并传下去。
