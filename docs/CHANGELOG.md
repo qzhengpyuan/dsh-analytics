@@ -1,3 +1,13 @@
+## 0.54.21
+
+macOS 的 CI 腿在 `test/routes.mjs` 里抓到一次 `SyntaxError: Unexpected end of JSON input`：读 `dataset.json` 时读到空文件。原因不是测试不稳，是写入不是原子的 —— 另一个面板、启动器或重启后的 `restore()` 都可能正好读到写了一半的内容，那不只是解析失败，还会把「这些数字是从哪份数据来的」整条记录丢掉。
+
+- `rememberDataset()` 改成先写 `dataset.json.tmp` 再 `rename`，读的一侧只会看到旧的或新的完整文件。
+- `recordConflict()` 现在把落盘 promise 记在 `pendingConflictWrite`，routes 在回 409 之前 `await settled()` —— 冲突记录本来就要能被面板与下一个会话从 `dataset.json` 读到，409 抢在记录落地前返回等于没记。
+- smoke 加断言：`dataset.json` 是完整 JSON，且 rename 之后不留 staging 副本。
+
+32 个套件 / 471 条 ok。
+
 ## 0.54.20
 
 - 写 `.sav` 超时的时候报的是「保存数据失败：打不开 work.sav：引擎没有给出原因」——超时根本没有 stderr，这句话把人指向一个并不存在的坏文件。现在直接说超时，并指出可以在「设置 → 选项」里把超时调大。

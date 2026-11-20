@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 
@@ -714,6 +715,17 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   // response should not have to guard for a missing key either.
   assert.ok(run1.items.every((item) => Array.isArray(item.notes)), 'the run response carries notes lists')
   console.log('the run response carries notes lists too')
+
+  // dataset.json is read by the launcher, another panel and restore(): a
+  // half-written file does not just fail to parse, it forgets where the numbers
+  // came from. It is written to a staging name and renamed.
+  {
+    const metaPath = join(root, 'smoke', 'dataset.json')
+    const meta = JSON.parse(await readFile(metaPath, 'utf8'))
+    assert.ok(typeof meta.caseCount === 'number', 'dataset.json is whole JSON')
+    assert.ok(!existsSync(`${metaPath}.tmp`), 'the staging copy does not survive the rename')
+    console.log('dataset.json is written whole, without leaving a staging copy')
+  }
 
   // Importing through syntax on an empty dataset is a legitimate data step: it
   // must not be reported as "no cases".
