@@ -168,6 +168,7 @@ PSPP 2.1.3 的语法差异：`REGRESSION /STATISTICS=TOL`（含 `ALL`）会报�
 - 转置沿用 PSPP `FLIP`：字符串列会变成 0/1 编码列，变量名变为 `VAR000…`
 - 撤销/查找尚未实现
 - 曲线估计（`CURVEFIT`）在 PSPP 2.1.3 里只解析不执行（`CURVEFIT尚未实现`），因此没有对应对话框；曲线拟合请用 `COMPUTE` + `REGRESSION` 或 `pspp_run` 写公式
+- 面板的 HTTP 接口（`/analytics/api/*`）跟着宿主一起走 DSH 自己的鉴权：浏览器必须持有宿主启动时打印那条带 `?token=` 的地址换来的 cookie（`dsh-auth-<hash>`，30 天）。直接手敲 `http://127.0.0.1:<端口>/analytics/api/state` 会得到 `401 unauthorized` —— 这是宿主行为，不是插件在要求登录；错过那条 URL 时重开一次 `dsh web` 会打印新的地址
 
 ## 开发
 

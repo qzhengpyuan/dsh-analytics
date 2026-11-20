@@ -425,6 +425,44 @@ check('a homogeneity test that fails is stated next to the table', () => {
   assert.equal(items[1].notes, undefined, 'a variance-homogeneous run gets no note')
 })
 
+check('a blank normality row is not a deviation at p < 0.001', () => {
+  const items = [{
+    kind: 'table',
+    id: 'norm-blank',
+    title: 'Tests of Normality',
+    table: {
+      caption: 'Tests of Normality',
+      matrix: [
+        ['', 'Shapiro-Wilk', '', ''],
+        ['', 'Statistic', 'df', 'Sig.'],
+        ['skew', '.37', '10', ''],
+        ['flat', '.98', '10', '.640'],
+      ],
+      notes: [],
+    },
+  }]
+  annotateNormality(items)
+  assert.equal((items[0].notes ?? []).length, 0, 'a blank Sig. cell says nothing about normality')
+
+  const mixed = [{
+    kind: 'table',
+    id: 'norm-mixed',
+    title: 'Tests of Normality',
+    table: {
+      caption: 'Tests of Normality',
+      matrix: [
+        ['', 'Shapiro-Wilk', '', ''],
+        ['', 'Statistic', 'df', 'Sig.'],
+        ['skew', '.37', '10', ''],
+        ['bad', '.31', '10', '.001'],
+      ],
+    },
+  }]
+  annotateNormality(mixed)
+  assert.match(mixed[0].notes[0], /bad/, 'a real p value is still reported')
+  assert.ok(!/skew/.test(mixed[0].notes[0]), 'the blank row is left out')
+})
+
 check('a blank significance cell is not read as p = 0', () => {
   // Number('') is 0, so a table whose Levene column is empty used to trigger the
   // loudest warning the plugin has: "variance differs, p < 0.001".
