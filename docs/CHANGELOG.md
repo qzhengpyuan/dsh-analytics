@@ -1,3 +1,17 @@
+## 0.54.25
+
+SPSS 用户最常撞上的「这条命令 PSPP 没有」，原来只回一句「检查命令拼写」，让人去找一个不存在的错别字：
+
+- `CODEBOOK` → 指向「频率」与「描述」。
+- `TABLES` / `CTABLES` → 指向「交叉表」与「均值」。
+- `UNIANOVA` / `GLM` → 说明 PSPP 的 GLM 只做单因子，多因子与协方差分析要在别处做。
+- `MIXED` / `GENLIN` / `SURVIVAL` / `COXREG` / `TREE` / `CHAID` → 说明这些超出内置引擎范围。
+- 真正拼错的命令（`FREQUENCIS`）仍然回「检查命令拼写」。
+
+`annotateComparisons` 里「没有 (I) 列时按有 p 值的行数计 N」这一点补了注释（PSPP 总带 (I) 列，这条路径属防御；若将来引擎每对打两行，N 会翻倍）。
+
+32 个套件 / 477 条 ok（messages 从 9 加到 10）。
+
 ## 0.54.24
 
 Win10 0.54.10 报告的五条：

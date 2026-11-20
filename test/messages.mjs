@@ -84,4 +84,16 @@ check('the engine location is stripped from any message that leaves the host', (
   assert.equal(stripEngineLocation('run.sps:1: 警告: 未知命令'), '警告: 未知命令', 'a warning keeps its own label')
 })
 
+check('an SPSS command PSPP does not have names the replacement', () => {
+  // A student pasting an SPSS tutorial hits these first; "unknown command,
+  // check the spelling" sends them looking for a typo that is not there.
+  assert.match(explainMessage("error: Unknown command `CODEBOOK'."), /代码本|CODEBOOK/)
+  assert.match(explainMessage("error: Unknown command `CODEBOOK'."), /频率/)
+  assert.match(explainMessage("error: Unknown command `TABLES'."), /交叉表/)
+  assert.match(explainMessage("error: Unknown command `UNIANOVA'."), /单因子/)
+  assert.match(explainMessage("error: Unknown command `COXREG'."), /2\.1\.3/)
+  // A genuinely misspelled command must keep the generic advice.
+  assert.match(explainMessage("error: Unknown command `FREQUENCIS'."), /拼写/)
+})
+
 console.log(`messages: ${checks} checks passed`)
