@@ -1132,7 +1132,31 @@ await check('the method in the first column decides whether p values are correct
   assert.match(lsdSaid, /3 次两两比较/, lsdSaid)
 })
 
-await check('a mixed run keeps the two variance advices on their own tables', async () => {
+await check('a blank SPSS-style Levene row does not hide the row after it', () => {
+  // SPSS prints "Based on Mean / Based on Median / Based on trimmed mean"; PSPP
+  // leaves the first Value empty. Taking the first labelled row would then read
+  // NaN and skip the real number two rows down.
+  const cases = [
+    [['score', '', '2', '15', ''], ['', '.048', '2', '15', '.048'], ['', '.025', '2', '14.2', '.025']],
+    [['score', '', '2', '15', ''], ['score', '9.49', '2', '15', '.002']],
+  ]
+  for (const dataRows of cases) {
+    const item = {
+      kind: 'table',
+      table: {
+        caption: 'Test of Homogeneity of Variances',
+        matrix: [['', 'Levene Statistic', 'df1', 'df2', 'Sig.'], ...dataRows],
+      },
+    }
+    annotateAssumptions([item])
+    const note = (item.notes ?? [])[0]
+    assert.ok(note, 'a real p further down still produces the note')
+    assert.match(note, /p (?:< 0\.001|= 0\.)/, note)
+    assert.doesNotMatch(note, /p < 0\.001/, 'the blank row must not become p = 0')
+  }
+})
+
+check('a mixed run keeps the two variance advices on their own tables', async () => {
   // ONEWAY prints Levene in "Test of Homogeneity of Variances"; a t test keeps
   // it inside "Independent Samples Test". One syntax can contain both, and each
   // table must get the sentence that matches it.
