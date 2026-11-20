@@ -922,6 +922,44 @@ check('a table of pairwise comparisons says how many chances it took', () => {
 })
 
 
+await check('the method in the first column decides whether p values are corrected', async () => {
+  // PSPP titles all three the same: "Multiple Comparisons (score)". The method
+  // sits in the leftmost column of the first data row, and Bonferroni/Tukey are
+  // already adjusted — warning there is wrong, not merely redundant.
+  const header = ['', '(I) g', '(J) g', 'Mean Difference (I - J)', 'Std. Error', 'Sig.', '95% Confidence Interval', '']
+  const sub = ['', '', '', '', '', '', 'Lower Bound', 'Upper Bound']
+  const pair = (method, i, j, p) => [method, i, j, '0.00', '1.08', p, '-1.0', '1.0']
+  const make = (method) => ({
+    kind: 'table',
+    table: {
+      caption: 'Multiple Comparisons (score)',
+      matrix: [
+        header, sub,
+        pair(method, '1.00', '2.00', '.252'),
+        pair('', '', '3.00', '.000'),
+        pair('', '2.00', '1.00', '.252'),
+        pair('', '', '3.00', '.000'),
+        pair('', '3.00', '1.00', '.000'),
+        pair('', '', '2.00', '.000'),
+      ],
+      notes: [],
+    },
+  })
+  const bonferroni = [make('Bonferroni')]
+  annotateComparisons(bonferroni)
+  assert.equal((bonferroni[0].notes ?? []).length, 0, 'Bonferroni p values are already adjusted')
+
+  const tukey = [make('Tukey')]
+  annotateComparisons(tukey)
+  assert.equal((tukey[0].notes ?? []).length, 0, 'Tukey p values are already adjusted')
+
+  const lsd = [make('LSD')]
+  annotateComparisons(lsd)
+  const said = (lsd[0].notes ?? []).join(' ')
+  assert.match(said, /3 次两两比较/, said)
+  assert.match(said, /14%/, said)
+})
+
 await check('a mixed run keeps the two variance advices on their own tables', async () => {
   // ONEWAY prints Levene in "Test of Homogeneity of Variances"; a t test keeps
   // it inside "Independent Samples Test". One syntax can contain both, and each
