@@ -722,6 +722,25 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   const imported = await blank.runSyntax(`GET DATA /TYPE=TXT /FILE='${csv}' /VARIABLES=x F8.1.`)
   assert.equal(imported.items.length, 0, 'a data step has no table')
   console.log('a data step on an empty dataset is not called an empty run')
+
+  // The rows in memory are not always the rows the engine used: a filter in the
+  // same script can leave the engine with nothing while this object still holds
+  // three cases. That must not look like "no significant result".
+  const filtered = new Workspace({ id: 'smoke-filter', engine, root, config: { timeoutMs: 60000 } })
+  await filtered.init()
+  await filtered.createDataset({
+    name: 'filtered',
+    variables: [{ name: 'score', type: 'numeric', measure: 'scale' }],
+    rows: [[1], [2], [3]],
+  })
+  let filterSaid = ''
+  try {
+    await filtered.runSyntax('SELECT IF score > 999.\nEXECUTE.\nDESCRIPTIVES score.')
+  } catch (error) {
+    filterSaid = error.message
+  }
+  assert.match(filterSaid, /筛掉了/, `filtered run said: ${filterSaid}`)
+  console.log('a run whose filter removed every case says so')
 }
 
 // Crashes are reported through the exit code and stderr; the core file PSPP
