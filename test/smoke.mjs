@@ -735,6 +735,30 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   assert.equal(imported.items.length, 0, 'a data step has no table')
   console.log('a data step on an empty dataset is not called an empty run')
 
+  // The other half of the same rule: when a script both loads data and asks for
+  // results, "this dataset has no cases" is the wrong sentence — the engine read
+  // a file, not the dataset in memory. Either it produced a table (fine) or it
+  // threw the import-specific message, never the dataset one.
+  const emptyCsv = join(root, 'import-zero.csv')
+  await writeFile(emptyCsv, '')
+  let loadSaid = ''
+  try {
+    const loaded = await blank.runSyntax(`GET DATA /TYPE=TXT /FILE='${emptyCsv}' /VARIABLES=x F8.1.\nDESCRIPTIVES /VARIABLES=x.`)
+    assert.ok(Array.isArray(loaded.items), 'a load plus an analysis either returns tables or throws')
+  } catch (error) {
+    loadSaid = error.message
+  }
+  assert.doesNotMatch(loadSaid, /这份数据集还没有个案/, `a load must not be blamed on the in-memory dataset, got: ${loadSaid}`)
+  console.log('a load followed by an analysis never blames the in-memory dataset')
+
+  // Pure data steps on an empty dataset are legitimate and must stay quiet:
+  // COMPUTE and SORT are things a user does before there is data.
+  for (const dataStep of ['COMPUTE z = 1.', 'SORT CASES BY score (A).']) {
+    const quiet = await blank.runSyntax(dataStep)
+    assert.equal(quiet.items.length, 0, `${dataStep} produces no table`)
+  }
+  console.log('compute and sort on an empty dataset are not errors')
+
   // The rows in memory are not always the rows the engine used: a filter in the
   // same script can leave the engine with nothing while this object still holds
   // three cases. That must not look like "no significant result".

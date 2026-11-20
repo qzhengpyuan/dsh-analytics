@@ -1,3 +1,19 @@
+## 0.54.22
+
+Win10 0.54.7 报告的 P1-1 / P1-2 是同一个根因：判断「这次没出表」靠一条正则**整段扫** `GET DATA`，于是
+
+- `GET DATA`（读到空文件）+ `DESCRIPTIVES` 被当成「数据步」跳过，静默回 0 张表；
+- 反过来 `GET FILE`、`SAVE`、`SORT CASES`、`COMPUTE` 不在白名单里，在 0 行数据集上被报「这份数据集还没有个案（0 行）」，而用户正要用 `GET FILE` 载入数据。
+
+现在改成先分类再判断（`classifyScript()`）：
+
+- 只看**调用者自己写的语法**，不看插件前置的 `GET FILE` 头（之前正是那个头让每一条空数据运行都带上了「载入数据」的标签）；
+- `loadsData` = `GET DATA / GET FILE / DATA LIST / INPUT PROGRAM / BEGIN DATA / IMPORT`；
+- `changesData` = `SAVE OUTFILE / SAVE TRANSLATE / SORT CASES / COMPUTE / RECODE / AUTORECODE / AGGREGATE / FLIP / IF / DO IF / SELECT IF / FILTER / WEIGHT / MISSING VALUES / VARIABLE / RENAME / DELETE / MATCH FILES / ADD FILES`；
+- 三种结局各说各话：只载入或只改数据 → 不报错；载入数据**又**要结果但一条表都没有 → 「这次运行既导入/载入了数据又跑了分析，但引擎一条结果都没有产出：导入的那份数据是空的（0 例），或者路径没指到有内容的文件…」；没载入数据、内存就是 0 例 → 「这份数据集还没有个案（0 行）…」；有数据但被筛光 → 原来那条「筛选把个案全部筛掉了」。
+
+32 个套件 / 471 条 ok。
+
 ## 0.54.21
 
 macOS 的 CI 腿在 `test/routes.mjs` 里抓到一次 `SyntaxError: Unexpected end of JSON input`：读 `dataset.json` 时读到空文件。原因不是测试不稳，是写入不是原子的 —— 另一个面板、启动器或重启后的 `restore()` 都可能正好读到写了一半的内容，那不只是解析失败，还会把「这些数字是从哪份数据来的」整条记录丢掉。
