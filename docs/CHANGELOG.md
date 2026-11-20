@@ -1,3 +1,11 @@
+## 0.54.12
+
+英文界面补完最后一轮：`locale/en.json` 从 955 条增到 1109 条，`client.js` 里所有纯中文文案（对话框标题、字段标签、提示语、通知、引擎能力说明）现在都有英文对照，术语按 IBM SPSS Statistics 的界面用语（Descriptive Statistics / Crosstabs / Post Hoc Tests / Case / Variable / Value Labels / three-line table）。含数字插值的句子仍走「最长子串替换」，不必为每种数字组合建 key。
+
+剩下一处故意不翻：`client.js` 里按 `[aria-label*="关闭"]` 找关闭按钮的 CSS 选择器 —— 它是选择器，不是文案，翻译了反而匹配不到中文 aria-label（末尾的 `button` 兜底已覆盖两种界面）。
+
+31 个套件 / 466 条 ok。
+
 ## 0.54.11
 
 0.54.9 只把 `state()` 里的 `notes` 补齐了，`api/run` 的响应还是原样透传（没有提示的表仍是缺键）。现在两条路径同一形状，`pspp_run` 之外的直接调用者也不用再写 `item.notes ?? []`。
