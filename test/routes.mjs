@@ -1,7 +1,9 @@
 // Exercises the HTTP handler without the host's browser-auth fence.
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { WorkspaceRegistry } from '../lib/workspace.js'
 import { resolveEngine } from '../lib/engine.js'
 import { createHandler } from '../lib/routes.js'
@@ -65,8 +67,12 @@ class Res {
   await blind({ method: 'GET', url: '/analytics/api/version', headers: { host: '127.0.0.1:3080' } }, probe)
   if (probe.code !== 200) throw new Error(`api/version must answer without a cookie, got ${probe.code}`)
   const body = JSON.parse(probe.text)
-  if (body.version !== '9.9.9') throw new Error(`api/version must report the loaded version, got ${probe.text}`)
-  if (JSON.stringify(body) !== JSON.stringify({ ok: true, plugin: 'dsh-analytics-pspp', version: '9.9.9' })) {
+  // The route reads the manifest at request time, not the copy captured when the
+  // handler was built: after a hot reload the captured one is the previous
+  // build, and this is the endpoint people use to ask "which build is running".
+  const manifest = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8'))
+  if (body.version !== manifest.version) throw new Error(`api/version must report the manifest version ${manifest.version}, got ${probe.text}`)
+  if (JSON.stringify(body) !== JSON.stringify({ ok: true, plugin: 'dsh-analytics-pspp', version: manifest.version })) {
     throw new Error(`api/version must not leak anything else, got ${probe.text}`)
   }
   const heart = new Res()

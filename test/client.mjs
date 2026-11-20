@@ -1921,9 +1921,15 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
 // translates text and the text props, and the panel actually fetches the
 // dictionary when the host says the language changed.
 {
-  hooks.setDictionary({ 保存: 'Save', 个个案: 'cases', 尚未打开数据集: 'No dataset open' })
+  hooks.setDictionary({ 保存: 'Save', 尚未打开数据集: 'No dataset open', '{0} 个个案': '{0} cases' })
   assert.equal(hooks.tr('保存'), 'Save', 'an exact key is translated')
-  assert.equal(hooks.tr('3000 个个案'), '3000 cases', 'a template is translated through its substring key')
+  assert.equal(hooks.tr('3000 个个案'), '3000 cases', 'a slot template is filled in')
+  // The old fallback replaced every key found inside a sentence, which is how
+  // `Homogeneity of variance test的 p < 0.001` happened. A sentence without a
+  // template must stay whole.
+  assert.equal(hooks.tr('方差齐性检验的 p < 0.001'), '方差齐性检验的 p < 0.001', 'no accidental glue')
+  assert.equal(hooks.tr('✓未翻译'), '✓未翻译', 'the check mark is not a key')
+  assert.equal(hooks.tr('✓ 保存'), '✓ Save', 'the check mark survives around a translated label')
   assert.equal(hooks.tr('/tmp/a.sav'), '/tmp/a.sav', 'a path is left alone')
   const node = hooks.h('button', { title: '保存', className: 'ap-tool' }, '保存')
   assert.equal(node.props.title, 'Save', 'the title prop is translated')

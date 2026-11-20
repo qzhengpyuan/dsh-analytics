@@ -17,39 +17,55 @@ window.__ModuleLoader__.load({
     // one place all text passes through, so the ~750 strings did not each need a
     // t() call at the call site.
     //
-    // Substring replacement covers the templates too: `3000 个个案` is not a key,
-    // but `个个案` is, and the longest keys are tried first. Strings without a
-    // Chinese character (numbers, PSPP's own English output, paths) return
-    // untouched, and results are memoised because a data grid asks a few thousand
-    // times per frame.
+    // Strings without a Chinese character (numbers, PSPP's own English output,
+    // paths) return untouched, and results are memoised because a data grid asks
+    // a few thousand times per frame.
     let DICT = null
-    let DICT_KEYS = []
+    let DICT_TEMPLATES = []
     let LANG = 'zh'
     const TR_CACHE = new Map()
     const TRANSLATED_PROPS = ['title', 'placeholder', 'aria-label', 'alt']
 
     function setDictionary(strings) {
       DICT = strings && typeof strings === 'object' ? strings : null
-      DICT_KEYS = DICT
-        ? Object.keys(DICT).filter((key) => key.length >= 2).sort((a, b) => b.length - a.length)
+      DICT_TEMPLATES = DICT
+        ? Object.entries(DICT)
+          .filter(([key, value]) => /\{\d+\}/.test(key) && typeof value === 'string' && /\{\d+\}/.test(value))
+          .map(([key, value]) => {
+            const parts = key.split(/\{\d+\}/).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+            return { pattern: new RegExp(`^${parts.join('(.+?)')}$`), value }
+          })
+          .sort((a, b) => b.pattern.source.length - a.pattern.source.length)
         : []
       TR_CACHE.clear()
     }
 
+    // Whole-string lookup first; then `{0}` templates for the labels that carry
+    // a number or a variable name; then the "✓ " a checked menu item carries.
+    // There is deliberately no "replace every key found inside the text" step:
+    // on long sentences it produced mixed text (`Homogeneity of variance test的
+    // p < 0.001…`), which reads worse than leaving the sentence in Chinese.
     function tr(text) {
       if (!DICT || typeof text !== 'string' || text === '') return text
       const cached = TR_CACHE.get(text)
       if (cached !== undefined) return cached
-      let out = DICT[text]
-      if (typeof out !== 'string') {
-        if (!/[\u4e00-\u9fff]/.test(text) || text.length > 600) return text
-        out = text
-        for (const key of DICT_KEYS) {
-          if (out.includes(key)) out = out.split(key).join(DICT[key])
-        }
-      }
+      const out = translateOne(text)
       TR_CACHE.set(text, out)
       return out
+    }
+
+    function translateOne(text) {
+      const exact = DICT[text]
+      if (typeof exact === 'string') return exact
+      if (!/[\u4e00-\u9fff]/.test(text) || text.length > 600) return text
+      const checkbox = /^(✓\s*)(.*)$/.exec(text)
+      if (checkbox) return `${checkbox[1]}${translateOne(checkbox[2])}`
+      for (const { pattern, value } of DICT_TEMPLATES) {
+        const match = pattern.exec(text)
+        if (!match) continue
+        return value.replace(/\{(\d+)\}/g, (whole, index) => match[Number(index) + 1] ?? whole)
+      }
+      return text
     }
 
     function mapText(child) {
@@ -1145,7 +1161,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       // Descriptives put the mean in the first data row; a test table's rows
       // are the statistics themselves and have no such column.
       const mean = pick(matrix[1], ['Mean'])
-      if (mean && !facts.some((fact) => fact.startsWith('χ²='))) facts.push(`均值=${mean}`)
+      if (mean && !facts.some((fact) => fact.startsWith('χ²='))) facts.push(tr(`均值=${mean}`))
       const sd = pick(matrix[1], ['Std. Deviation', 'Std Dev'])
       if (sd) facts.push(`SD=${sd}`)
       return facts.join(' · ')
@@ -3777,7 +3793,7 @@ function normalizeChoices(list) {
               variables.map((variable, column) => h('th', {
                 key: variable.name,
                 className: `${freeze.cols !== false && column === 0 ? 'ap-freeze-col' : ''}${dragColumn === variable.name ? ' ap-col-dragging' : ''}`,
-                title: `${variable.name}${variable.label ? ` — ${variable.label}` : ''}（拖动表头调整列顺序；拖动右边界改列宽，双击右边界恢复）`,
+                title: `${variable.name}${variable.label ? ` — ${variable.label}` : ''}${tr('（拖动表头调整列顺序；拖动右边界改列宽，双击右边界恢复）')}`,
                 style: { width: widthOf(variable), minWidth: widthOf(variable) },
                 draggable: true,
                 onDragStart: (event) => {
@@ -6919,11 +6935,14 @@ let ITEM_CSV_PENDING = null
       // SPSS right-aligns the accelerator in grey at the far edge of the item.
       // Menu labels carry it inline ("撤销（Ctrl+Z）"), so split that tail off
       // and render it as its own span — the button's textContent is unchanged.
-      const KEYS_RE = /^(.*?)（((?:Ctrl|Alt|Shift|F\d)[^）]*)）$/
+      const KEYS_RE = /^(.*?)[（(]((?:Ctrl|Alt|Shift|F\d)[^）)]*)[）)]$/
       const menuLabel = (label) => {
         const match = KEYS_RE.exec(String(label ?? ''))
+        // Translate first, split second. Splitting first meant `撤销（Ctrl+Z）`
+        // reached the dictionary as two pieces, the key never matched, and the
+        // menu kept its Chinese word in English mode.
         return match
-          ? [h('span', { key: 'text' }, match[1]), h('span', { key: 'keys', className: 'ap-keys' }, match[2])]
+          ? [h('span', { key: 'text' }, tr(match[1])), h('span', { key: 'keys', className: 'ap-keys' }, match[2])]
           : [h('span', { key: 'text' }, label)]
       }
       const renderMenuItems = (list) => list.map((item, index) => item.sep
@@ -6948,7 +6967,8 @@ let ITEM_CSV_PENDING = null
       const clipped = st?.dataset?.truncated === true
       const caseText = st
         ? (st.dataset
-          ? `${st.dataset.caseCount} 个个案${clipped ? '+' : ''} · ${st.dataset.variables.length} 个变量${st.dataset.dirty ? ' · 未保存' : ''}`
+          ? [tr(`${st.dataset.caseCount} 个个案${clipped ? '+' : ''}`), tr(`${st.dataset.variables.length} 个变量`), st.dataset.dirty ? tr('未保存') : null]
+            .filter(Boolean).join(' · ')
           : '未打开数据集')
         : '正在连接分析引擎…'
       const sourceText = st?.dataset ? describeSource(st.dataset) : ''
@@ -6963,7 +6983,7 @@ let ITEM_CSV_PENDING = null
       const sessionChips = [
         st?.splitBy?.length
           ? {
-            label: `拆分：${st.splitBy.join(' ')}`,
+            label: tr(`拆分：${st.splitBy.join(' ')}`),
             title: 'SPLIT FILE 正在生效：每个结果按该变量的取值分组输出',
             onClear: () => clearSession('SPLIT FILE OFF.'),
           }
@@ -7403,7 +7423,7 @@ let ITEM_CSV_PENDING = null
                 key: 'conflicts',
                 className: 'ap-status-conflicts',
                 title: `${st.conflictCount} 次写入被拒：另一个窗口在你编辑期间改过这份数据，那几次修改没有写入（原因见 设置 → 选项 → 冲突记录；导出的表格会带上次数）`,
-              }, `冲突 ${st.conflictCount}`)
+              }, tr(`冲突 ${st.conflictCount}`))
               : null,
             st?.version
               ? h('span', { className: 'ap-status-version', title: `插件版本 ${st.version}（改后端代码后停用再启用本插件即可生效，但要重新打开数据文件）` }, `v${st.version}`)
@@ -8511,7 +8531,7 @@ let ITEM_CSV_PENDING = null
           ])
         }),
         h('div', { key: 'deploy', className: 'ap-settings-deploy' }, [
-          h('strong', { key: 'h' }, `工具挂载（registerTools）：${data.deploymentOnly.registerTools.value ? '开' : '关'}`),
+          h('strong', { key: 'h' }, tr(`工具挂载（registerTools）：${data.deploymentOnly.registerTools.value ? '开' : '关'}`)),
           h('p', { key: 'p', className: 'ap-hint' }, data.deploymentOnly.registerTools.note),
         ]),
         h('div', { key: 'actions', className: 'ap-settings-actions' }, [
