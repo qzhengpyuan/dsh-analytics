@@ -570,6 +570,30 @@ check("the engine's own Cramer's V is not duplicated", () => {
   assert.match(items[1].notes.find((text) => text.includes("Cramér's V")), /Symmetric Measures/)
 })
 
+check("a blank Cramer's V cell does not become zero association", () => {
+  // Number('') is 0: reporting V = 0 would claim "no association" when the
+  // engine simply left the cell empty.
+  const items = items2x2()
+  items.push({
+    kind: 'table',
+    id: 'sym-blank',
+    title: 'Symmetric Measures',
+    table: {
+      caption: 'Symmetric Measures',
+      matrix: [
+        ['', '', 'Value'],
+        ['Nominal by Nominal', 'Phi', ''],
+        ['', "Cramer's V", ''],
+        ['N of Valid Cases', '', '20'],
+      ],
+    },
+  })
+  annotateCrosstabs(items)
+  const row = items[1].table.matrix.find((candidate) => /Cramér's V/i.test(String((candidate ?? []).join(' '))))
+  assert.ok(row, 'the plugin still adds its own row')
+  assert.ok(!/^0(\.0+)?$/.test(String(row[2] ?? '').trim()), `a blank engine cell must not produce 0, got ${row[2]}`)
+})
+
 check('a rectangular table says why Kappa is missing instead of showing a number', () => {
   const items = [
     {
