@@ -104,7 +104,9 @@ export function apply(ctx, config = {}) {
     const handler = createHandler({
       registry,
       getConnection: () => scoped.get('connection'),
-      config: settings,
+      // The version probe needs the loaded version; `settings` alone carries
+      // only user preferences.
+      config: { ...settings, pluginVersion: pluginInfo().version },
       settings: settingsStore,
     })
     console.log(`[dsh-analytics] ${pluginInfo().version} routes ready (registerTools=${settings.registerTools === true})`)

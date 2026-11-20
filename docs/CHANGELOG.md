@@ -1,3 +1,10 @@
+## 0.54.18
+
+- `api/version` 之前回 `{"version": null}`：给路由传的是 `settings`（只有用户偏好），没带 `pluginVersion`。现在宿主侧把 `pluginInfo().version` 一并传下去。
+- 顺带把这条路由的实际边界写清：插件自己在鉴权之前处理它，但整台 DSH 的 `/api` 围栏在更外层，所以**不带 cookie 的请求仍然会被宿主挡成 401**（实测 `curl http://127.0.0.1:3080/analytics/api/version` → 401 `unauthorized`）；带 cookie 时 200 且只回版本号。它现在的用处是宿主内排查与带 cookie 的脚本，不再声称「免鉴权」。
+
+32 个套件 / 469 条 ok。
+
 ## 0.54.17
 
 Win10 0.54.5 报告里的 P1-1 与 P2-2：
