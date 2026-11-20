@@ -1225,6 +1225,22 @@ check('a blank p value is not another comparison', () => {
   assert.match(note, /2 次两两比较/, note)
 })
 
+check('a matrix block is not a data step', () => {
+  // MATRIX … END MATRIX carries a COMPUTE of its own; reading it as a data step
+  // made an empty run look like "you changed the data first".
+  const status = classifyScript('MATRIX.\nCOMPUTE x = {1}.\nEND MATRIX.')
+  assert.equal(status.changesData, false, 'matrix algebra is not a data step')
+  assert.equal(classifyScript("COMPUTE note = 'GET DATA'.").loadsData, false, 'a string is not a command')
+})
+
+check('a listing counts as a result', () => {
+  // RANK/LIST/DISPLAY/SHOW always print something; if they ever print nothing
+  // the empty-run message has to cover them too.
+  for (const script of ['RANK score /RANK INTO r.', 'LIST /VARIABLES=g score.', 'DISPLAY DICTIONARY.', 'SHOW N.']) {
+    assert.equal(classifyScript(script).asksForResults, true, script)
+  }
+})
+
 check('a pasted one-liner is classified command by command', () => {
   // Statements, not lines: everything after the first command on a line still
   // has to count, or "COMPUTE z = 1. DESCRIPTIVES score." looks like a pure data

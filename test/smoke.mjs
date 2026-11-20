@@ -749,7 +749,21 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
     loadSaid = error.message
   }
   assert.doesNotMatch(loadSaid, /这份数据集还没有个案/, `a load must not be blamed on the in-memory dataset, got: ${loadSaid}`)
+  assert.doesNotMatch(loadSaid, /筛/, `an empty import must not be blamed on filtering, got: ${loadSaid}`)
   console.log('a load followed by an analysis never blames the in-memory dataset')
+
+  // A data step followed by an analysis on an empty dataset: COMPUTE is legal on
+  // zero rows and the engine says nothing, so the branch has to (the output tree
+  // would otherwise just be blank).
+  let changedSaid = ''
+  try {
+    await blank.runSyntax('COMPUTE x = score + 1.\nEXECUTE.\nDESCRIPTIVES /VARIABLES=x.')
+  } catch (error) {
+    changedSaid = error.message
+  }
+  assert.match(changedSaid, /0 行/, `a data step before an analysis said: ${changedSaid}`)
+  assert.doesNotMatch(changedSaid, /筛/, `a data step must not be blamed on filtering: ${changedSaid}`)
+  console.log('a data step before an analysis still says the dataset is empty')
 
   // Pure data steps on an empty dataset are legitimate and must stay quiet:
   // COMPUTE and SORT are things a user does before there is data.
