@@ -1,7 +1,7 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
 import { collinearityTable, durbinWatsonTable, influenceTable } from '../lib/regression.js'
-import { annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateNormality, annotateSampleSize, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
+import { annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
 const failures = []
@@ -897,6 +897,28 @@ check('a regression with too few cases per predictor says so', () => {
   annotateSampleSize(roomy, { variables: [], rows: new Array(40).fill([1, 2, 3]) }, { dependent: 'y', independents: ['a', 'b'] })
   assert.deepEqual(roomy[0].notes, [], '40 cases for 2 predictors is enough')
   assert.deepEqual(annotateSampleSize(roomy, { variables: [], rows: [] }, null), roomy, 'no regression, no note')
+})
+
+check('a table of pairwise comparisons says how many chances it took', () => {
+  const matrix = [
+    ['', '', '', '', '', 'Sig.'],
+    ['A vs B', '', '', '', '', '0.041'],
+    ['A vs C', '', '', '', '', '0.900'],
+    ['B vs C', '', '', '', '', '0.230'],
+  ]
+  const items = [{ kind: 'table', table: { caption: 'Multiple Comparisons', matrix, notes: [] } }]
+  annotateComparisons(items)
+  const said = (items[0].notes ?? []).join(' ')
+  assert.match(said, /3 次两两比较/)
+  assert.match(said, /14%/)  // 1 - 0.95^3 = 14.26%
+
+  const adjusted = [{ kind: 'table', table: { caption: 'Multiple Comparisons (Bonferroni)', matrix, notes: [] } }]
+  annotateComparisons(adjusted)
+  assert.equal((adjusted[0].notes ?? []).length, 0, 'a corrected table is not nagged')
+
+  const single = [{ kind: 'table', table: { caption: 'Multiple Comparisons', matrix: [matrix[0], matrix[1]], notes: [] } }]
+  annotateComparisons(single)
+  assert.equal((single[0].notes ?? []).length, 0, 'one comparison is not a family')
 })
 
 console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)
