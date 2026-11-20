@@ -1,7 +1,7 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
 import { collinearityTable, durbinWatsonTable, influenceTable } from '../lib/regression.js'
-import { classifyScript, nearestVariableName, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
+import { classifyScript, nearestVariableName, splitStatements, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
 const failures = []
@@ -1223,6 +1223,23 @@ check('a blank p value is not another comparison', () => {
   annotateComparisons(items)
   const note = (items[0].notes ?? []).join(' ')
   assert.match(note, /2 次两两比较/, note)
+})
+
+check('a period inside a quoted string is not a statement boundary', () => {
+  // `TITLE 'Step 1. Descriptives by group'` used to split in the middle of the
+  // string, so every keyword after the period counted as a command: a title-only
+  // script reported "nothing was produced", and a real empty-dataset message
+  // could be swallowed.
+  const title = classifyScript("TITLE 'Done. FREQUENCIES g'.")
+  assert.equal(title.asksForResults, false, 'a title is not an analysis')
+  const mixed = classifyScript("TITLE 'run 1. COMPUTE z = 2'.\nDESCRIPTIVES score.")
+  assert.equal(mixed.changesData, false, 'a string is not a data step')
+  assert.equal(mixed.asksForResults, true, 'the analysis after the title still counts')
+  const file = classifyScript("TITLE 'run 2. GET FILE'.\nDESCRIPTIVES score.")
+  assert.equal(file.loadsData, false, 'a string is not an import')
+  const escaped = classifyScript("COMPUTE s = 'it''s. DESCRIPTIVES'.")
+  assert.equal(escaped.asksForResults, false, 'an escaped quote does not end the string')
+  assert.deepEqual(splitStatements('COMPUTE z = 1.5. FREQUENCIES g.'), ['COMPUTE z = 1.5.', 'FREQUENCIES g.'])
 })
 
 check('a matrix block is not a data step', () => {

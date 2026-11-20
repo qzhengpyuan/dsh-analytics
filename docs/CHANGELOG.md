@@ -1,3 +1,17 @@
+## 0.54.30
+
+Win10 0.54.24 报告 V4-②：`classifyScript()` 的语句切分不认引号。`/(?<=\.)\s+/` 会把 `TITLE 'Step 1. Descriptives by group'.` 从字符串中间切开，于是：
+
+- 一段只有标题的语法被判成「有分析」，6 例数据上抛假错误「这次运行没有产出任何表…筛选把个案全部筛掉了」；
+- `TITLE 'run 1. COMPUTE z = 2'.` + `DESCRIPTIVES` 被判成「先改了数据」，0 行数据集上**静默**，把本该出现的「0 行」提示吞掉；
+- `TITLE 'run 2. GET FILE'.` 被判成「导入了数据」，报错因成「导入的那份数据是空的」。
+
+新增 `export function splitStatements(text)`：按引号状态机走一遍，单引号字符串整段跳过（`''` 是转义引号），只把「引号外且后面是空白或行尾」的句点当语句边界；`classifyScript()` 改用它。
+
+另有 V4-① 的漏项（`RANK`/`LIST`/`DISPLAY`/`SHOW` 会产表却不在名单里）已在 0.54.29 补上。名单里 `TABLES`/`SUMMARIZE`/`PARTIAL` 这类 PSPP 2.1.3 不接受的名字保留作 SPSS 语法兼容，加了注释说明。
+
+32 个套件 / 501 条 ok（regression 61）。
+
 ## 0.54.29
 
 Win10 0.54.23 报告 V5 的两条真问题（其余都是观察）：
