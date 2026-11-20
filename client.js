@@ -574,6 +574,9 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 @media print { .ap-tbl-vscroll { max-height:none !important; overflow:visible !important; } }
 /* 大表先画一屏：几千行的频率表全量渲染会让整页变慢，也让浏览器快照大到没法用 */
 .ap-table-block { display:flex; flex-direction:column; gap:2px; }
+/* 表注：跟着表走，不翻译（里面是变量名和数字） */
+.ap-notes { list-style:none; margin:2px 0 6px; padding:0; display:flex; flex-direction:column; gap:2px; }
+.ap-note { font-size:11px; font-style:italic; color:var(--ap-text-3); line-height:1.45; }
 .ap-table-more { display:flex; align-items:center; gap:8px; padding:2px 2px 4px;
   color:var(--ap-text-3); font-size:11px; }
 .ap-table-more .ap-tool { font-size:11px; padding:1px 8px; }
@@ -4899,6 +4902,13 @@ function normalizeChoices(list) {
                         ? item.table.html.replace('<table', `<table class="ap-tbl-${tableStyle}"`)
                         : matrixHtml(matrix, `ap-tbl-${tableStyle}`, null, 0))
                     : null
+                  // 表注（前提不满足、被跳过的变量、空结果原因）是插件自己写的
+                  // 句子，和表的数字一样是结论的一部分：只在工具结果与导出里出现、
+                  // 面板上看不到，等于没写。原文照排，不经过界面字典（表注里带
+                  // 变量名与数字，逐词替换会拼出中英混排）。
+                  const noteLines = (item.notes ?? [])
+                    .map((note) => String(note ?? '').trim())
+                    .filter((text) => text !== '')
                   return h('div', { className: 'ap-table-block' }, [
                     virtualHtml !== null
                       ? h(VirtualTable, { key: 'table', html: virtualHtml })
@@ -4922,6 +4932,10 @@ function normalizeChoices(list) {
                           h('button', { key: 'toggle', className: 'ap-tool', onClick: () => toggleTableRows(item.id) }, '只显示前 200 行'),
                         ])
                         : null,
+                    noteLines.length > 0
+                      ? h('ul', { key: 'notes', className: 'ap-notes' },
+                        noteLines.map((text, index) => h('li', { key: index, className: 'ap-note' }, `注：${text}`)))
+                      : null,
                   ])
                 })())
             }

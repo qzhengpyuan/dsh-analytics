@@ -1172,7 +1172,16 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     version: '0.25.0',
     engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
     dataset: { sourcePath: '/tmp/a.sav', name: 'a.sav', caseCount: 5, variables: [] },
-    items: [{ id: 'run-1-0', kind: 'table', title: '年龄', table: { caption: '年龄', matrix: [['', 'N'], ['年龄', '5']] }, runId: 1 }],
+    items: [{
+      id: 'run-1-0',
+      kind: 'table',
+      title: '年龄',
+      table: { caption: '年龄', matrix: [['', 'N'], ['年龄', '5']] },
+      // The caveats are part of the result: a panel that shows the table and
+      // hides "variance is unequal" leaves the reader with half the finding.
+      notes: ['方差齐性检验：p = 0.003，方差不齐'],
+      runId: 1,
+    }],
     importNotes: [],
     log: [],
     mrSets: [],
@@ -1213,6 +1222,9 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     pollHost.querySelector('table.ap-tbl-grid'),
     'the table preset from the settings reaches the drawn table',
   )
+  const shownNotes = [...pollHost.querySelectorAll('.ap-note')].map((node) => node.textContent)
+  assert.equal(shownNotes.length, 1, 'the table note is drawn with the table')
+  assert.match(shownNotes[0], /方差不齐/, 'the note keeps its own wording')
   // …and the same preset has to reach the HTML export, or the printed copy and
   // the screen disagree (the settings page used to claim it did, and it did not).
   const exportedFiles = []
