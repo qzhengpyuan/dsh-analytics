@@ -2207,6 +2207,14 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   console.log('ok  the GLM contrast box parses coefficients the same way the tool does')
 }
 
+// 探索：一个 EXAMINE 列多个变量时，PSPP 2.1.3 只给第一个变量做正态性检验（0.54.8）。
+{
+  const examine = hooks.ANALYSIS_SPECS.explore
+  const built = examine.build({ vars: ['a', 'b'], by: '' }, { options: {} })
+  assert.equal(built.syntax, 'EXAMINE a /PLOT=BOXPLOT.\nEXAMINE b /PLOT=BOXPLOT.')
+  console.log('ok  the explore dialog gives each variable its own EXAMINE')
+}
+
 // 双因子 GLM：对比必须按因子写，交给宿主算；单因子仍旧走 ONEWAY（0.48.0）。
 {
   const glm = hooks.ANALYSIS_SPECS.glm

@@ -2271,7 +2271,11 @@ function normalizeChoices(list) {
         ],
         build: (v, flags) => {
           const plots = mapKeys(onKeys(flags, 'plots'), { boxplot: 'BOXPLOT', histogram: 'HISTOGRAM', npplot: 'NPPLOT' })
-          return { syntax: `EXAMINE ${v.vars.join(' ')}${v.by ? ` BY ${v.by}` : ''} /PLOT=${(plots.length ? plots : ['BOXPLOT']).join(' ')}.` }
+          const plotList = (plots.length ? plots : ['BOXPLOT']).join(' ')
+          // PSPP 2.1.3 prints the normality test for the first variable only when
+          // one EXAMINE lists several, so give each variable its own command.
+          const lines = v.vars.map((name) => `EXAMINE ${name}${v.by ? ` BY ${v.by}` : ''} /PLOT=${plotList}.`)
+          return { syntax: lines.join('\n') }
         },
       },
       means: {

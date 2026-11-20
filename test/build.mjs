@@ -717,6 +717,12 @@ check('examine asks for the descriptives table and the plots it can draw', () =>
   assert.equal(
     buildAnalysis('examine', { variables: ['v'], noPlot: true }),
     'EXAMINE VARIABLES=v /STATISTICS=DESCRIPTIVES /NOTOTAL.')
+  // PSPP 2.1.3 prints the normality test for the first variable only when one
+  // EXAMINE lists several, so each variable gets its own command.
+  assert.equal(
+    buildAnalysis('examine', { variables: ['a', 'b'], normalPlot: true }),
+    'EXAMINE VARIABLES=a /PLOT=BOXPLOT NPPLOT /STATISTICS=DESCRIPTIVES /NOTOTAL.\n'
+    + 'EXAMINE VARIABLES=b /PLOT=BOXPLOT NPPLOT /STATISTICS=DESCRIPTIVES /NOTOTAL.')
 })
 
 check('glm accepts a randomized block design with an explicit design list', () => {
