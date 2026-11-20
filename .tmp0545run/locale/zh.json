@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "统计分析",
-    "description": "dsh-analytics：内置 GNU PSPP 引擎的 SPSS 风格统计分析工作台——数据视图、变量视图、语法、输出查看器与常用分析对话框，数据同时可被智能体读写。"
-  }
-}

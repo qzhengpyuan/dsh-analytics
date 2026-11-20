@@ -52,6 +52,29 @@ class Res {
   if (after.code !== 200) throw new Error(`a connection that arrived later must be used, got ${after.code}`)
 }
 
+// The version probe is the one route that answers without a session cookie:
+// an installer or a user typing the address otherwise only ever sees 401.
+{
+  const blind = createHandler({
+    registry,
+    getConnection: () => ({ requestRejection: () => 401 }),
+    config: { pluginVersion: '9.9.9' },
+    settings: settingsStore,
+  })
+  const probe = new Res()
+  await blind({ method: 'GET', url: '/analytics/api/version', headers: { host: '127.0.0.1:3080' } }, probe)
+  if (probe.code !== 200) throw new Error(`api/version must answer without a cookie, got ${probe.code}`)
+  const body = JSON.parse(probe.text)
+  if (body.version !== '9.9.9') throw new Error(`api/version must report the loaded version, got ${probe.text}`)
+  if (JSON.stringify(body) !== JSON.stringify({ ok: true, plugin: 'dsh-analytics-pspp', version: '9.9.9' })) {
+    throw new Error(`api/version must not leak anything else, got ${probe.text}`)
+  }
+  const heart = new Res()
+  await blind({ method: 'GET', url: '/analytics/api/heartbeat', headers: { host: '127.0.0.1:3080' } }, heart)
+  if (heart.code !== 401) throw new Error(`every other route must still fail closed, got ${heart.code}`)
+  console.log('ok   the version probe answers without a cookie and leaks nothing else')
+}
+
 const call = async (method, url, body) => {
   const payload = body ? JSON.stringify(body) : null
   const req = {

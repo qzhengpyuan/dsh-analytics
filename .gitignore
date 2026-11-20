@@ -9,3 +9,4 @@ drafts/
 
 # 内部计划文档不随仓库公开
 docs/plan-*.md
+.tmp*/

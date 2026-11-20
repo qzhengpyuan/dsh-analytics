@@ -594,6 +594,36 @@ check("a blank Cramer's V cell does not become zero association", () => {
   assert.ok(!/^0(\.0+)?$/.test(String(row[2] ?? '').trim()), `a blank engine cell must not produce 0, got ${row[2]}`)
 })
 
+check('the collinearity note does not point at a table this run never printed', () => {
+  const coefficients = (caption) => ({
+    kind: 'table',
+    id: caption,
+    title: caption,
+    table: {
+      caption,
+      matrix: [
+        ['', 'B', 'Std. Error', 't', 'Sig.'],
+        ['(Constant)', '1.00', '.10', '10.00', '.000'],
+        ['x1', 'NaN', 'NaN', 'NaN', 'NaN'],
+      ],
+    },
+  })
+  const alone = [coefficients('Coefficients')]
+  annotateNonFiniteCoefficients(alone)
+  const note = alone[0].notes.find((text) => text.includes('NaN'))
+  assert.match(note, /这次没有生成「共线性诊断」表/, 'without the diagnostics table the note must not send the reader looking for it')
+
+  const withDiagnostics = [coefficients('Coefficients'), {
+    kind: 'table',
+    id: 'cd',
+    title: 'Collinearity Diagnostics',
+    table: { caption: 'Collinearity Diagnostics', matrix: [['', 'Dimension', 'Eigenvalue', 'Condition Index']] },
+  }]
+  annotateNonFiniteCoefficients(withDiagnostics)
+  const second = withDiagnostics[0].notes.find((text) => text.includes('NaN'))
+  assert.match(second, /先看「共线性诊断」表/, 'when the table is there the note still points at it')
+})
+
 check('a rectangular table says why Kappa is missing instead of showing a number', () => {
   const items = [
     {
