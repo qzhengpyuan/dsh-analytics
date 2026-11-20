@@ -1,7 +1,7 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
 import { collinearityTable, durbinWatsonTable, influenceTable } from '../lib/regression.js'
-import { nearestVariableName, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
+import { classifyScript, nearestVariableName, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
 const failures = []
@@ -1132,7 +1132,118 @@ await check('the method in the first column decides whether p values are correct
   assert.match(lsdSaid, /3 次两两比较/, lsdSaid)
 })
 
-await check('a blank SPSS-style Levene row does not hide the row after it', () => {
+await check('a chi-square table without a Pearson row says why', () => {
+  const short = [{
+    kind: 'table',
+    table: {
+      caption: 'Chi-Square Tests',
+      matrix: [
+        ['', 'Value', 'df', 'Asymp. Sig. (2-sided)', 'Exact Sig. (2-sided)'],
+        ['Continuity Correction', '.10', '1', '.752', ''],
+        ["Fisher's Exact Test", '', '', '', '1.000'],
+        ['N of Valid Cases', '20', '', '', ''],
+      ],
+    },
+  }]
+  annotateCrosstabs(short)
+  assert.match((short[0].notes ?? []).join(' '), /没有 Pearson 卡方行/, 'a missing Pearson row has to be explained')
+
+  const complete = [{
+    kind: 'table',
+    table: {
+      caption: 'Chi-Square Tests',
+      matrix: [
+        ['', 'Value', 'df', 'Asymp. Sig. (2-sided)'],
+        ['Pearson Chi-Square', '4.20', '1', '.040'],
+        ['N of Valid Cases', '20', '', ''],
+      ],
+    },
+  }]
+  annotateCrosstabs(complete)
+  assert.doesNotMatch((complete[0].notes ?? []).join(' '), /没有 Pearson 卡方行/, 'an ordinary table needs no such note')
+})
+
+check('a grouped normality table names the group, not "变量"', () => {
+  // EXAMINE … BY g repeats the variable name only on the first block.
+  const item = {
+    kind: 'table',
+    table: {
+      caption: 'Tests of Normality (x)',
+      matrix: [
+        ['', '', 'Shapiro-Wilk', '', ''],
+        ['', '', 'Statistic', 'df', 'Sig.'],
+        ['x', '1.00', '.92', '20', '.041'],
+        ['', '2.00', '.71', '20', '.000'],
+      ],
+    },
+  }
+  annotateNormality([item])
+  const note = (item.notes ?? [])[0]
+  assert.ok(note, 'the deviating group must be reported')
+  assert.doesNotMatch(note, /变量（/, `the note must name the variable, got: ${note}`)
+  assert.match(note, /x（分组 2\.00）/, note)
+})
+
+check('a blank count is not a zero cell for CMH', () => {
+  const items = [{
+    kind: 'table',
+    id: 'layered',
+    title: 'grp × g × wave',
+    table: {
+      caption: 'grp × g × wave',
+      matrix: [
+        ['', '', '', '', '', 'wave', '', 'Total'],
+        ['', '', '', '', '', '1.00', '2.00', ''],
+        ['grp', 'A', 'g', 'c1', 'Count', '9', '', '13'],
+        ['', '', '', 'c2', 'Count', '3', '8', '11'],
+        ['', 'B', 'g', 'c1', 'Count', '5', '10', '15'],
+        ['', '', '', 'c2', 'Count', '11', '6', '17'],
+      ],
+    },
+  }]
+  annotateCrosstabs(items, { cmh: true })
+  const notes = (items[0].notes ?? []).join(' ')
+  assert.doesNotMatch(notes, /Cochran–Mantel–Haenszel χ²/, 'a blank cell must not be read as zero counts')
+  assert.match(notes, /没有算/, 'the note has to say the test was skipped, not print a number')
+})
+
+check('a blank p value is not another comparison', () => {
+  const items = [{
+    kind: 'table',
+    table: {
+      caption: 'Multiple Comparisons',
+      matrix: [
+        ['', '(I) g', '(J) g', 'Mean Difference', 'Std. Error', 'Sig.'],
+        ['LSD', '1.00', '2.00', '-10.00', '.82', '.000'],
+        ['', '', '3.00', '6.00', '1.15', ''],
+        ['', '2.00', '1.00', '10.00', '.82', '.000'],
+      ],
+    },
+  }]
+  annotateComparisons(items)
+  const note = (items[0].notes ?? []).join(' ')
+  assert.match(note, /2 次两两比较/, note)
+})
+
+check('a pasted one-liner is classified command by command', () => {
+  // Statements, not lines: everything after the first command on a line still
+  // has to count, or "COMPUTE z = 1. DESCRIPTIVES score." looks like a pure data
+  // step and an empty run goes unreported.
+  const oneLiner = classifyScript('COMPUTE z = 1. DESCRIPTIVES score.')
+  assert.equal(oneLiner.changesData, true)
+  assert.equal(oneLiner.asksForResults, true, 'the analysis after the data step must still count')
+
+  const decimal = classifyScript('COMPUTE z = 1.5. FREQUENCIES g.')
+  assert.equal(decimal.asksForResults, true, 'a decimal point is not a statement boundary')
+
+  const imported = classifyScript("GET DATA /TYPE=TXT /FILE='/tmp/x.csv' /VARIABLES=x F8.1. DESCRIPTIVES x.")
+  assert.equal(imported.loadsData, true)
+  assert.equal(imported.asksForResults, true)
+
+  assert.equal(classifyScript('COMPUTE z = 1.').asksForResults, false)
+})
+
+check('a blank SPSS-style Levene row does not hide the row after it', () => {
   // SPSS prints "Based on Mean / Based on Median / Based on trimmed mean"; PSPP
   // leaves the first Value empty. Taking the first labelled row would then read
   // NaN and skip the real number two rows down.

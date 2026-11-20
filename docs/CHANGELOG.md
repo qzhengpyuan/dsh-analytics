@@ -1,3 +1,15 @@
+## 0.54.24
+
+Win10 0.54.10 报告的五条：
+
+- 带分组的正态性表里，第二组那行第 0 列是空的，注文就写成「变量（p < 0.001）」。现在记住同表上一条非空变量名，并在有多行时把分组值带上：`x（分组 2.00）（p < 0.001）`。
+- 补两条 regression 用例守着 0.54.10 的改动：空计数不得当成 0 去算 CMH（应该明说「有层缺格…所以没有算」）、空 p 行不得算进「N 次两两比较」。
+- `Chi-Square Tests` 缺 Pearson 行时给一句话：2×2 小样本 PSPP 只打 Fisher 与连续性校正，不是跑错了，这种样本量就该看 Fisher 的 p。
+- Windows 上 `test/smoke.mjs` 现在会打印「Windows has no core dumps: the ulimit and argv checks are skipped there」，不再是一条永远不出现、每次复验都要解释的日志。
+- `annotateComparisons` 的「没有 (I) 列时按行数计 N」补了注释说明这个假设（PSPP 总是带 (I) 列，这条路径属防御）。
+
+32 个套件 / 477 条 ok（regression 58）。
+
 ## 0.54.23
 
 Win10 0.54.9 报告的 P1（行序边界）：方差齐性注文取数据行时，「标签带值但 p 为空」的行会排在「真有 p 值」的行之前，结果整条注文被跳过。

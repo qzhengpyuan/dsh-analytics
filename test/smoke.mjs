@@ -782,6 +782,12 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
 // Crashes are reported through the exit code and stderr; the core file PSPP
 // would otherwise drop into /var/lib/systemd/coredump is noise. The wrapper that
 // sets the limit must not touch argv either (spaces and non-ASCII survive).
+// Windows has no core-dump mechanism at all, so this assertion can only run
+// where `ulimit` exists — say so instead of leaving a log line that never
+// appears and has to be explained on every Windows verification.
+if (process.platform === 'win32') {
+  console.log('Windows has no core dumps: the ulimit and argv checks are skipped there')
+}
 if (process.platform !== 'win32') {
   const limit = await runProcess('/bin/sh', ['-c', 'ulimit -c'])
   assert.equal(limit.stdout.trim(), '0', `core limit is ${limit.stdout.trim()}`)
