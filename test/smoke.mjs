@@ -702,6 +702,14 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   }
   assert.match(said, /0 行/, `empty dataset said: ${said}`)
   console.log('a run on an empty dataset says why nothing came back')
+
+  // Importing through syntax on an empty dataset is a legitimate data step: it
+  // must not be reported as "no cases".
+  const csv = join(root, 'import-empty.csv')
+  await writeFile(csv, '7\n8\n9\n')
+  const imported = await blank.runSyntax(`GET DATA /TYPE=TXT /FILE='${csv}' /VARIABLES=x F8.1.`)
+  assert.equal(imported.items.length, 0, 'a data step has no table')
+  console.log('a data step on an empty dataset is not called an empty run')
 }
 
 // Crashes are reported through the exit code and stderr; the core file PSPP
