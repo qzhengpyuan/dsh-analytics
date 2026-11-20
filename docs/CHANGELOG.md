@@ -1,3 +1,10 @@
+## 0.54.20
+
+- 写 `.sav` 超时的时候报的是「保存数据失败：打不开 work.sav：引擎没有给出原因」——超时根本没有 stderr，这句话把人指向一个并不存在的坏文件。现在直接说超时，并指出可以在「设置 → 选项」里把超时调大。
+- 事后检验的夹具补一条：方法名写在标题里（`Multiple Comparisons (Tukey HSD)`）时仍算已校正、`Multiple Comparisons (LSD)` 仍要提醒 —— Win10 0.54.6 报告 P2-3 指出的形状，之前只有「标题带 Bonferroni」那一种。
+
+32 个套件 / 471 条 ok（regression 52、messages 9）。
+
 ## 0.54.19
 
 分析失败时的报错一直只有引擎原文（`FREQUENCIES: nosuchvar is not a variable name.`），中文解释只挂在「转换文件」那条路径上。现在运行失败也接上同一套解释，并且变量名写错时直接给最接近的那个：

@@ -594,6 +594,26 @@ check("a blank Cramer's V cell does not become zero association", () => {
   assert.ok(!/^0(\.0+)?$/.test(String(row[2] ?? '').trim()), `a blank engine cell must not produce 0, got ${row[2]}`)
 })
 
+await check('a save that times out says so instead of blaming the file', async () => {
+  const { mkdtemp, rm } = await import('node:fs/promises')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { writeSav } = await import('../lib/dataset.js')
+  const root = await mkdtemp(join(tmpdir(), 'ap-sav-timeout-'))
+  try {
+    const dataset = {
+      variables: [{ name: 'score', type: 'numeric' }],
+      rows: [[1], [2]],
+    }
+    await assert.rejects(
+      () => writeSav(async () => ({ code: null, timedOut: true, stderr: '', stdout: '' }), dataset, join(root, 'work.sav')),
+      (error) => /超时/.test(error.message) && !/引擎没有给出原因/.test(error.message),
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 check('a typo in a variable name gets the nearest real name', () => {
   const variables = [{ name: 'score' }, { name: 'group' }, { name: 'age' }]
   assert.match(nearestVariableName('DESCRIPTIVES: scroe is not a variable name.', variables), /最接近的是 score/)
@@ -1093,6 +1113,23 @@ await check('the method in the first column decides whether p values are correct
   const said = (lsd[0].notes ?? []).join(' ')
   assert.match(said, /3 次两两比较/, said)
   assert.match(said, /14%/, said)
+
+  // The method is not guaranteed to stay in the first column: a future build
+  // could put it in the caption ("Multiple Comparisons (Tukey HSD)"), so the
+  // caption branch has to hold on its own — and it must not swallow LSD.
+  const titled = (title) => {
+    const table = make('')
+    table.table.caption = title
+    return table
+  }
+  const tukeyTitle = [titled('Multiple Comparisons (Tukey HSD)')]
+  annotateComparisons(tukeyTitle)
+  assert.equal((tukeyTitle[0].notes ?? []).length, 0, 'a method named in the caption still counts as adjusted')
+
+  const lsdTitle = [titled('Multiple Comparisons (LSD)')]
+  annotateComparisons(lsdTitle)
+  const lsdSaid = (lsdTitle[0].notes ?? []).join(' ')
+  assert.match(lsdSaid, /3 次两两比较/, lsdSaid)
 })
 
 await check('a mixed run keeps the two variance advices on their own tables', async () => {
