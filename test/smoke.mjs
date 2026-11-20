@@ -684,6 +684,26 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('crash banner survives exec:', said.slice(0, 60))
 }
 
+// An empty dataset makes DESCRIPTIVES print nothing, exit 0, no diagnostics.
+// The panel used to show an empty run, which reads as "nothing significant".
+{
+  const blank = new Workspace({ id: 'smoke-empty', engine, root, config: { timeoutMs: 60000 } })
+  await blank.init()
+  await blank.createDataset({
+    name: 'empty',
+    variables: [{ name: 'score', type: 'numeric', measure: 'scale' }],
+    rows: [],
+  })
+  let said = ''
+  try {
+    await blank.runSyntax('DESCRIPTIVES score.')
+  } catch (error) {
+    said = error.message
+  }
+  assert.match(said, /0 行/, `empty dataset said: ${said}`)
+  console.log('a run on an empty dataset says why nothing came back')
+}
+
 // Crashes are reported through the exit code and stderr; the core file PSPP
 // would otherwise drop into /var/lib/systemd/coredump is noise. The wrapper that
 // sets the limit must not touch argv either (spaces and non-ASCII survive).
