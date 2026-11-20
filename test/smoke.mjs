@@ -710,6 +710,11 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   assert.ok(plainState.items.every((item) => Array.isArray(item.notes)), 'every table has a notes list')
   console.log('every table in the state carries a notes list')
 
+  // The run response has to agree with the state: a caller that only sees the
+  // response should not have to guard for a missing key either.
+  assert.ok(run1.items.every((item) => Array.isArray(item.notes)), 'the run response carries notes lists')
+  console.log('the run response carries notes lists too')
+
   // Importing through syntax on an empty dataset is a legitimate data step: it
   // must not be reported as "no cases".
   const csv = join(root, 'import-empty.csv')
