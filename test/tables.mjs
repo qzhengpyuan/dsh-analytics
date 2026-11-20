@@ -532,6 +532,17 @@ check('a chi-square table without a Pearson row still gives N and the Fisher fla
     ['N of Valid Cases', '6', '', '', '', ''],
   ]
   assert.equal(chiSquareFromTable(matrix), null, 'no Pearson row means no chi-square value')
+  // A blank Value cell is not a chi-square of zero.
+  assert.equal(
+    chiSquareFromTable([
+      ['', 'Value', 'df'],
+      ['Pearson Chi-Square', '', '1'],
+      ['N of Valid Cases', '20', ''],
+    ]),
+    null,
+    'a blank Pearson value is not read as zero',
+  )
+
 
   const withPearson = [
     ['', '值', 'df', 'Asymptotic Sig. (2-tailed)'],
