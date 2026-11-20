@@ -1,3 +1,9 @@
+## 0.54.13
+
+方差齐性注文取哪一行：PSPP 的 `Test of Homogeneity of Variances` 会打 `Based on Mean` 与 `Based on Median` 两行，翻版本或换变量后行序会变。0.54.9 起空白格不再被读成 0，但「先遇到一行空白」时会在 `continue` 处无声结束，把后面那行的真 p 值也一起丢掉。现在优先挑**带真数字的已标注行**，只有全都空白时才退回第一行（此时确实没有可说的显著性）。
+
+31 个套件 / 466 条 ok（regression 48）。
+
 ## 0.54.12
 
 英文界面补完最后一轮：`locale/en.json` 从 955 条增到 1109 条，`client.js` 里所有纯中文文案（对话框标题、字段标签、提示语、通知、引擎能力说明）现在都有英文对照，术语按 IBM SPSS Statistics 的界面用语（Descriptive Statistics / Crosstabs / Post Hoc Tests / Case / Variable / Value Labels / three-line table）。含数字插值的句子仍走「最长子串替换」，不必为每种数字组合建 key。
