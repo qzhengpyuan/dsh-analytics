@@ -45,13 +45,21 @@ window.__ModuleLoader__.load({
     // There is deliberately no "replace every key found inside the text" step:
     // on long sentences it produced mixed text (`Homogeneity of variance test的
     // p < 0.001…`), which reads worse than leaving the sentence in Chinese.
-    function tr(text) {
-      if (!DICT || typeof text !== 'string' || text === '') return text
-      const cached = TR_CACHE.get(text)
-      if (cached !== undefined) return cached
-      const out = translateOne(text)
-      TR_CACHE.set(text, out)
-      return out
+    function tr(text, ...args) {
+      if (typeof text !== 'string' || text === '') return text
+      let out = text
+      if (DICT) {
+        const cached = TR_CACHE.get(text)
+        if (cached !== undefined) out = cached
+        else {
+          out = translateOne(text)
+          TR_CACHE.set(text, out)
+        }
+      }
+      // `{0}` style templates work in both languages: English comes from the
+      // dictionary, Chinese is the template filled in place.
+      if (args.length === 0) return out
+      return out.replace(/\{(\d+)\}/g, (whole, index) => (args[Number(index)] === undefined ? whole : String(args[Number(index)])))
     }
 
     function translateOne(text) {
@@ -2074,7 +2082,7 @@ function normalizeChoices(list) {
           key: group.key,
           className: 'ap-tool',
           onClick: () => setSheet(group.key),
-        }, `${group.title}…`)),
+        }, `${tr(group.title)}…`)),
         onPaste: onPaste && ready && previewSyntax
           ? () => onPaste(previewSyntax)
           : undefined,
@@ -4801,7 +4809,7 @@ function normalizeChoices(list) {
               const built = from.origin === 'new'
               const dropped = from.origin === 'upload' || from.temporary === true
               const label = built
-                ? `新建数据集${name ? `（${name}，未保存）` : '（未保存）'} · ${from.caseCount} 例 · ${from.varCount} 变量`
+                ? tr('新建数据集{0} · {1} 例 · {2} 变量', name ? tr('（{0}，未保存）', name) : tr('（未保存）'), from.caseCount, from.varCount)
                 : name
                   ? `${name} · ${from.caseCount} 例 · ${from.varCount} 变量`
                   : `未命名数据 · ${from.caseCount} 例 · ${from.varCount} 变量`
@@ -4817,9 +4825,9 @@ function normalizeChoices(list) {
                     : name ? `数据文件：${name}` : '这份数据没有对应的磁盘文件',
                 from.sourcePath ? `来源路径：${from.sourcePath}` : null,
                 from.sourcePath && size ? `读入时文件 ${size}${modified ? `，磁盘修改时间 ${modified}` : ''}` : null,
-                `计算时 ${from.caseCount} 个个案、${from.varCount} 个变量`,
+                tr('计算时 {0} 个个案、{1} 个变量', from.caseCount, from.varCount),
                 opened ? `打开于 ${opened}` : null,
-                `会话：${from.sessionId}`,
+                tr('会话：{0}', from.sessionId),
               ].filter(Boolean).join('\n')
               return h('span', { className: 'ap-prov', title: detail }, label)
             })()
@@ -6576,7 +6584,7 @@ let ITEM_CSV_PENDING = null
           const lines = [...seenSources.values()].map((from) => {
             const when = from.openedAt ? new Date(from.openedAt).toLocaleString('zh-CN', { hour12: false }) : null
             const which = from.origin === 'new'
-              ? `新建数据集${from.name ? `（${from.name}，未保存）` : '（未保存）'}`
+              ? tr('新建数据集{0}', from.name ? tr('（{0}，未保存）', from.name) : tr('（未保存）'))
               : (from.sourcePath ?? from.name ?? '未命名数据')
             const size = band(from.sourceSize)
             return tr(`${escapeForExport(which)} · ${from.caseCount} 例 · ${from.varCount} 变量${size ? ` · ${size}` : ''}${when ? ` · 打开于 ${escapeForExport(when)}` : ''}`)
@@ -6724,7 +6732,7 @@ let ITEM_CSV_PENDING = null
             { sep: true },
             { label: '在输出中查找…', action: () => setDialog({ kind: 'outputSearch', value: outputQuery }) },
             { label: '输出表格样式', sub: [
-              { label: `${styleOverride === null ? '✓ ' : ''}跟随设置（${settingStyle === 'grid' ? '全框线' : '三线表'}）`, action: () => chooseTableStyle(null) },
+              { label: `${styleOverride === null ? '✓ ' : ''}${tr('跟随设置')}（${tr(settingStyle === 'grid' ? '全框线' : '三线表')}）`, action: () => chooseTableStyle(null) },
               { label: `${tableStyle === 'default' ? '✓ ' : ''}引擎原样（不套样式）`, action: () => chooseTableStyle('default') },
               { label: `${tableStyle === 'three' ? '✓ ' : ''}三线表（论文用）`, action: () => chooseTableStyle('three') },
               { label: `${tableStyle === 'grid' ? '✓ ' : ''}全框线`, action: () => chooseTableStyle('grid') },
@@ -6941,9 +6949,16 @@ let ITEM_CSV_PENDING = null
         // Translate first, split second. Splitting first meant `撤销（Ctrl+Z）`
         // reached the dictionary as two pieces, the key never matched, and the
         // menu kept its Chinese word in English mode.
-        return match
-          ? [h('span', { key: 'text' }, tr(match[1])), h('span', { key: 'keys', className: 'ap-keys' }, match[2])]
-          : [h('span', { key: 'text' }, label)]
+        if (!match) return [h('span', { key: 'text' }, tr(label))]
+        // The dictionary can carry the whole entry (`撤销（Ctrl+Z）`) or just the
+        // word; try the whole string first so a menu item is never left in
+        // Chinese while its shortcut is shown separately.
+        const whole = tr(label)
+        if (whole !== label) return [h('span', { key: 'text' }, whole)]
+        const word = tr(match[1])
+        return word === match[1]
+          ? [h('span', { key: 'text' }, label)]
+          : [h('span', { key: 'text' }, word), h('span', { key: 'keys', className: 'ap-keys' }, match[2])]
       }
       const renderMenuItems = (list) => list.map((item, index) => item.sep
         ? h('div', { key: `sep-${index}`, className: 'ap-sep' })
@@ -6967,14 +6982,14 @@ let ITEM_CSV_PENDING = null
       const clipped = st?.dataset?.truncated === true
       const caseText = st
         ? (st.dataset
-          ? [tr(`${st.dataset.caseCount} 个个案${clipped ? '+' : ''}`), tr(`${st.dataset.variables.length} 个变量`), st.dataset.dirty ? tr('未保存') : null]
+          ? [`${tr('{0} 个个案', st.dataset.caseCount)}${clipped ? '+' : ''}`, tr('{0} 个变量', st.dataset.variables.length), st.dataset.dirty ? tr('未保存') : null]
             .filter(Boolean).join(' · ')
           : '未打开数据集')
         : '正在连接分析引擎…'
       const sourceText = st?.dataset ? describeSource(st.dataset) : ''
       const status = sourceText ? `${caseText}  |  ${sourceText}` : caseText
       const engineHint = st
-        ? `引擎：${st.engine.source === 'bundled' ? '内置' : st.engine.source === 'system' ? '系统' : '缺失'}（${st.engine.bin ?? '—'}）`
+        ? (() => { const kind = tr(st.engine.source === 'bundled' ? '内置' : st.engine.source === 'system' ? '系统' : '缺失'); return tr('引擎：{0}（{1}）', kind, st.engine.bin ?? '—') })()
         : ''
       // SPLIT FILE / WEIGHT / FILTER survive between runs but are invisible in
       // the data grid, so a filter left on from ten minutes ago silently changes
@@ -7384,8 +7399,8 @@ let ITEM_CSV_PENDING = null
           clipped
             ? h('span', {
               className: 'ap-chip',
-              title: `数据视图按「数据视图最多载入个案数」只载入了前 ${st.dataset.caseCount} 例（设置 → 统计分析 可改）。分析、保存与导出仍在完整数据上跑。`,
-            }, `截断显示 ${st.dataset.caseCount} 例`)
+              title: tr('数据视图按「数据视图最多载入个案数」只载入了前 {0} 例（设置 → 统计分析 可改）。分析、保存与导出仍在完整数据上跑。', st.dataset.caseCount),
+            }, tr('截断显示 {0} 例', st.dataset.caseCount))
             : null,
           sessionChips.length > 0
             ? h('span', { style: { display: 'flex', gap: 6, alignItems: 'center' } },
@@ -7416,17 +7431,17 @@ let ITEM_CSV_PENDING = null
                 className: 'ap-tool',
                 title: '导入时哪些列名被改过、原名保存在哪里',
                 onClick: () => setDialog({ kind: 'importNotes', notes: st.importNotes }),
-              }, `导入说明 ${st.importNotes.length}`)
+              }, tr('导入说明 {0}', st.importNotes.length))
               : null,
             st?.conflictCount > 0
               ? h('span', {
                 key: 'conflicts',
                 className: 'ap-status-conflicts',
-                title: `${st.conflictCount} 次写入被拒：另一个窗口在你编辑期间改过这份数据，那几次修改没有写入（原因见 设置 → 选项 → 冲突记录；导出的表格会带上次数）`,
+                title: tr('{0} 次写入被拒：另一个窗口在你编辑期间改过这份数据，那几次修改没有写入（原因见 设置 → 选项 → 冲突记录；导出的表格会带上次数）', st.conflictCount),
               }, tr(`冲突 ${st.conflictCount}`))
               : null,
             st?.version
-              ? h('span', { className: 'ap-status-version', title: `插件版本 ${st.version}（改后端代码后停用再启用本插件即可生效，但要重新打开数据文件）` }, `v${st.version}`)
+              ? h('span', { className: 'ap-status-version', title: tr('插件版本 {0}（改后端代码后停用再启用本插件即可生效，但要重新打开数据文件）', st.version) }, `v${st.version}`)
               : null)),
         toast ? h('div', { className: 'ap-toast' }, toast) : null,
         // The refused write becomes a question. Three answers, and the one the
@@ -8476,7 +8491,7 @@ let ITEM_CSV_PENDING = null
 
       return h('div', { className: 'ap-settings ap-settings-embedded' }, [
         h('p', { key: 'where', className: 'ap-hint' },
-          `设置文件：${data.path}${data.exists ? '' : '（还没创建，保存后生成）'}`),
+          tr('设置文件：{0}{1}', data.path, data.exists ? '' : tr('（还没创建，保存后生成）'))),
         data.problems?.length > 0
           ? h('div', { key: 'problems', className: 'ap-settings-problems' }, [
             h('strong', { key: 'h' }, '下面这些值没被采用：'),

@@ -2060,6 +2060,22 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     tab.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
     await new Promise((resolve) => setTimeout(resolve, 120))
   })
+  // Opening a menu is where the shortcut label used to fall apart: the
+  // dictionary carries `撤销（Ctrl+Z）` as one entry, and translating only the word
+  // half left `撤销Ctrl+Z` on screen.
+  {
+    const buttons = [...fullHost.querySelectorAll('.ap-menu-button')]
+    const edit = buttons.find((node) => node.textContent === 'Edit')
+    assert.ok(edit, `the menubar is translated: ${buttons.map((node) => node.textContent).join(' / ')}`)
+    await act(async () => {
+      edit.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 60))
+    })
+    const pop = fullHost.querySelector('.ap-menu-pop')
+    assert.ok(pop, 'the edit menu opened')
+    assert.match(pop.textContent, /Undo \(Ctrl\+Z\)/, `the undo entry keeps its shortcut: ${pop.textContent.slice(0, 120)}`)
+    assert.match(pop.textContent, /Copy \(Ctrl\+C\)/, 'copy keeps its shortcut too')
+  }
   const leftovers = [...new Set((fullHost.textContent.match(/[\u4e00-\u9fff]+/g) ?? []))]
   assert.deepEqual(leftovers, [], `translated panel still shows Chinese: ${leftovers.join(' / ')}`)
   await act(async () => { fullRoot.unmount() })

@@ -1140,6 +1140,20 @@
     "已选 {0} 个变量{1}": "{0} selected{1}",
     "N={0} · 均值={1} · SD={2}": "N={0} · Mean={1} · SD={2}",
     "均值={0}": "Mean={0}",
-    "未保存": "unsaved"
+    "未保存": "unsaved",
+    "新建数据集{0}": "New dataset{0}",
+    "新建数据集{0} · {1} 例 · {2} 变量": "New dataset{0} · {1} cases · {2} variables",
+    "（{0}，未保存）": "({0}, unsaved)",
+    "引擎：{0}（{1}）": "Engine: {0} ({1})",
+    "数据视图按「数据视图最多载入个案数」只载入了前 {0} 例（设置 → 统计分析 可改）。分析、保存与导出仍在完整数据上跑。": "The data view loads only the first {0} cases (the \"cases to load\" setting; change it under Settings → Statistics). Analysis, saving and export still use the complete data.",
+    "截断显示 {0} 例": "Truncated view: {0} cases",
+    "导入说明 {0}": "Import notes: {0}",
+    "{0} 次写入被拒：另一个窗口在你编辑期间改过这份数据，那几次修改没有写入（原因见 设置 → 选项 → 冲突记录；导出的表格会带上次数）": "{0} writes were refused: another window changed this data while you were editing, so those edits were not written (see Settings → Options → conflict log; exported tables carry the count)",
+    "插件版本 {0}（改后端代码后停用再启用本插件即可生效，但要重新打开数据文件）": "Plugin version {0} (after changing backend code, disable and re-enable this plugin to pick it up; reopen the data file afterwards)",
+    "设置文件：{0}{1}": "Settings file: {0}{1}",
+    "计算时 {0} 个个案、{1} 个变量": "computed over {0} cases and {1} variables",
+    "{0} · {1} 例 · {2} 变量": "{0} · {1} cases · {2} variables",
+    "{0} · {1} 例 · {2} 变量{3}{4}": "{0} · {1} cases · {2} variables{3}{4}",
+    " · 打开于 {0}": " · opened at {0}"
   }
 }
