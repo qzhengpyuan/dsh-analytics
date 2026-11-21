@@ -1724,8 +1724,10 @@ check('matrix data does not look like matrix algebra', () => {
 check('a matrix block that ends at END DATA still clears the flag', () => {
   // A malformed script leaves `MATRIX.` without `END MATRIX`: the data block closes
   // at END DATA, and the commands after it must still be split normally.
+  // The data group belongs to the malformed matrix block, so it goes with it:
+  // keeping it made the classified text claim the script defined data.
   const parts = splitStatements('MATRIX.\nBEGIN DATA\n1\nEND DATA.\nDESCRIPTIVES x.')
-  assert.ok(parts.some((piece) => /^DESCRIPTIVES x\.$/.test(piece.trim())), JSON.stringify(parts))
+  assert.deepEqual(parts, ['DESCRIPTIVES x.'], JSON.stringify(parts))
 })
 
 check('MATRIX DATA is a command, not algebra', () => {

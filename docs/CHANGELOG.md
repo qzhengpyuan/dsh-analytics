@@ -1,5 +1,14 @@
 <!-- 计数口径：从 0.54.58 起，各段写的「全量 N 条 ok」一律按**没装 pdftotext 的机器**计 —— 即全量 `grep -cE '^ok\b'` 的结果里不含 `pdf-notes` 套件那一条（只有装了 poppler 的机器才会跑它，会多 1）。本机与 CI 都装了 poppler，所以同一棵树上本机数字比这里写的大 1。0.54.57 及更早小节保留当时的旧口径（含 skip），不再改。 -->
 
+## 0.54.74
+
+Win10 0.54.73 报告的三条 P3：
+
+- **死变量去掉**（P3-①）：`splitStatements()` 里 `const rest = statements.splice(...)[0]` 的 `rest` 从未使用，改回直接 `splice`。
+- **畸形矩阵块里的数据组跟着矩阵一起走**（P3-②）：未闭合 `MATRIX.` 后紧跟的 `BEGIN DATA … END DATA.` 现在先剥掉再重新切分尾巴，`MATRIX.` + `BEGIN DATA` + `1` + `END DATA.` + `DESCRIPTIVES x.` 回到 `["DESCRIPTIVES x."]`（0.54.73 会多留一个数据块，让分类文本误报 `definesData:true`）；对应用例从 `assert.ok(parts.some(...))` 收紧成 `assert.deepEqual(parts, ['DESCRIPTIVES x.'])`。
+- **措辞统一**（P3-③）：0.54.69 段的「（不含 pdftotext 的 skip 行）」改成「（装了 poppler 的机器 534）」，与 0.54.71 起各段一致；数字 533 本就正确。
+- 全量 **538 条 ok**（装了 poppler 的机器 539），regression 94。
+
 ## 0.54.73
 
 Win10 0.54.72 报告的 P2 一条 + P3 两条：
@@ -35,7 +44,7 @@ Win10 0.54.70 报告的 P2 两条 + P3 一条：
 ## 0.54.69
 
 - **`MATRIX … END MATRIX` 不再吞掉它后面的数据块**：`splitStatements()` 在 `BEGIN DATA` 处同时算出 `END DATA` 与 `END MATRIX` 的位置、取**先出现**的那个收尾。原来先用 `END DATA` 试探，于是矩阵数据组一直吞到文件后半段那个 `END DATA`，中间的 `DATA LIST`、数据块和整段分析全都不见了（`classifyScript()` 连 `definesData` 都报假，0.54.58–0.54.68 同现）。Win10 0.54.68 报告 V9-P1。
-- `test/regression.mjs` 新增「a matrix data group does not swallow the data block after it」（切分结果必须是 `["DATA LIST FREE /x.", "BEGIN DATA\n1\nEND DATA.", "DESCRIPTIVES x."]`，`definesData`/`asksForResults` 都为真）。全套 533 条 ok（不含 pdftotext 的 skip 行）。
+- `test/regression.mjs` 新增「a matrix data group does not swallow the data block after it」（切分结果必须是 `["DATA LIST FREE /x.", "BEGIN DATA\n1\nEND DATA.", "DESCRIPTIVES x."]`，`definesData`/`asksForResults` 都为真）。全套 533 条 ok（装了 poppler 的机器 534）。
 - 文档：`docs/FEATURES.md` 的界面语言一节按现状重写（1292 条词条、`{0}` 模板按字面长度降序、导出外壳与表注前缀跟随语言、表注正文仍中文）。
 
 ## 0.54.68
