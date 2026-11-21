@@ -1252,6 +1252,15 @@ check('inline data is data, not syntax', () => {
   assert.equal(status.changesData, false, 'data rows are not data steps either')
 })
 
+check('a comment-looking line inside a string stays part of the string', () => {
+  // Comments are stripped by a quote-aware pass, so `TITLE 'a\n* b\nc'.` keeps
+  // its middle line instead of losing the rest of the command.
+  const inside = splitStatements("TITLE 'a\n* b\nc'.")
+  assert.equal(inside.length, 1, `a multi-line string is one statement: ${JSON.stringify(inside)}`)
+  assert.match(inside[0], /\* b/, 'the star line survives inside the string')
+  assert.equal(classifyScript("TITLE 'l1\nl2. GET FILE'.\nDESCRIPTIVES x.").loadsData, false, 'a string is not an import')
+})
+
 check('a comment is not a command, even when it holds an apostrophe', () => {
   // PSPP ignores everything after `*` or COMMENT on the line. A note like
   // `* it's here` used to open a string that never closed, so the analysis on
