@@ -1287,6 +1287,25 @@ check('double quoted strings hold periods too', () => {
   assert.equal(other.asksForResults, false, 'a double quote inside single quotes does not end the string')
 })
 
+check('a data line that starts with a star is still a data line', () => {
+  // Between BEGIN DATA and END DATA every line is a value. Stripping a line that
+  // happens to start with `*` left a hole in the block, and the commands after
+  // it were then read as part of the data.
+  const parts = splitStatements('BEGIN DATA\n* 7\n1\nEND DATA.\nDESCRIPTIVES v.')
+  assert.equal(parts.length, 2)
+  assert.ok(parts[0].includes('* 7'), parts[0])
+  const stats = classifyScript('BEGIN DATA\n* 7\n1\nEND DATA.\nDESCRIPTIVES v.')
+  assert.equal(stats.asksForResults, true)
+  assert.equal(stats.loadsData, true)
+  assert.equal(stats.changesData, false)
+})
+
+check('an inline data block does not swallow the commands after it', () => {
+  const stats = classifyScript('DATA LIST FREE /v (F8.1).\nBEGIN DATA\n1\n2\nEND DATA.\nSELECT IF v > 9.\nDESCRIPTIVES VARIABLES=v.')
+  assert.equal(stats.asksForResults, true, 'the analysis after END DATA must be seen')
+  assert.equal(stats.filtersData, true, 'the filter after END DATA must be seen')
+})
+
 check('a filter is told apart from other data steps', () => {
   // `SELECT IF` explains "the engine saw no cases"; COMPUTE and SORT do not, and
   // telling the user to widen a filter he never wrote is the same mistake in the
