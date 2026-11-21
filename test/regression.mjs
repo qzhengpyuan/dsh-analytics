@@ -1,7 +1,7 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
 import { collinearityTable, durbinWatsonTable, influenceTable } from '../lib/regression.js'
-import { classifyScript, nearestVariableName, splitStatements, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
+import { classifyScript, nearestVariableName, splitStatements, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, annotateWeightedEmpty, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
 const failures = []
@@ -1325,6 +1325,19 @@ check('an inline data block does not swallow the commands after it', () => {
   const stats = classifyScript('DATA LIST FREE /v (F8.1).\nBEGIN DATA\n1\n2\nEND DATA.\nSELECT IF v > 9.\nDESCRIPTIVES VARIABLES=v.')
   assert.equal(stats.asksForResults, true, 'the analysis after END DATA must be seen')
   assert.equal(stats.filtersData, true, 'the filter after END DATA must be seen')
+})
+
+check('a filter switch is not a filter, and an all-zero weight explains N = 0', () => {
+  assert.equal(classifyScript('FILTER OFF.\nDESCRIPTIVES x.').filtersData, false)
+  assert.equal(classifyScript('FILTER BY keep.\nDESCRIPTIVES x.').filtersData, true)
+  const dataset = { variables: [{ name: 'score', type: 'numeric' }, { name: 'w', type: 'numeric' }], rows: [[1, 0], [2, 0]] }
+  const items = [{ kind: 'table', title: 'Descriptive Statistics', notes: [] , table: { caption: 'Descriptive Statistics', matrix: [] } }]
+  assert.equal(annotateWeightedEmpty(items, dataset, "GET FILE='w.sav'.\nWEIGHT BY w.\nDESCRIPTIVES score."), 1)
+  assert.match(items[0].notes[0], /加权后有效个案是 0/)
+  const positive = { variables: [{ name: 'score' }, { name: 'w' }], rows: [[1, 2], [2, 3]] }
+  const clean = [{ kind: 'table', title: 'Descriptive Statistics', notes: [] }]
+  assert.equal(annotateWeightedEmpty(clean, positive, 'WEIGHT BY w.'), 0)
+  assert.equal(clean[0].notes.length, 0)
 })
 
 check('a filter is told apart from other data steps', () => {
