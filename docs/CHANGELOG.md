@@ -1,9 +1,21 @@
+<!-- 计数口径：从 0.54.58 起，各段写的「全量 N 条 ok」一律是**本机实测** `grep -cE '^ok\b'` 的结果，不含 `pdf-notes` 那条 skip（只有装了 pdftotext 的机器才会跑它）。0.54.57 及更早小节里的数字是当时的旧口径（含那条 skip），普遍比实测多 1，保留原样以便与旧报告对账。 -->
+
+## 0.54.72
+
+Win10 0.54.71 报告的 P2 一条 + P3 三条：
+
+- **`MATRIX DATA …` 不再被当成矩阵代数**（P3-③ 之一）：`splitStatements()` 与 `stripCommentLines()` 的入口判据从「行首是 `MATRIX`」收紧成「行首是 `MATRIX` + 句点」（`/^[ \t]*MATRIX[ \t]*\./i`）。原来 `MATRIX DATA VARIABLES=x.` 会把状态置真，后面普通数据块里读作 `END MATRIX.` 的数据值就把块提前收掉、下一行 `* 7` 被当注释剥掉。
+- **矩阵状态在块收尾时无条件复位**（P3-③ 之二）：原来只在 `end === matrixEnd` 时复位，畸形脚本（`MATRIX.` 后由 `END DATA` 收尾）会让状态挂到下一次 `END MATRIX`。现在两种收尾都清。
+- **未闭合的 `MATRIX` 只丢它自己那条语句**：合并循环以前从 `MATRIX` 一路丢到文件结尾的 `END MATRIX`，找不到就把后面所有命令一起丢掉，于是 `MATRIX.` + `BEGIN DATA` + `END DATA.` + `DESCRIPTIVES x.` 切出来是空数组（等于让用户以为脚本是空的）。现在没有结束标记时只丢该语句，块后的命令照常保留。
+- 测试：新增「matrix data does not look like matrix algebra」「a matrix block that ends at END DATA still clears the flag」两条，regression 92、全量 **537**。
+- 文档口径（P2-① / P3-① / P3-②）：本段起在文件头加一段计数口径说明；0.54.71 段的「全量 535」按新口径改为 **534**（并注明有 pdftotext 的机器是 535）；0.54.68 段补上「（不含 pdftotext 的 skip 行）」的括注。0.54.57 及更早的数字保持原样（旧口径，见文首说明）。
+
 ## 0.54.71
 
 Win10 0.54.70 报告的 P2 两条 + P3 一条：
 
 - **`splitStatements()` 认得自己在不在 `MATRIX` 块里**（P2-①）：新增一遍行首状态机（`MATRIX` 置真、`END MATRIX` 置假），于是①普通数据块只由 `END DATA` 收尾 —— 数据值恰为 `END MATRIX.`/`END MATRIX` 时该块的行结构不再被合并丢掉（0.54.69「取先出现者」的副作用）；②`MATRIX` 块里的句点不再切开语句，矩阵组整块丢弃时不会留下 `1.5\nEND MATRIX.` 这种残句（P3-①）。
-- 测试：「a data value that reads END MATRIX does not close the inline block」的断言从「块里含 `* 7`」改成正整数块字符串（`BEGIN DATA\nEND MATRIX.\n* 7\nEND DATA.`），另加「matrix algebra is dropped whole, with its data group」（矩阵数据组与纯代数两种形态都只剩块后的命令），regression 90、全量 535。
+- 测试：「a data value that reads END MATRIX does not close the inline block」的断言从「块里含 `* 7`」改成正整数块字符串（`BEGIN DATA\nEND MATRIX.\n* 7\nEND DATA.`），另加「matrix algebra is dropped whole, with its data group」（矩阵数据组与纯代数两种形态都只剩块后的命令），regression 90、全量 534（有 pdftotext 的机器是 535）。
 - **CHANGELOG 计数统一口径**（P2-②）：全篇一律写本机实测的 `^ok` 行数（不含 `pdf-notes` 那条 skip），0.54.68 段 533 → 532、0.54.69 段 534 → 533；`docs/FEATURES.md` 的 535 同样注明「没有 pdftotext 的机器少 1 条」。
 
 ## 0.54.70
@@ -20,7 +32,7 @@ Win10 0.54.70 报告的 P2 两条 + P3 一条：
 ## 0.54.68
 
 - `MATRIX … END MATRIX` 里的内联数据组不再被句点切开：这类块没有自己的 `END DATA`，`splitStatements()` 现在把 `END MATRIX` 也当块尾，矩阵代数里的 `1.5 2.25` 不会被当成两条命令交给分类器（这条与 0.54.67 的 P3 同源，方向相反：块内的 `END MATRIX` 收尾，块外的值不收尾）。
-- `test/regression.mjs` 加一条（矩阵内联块切分结果必须正好是块后的两条命令），regression 88、总数 532。
+- `test/regression.mjs` 加一条（矩阵内联块切分结果必须正好是块后的两条命令），regression 88、总数 532（不含 pdftotext 的 skip 行）。
 
 ## 0.54.67
 

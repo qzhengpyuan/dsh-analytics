@@ -1712,6 +1712,22 @@ check('a data value that reads END MATRIX does not close the inline block', () =
   }
 })
 
+check('matrix data does not look like matrix algebra', () => {
+  // `MATRIX DATA …` ends at END DATA and never opens matrix algebra; if it flipped
+  // the flag on, the ordinary data block after it kept its value that reads
+  // `END MATRIX.` glued to the next row.
+  const parts = splitStatements('MATRIX DATA VARIABLES=x.\nDATA LIST FREE /s (A20).\nBEGIN DATA\nEND MATRIX.\n* 7\nEND DATA.')
+  const block = parts.find((piece) => /^BEGIN DATA/i.test(piece)) ?? ''
+  assert.equal(block, 'BEGIN DATA\nEND MATRIX.\n* 7\nEND DATA.', JSON.stringify(parts))
+})
+
+check('a matrix block that ends at END DATA still clears the flag', () => {
+  // A malformed script leaves `MATRIX.` without `END MATRIX`: the data block closes
+  // at END DATA, and the commands after it must still be split normally.
+  const parts = splitStatements('MATRIX.\nBEGIN DATA\n1\nEND DATA.\nDESCRIPTIVES x.')
+  assert.ok(parts.some((piece) => /^DESCRIPTIVES x\.$/.test(piece.trim())), JSON.stringify(parts))
+})
+
 check('matrix algebra is dropped whole, with its data group', () => {
   // The data group inside MATRIX ends at END MATRIX; the leftover rows of that
   // group used to survive as a statement of their own (`1.5\nEND MATRIX.`).
