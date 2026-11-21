@@ -1415,6 +1415,28 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     assert.ok(head.start === 0 && head.end - head.start < 100, 'a 520px viewport shows a screenful, got ' + (head.end - head.start))
     const deep = hooks.virtualWindow(3000, 26 * 2500, 520, 26, 10)
     assert.ok(deep.start > 2400 && deep.end - deep.start < 100, 'a scrolled window stays small and follows the offset')
+    // Boundaries of the window itself: an empty table, a one-row table, a scroll
+    // offset past the end, and a viewport the browser reports as 0 (a hidden
+    // panel) must all stay inside [0, total] and never draw nothing.
+    const bounds = [
+      [0, 0, 520],
+      [1, 0, 520],
+      [1, 26 * 5, 520],
+      [3000, 26 * 3000, 520],
+      [3000, -50, 520],
+      [3000, 0, 0],
+      [3000, 0, 26],
+    ]
+    for (const [total, top, viewport] of bounds) {
+      const window = hooks.virtualWindow(total, top, viewport)
+      assert.ok(window.start >= 0 && window.start <= total,
+        `start ${window.start} is inside [0, ${total}] at top=${top}`)
+      assert.ok(window.end <= total, `end ${window.end} is inside [0, ${total}] at top=${top}`)
+      // A table with no body rows draws nothing, and that is the answer: any
+      // other total must yield at least one row.
+      assert.equal(window.end > window.start, total > 0,
+        `the window is ${total > 0 ? 'non-empty' : 'empty'} for ${total} rows at top=${top}`)
+    }
     // A footnote is table furniture, not a body row: windowing must not count it
     // as data or drop it out of the drawn table.
     const footHtml = hooks.matrixHtml([['', 'N'], ['a', '1'], ['b', '2']], 'ap-tbl-three', { footnote: '注：示例' }, 0)
