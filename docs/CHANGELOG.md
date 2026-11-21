@@ -1,3 +1,8 @@
+## 0.54.65
+
+- 面板上的表注前缀也跟界面语言：英文界面显示 `Note: …`，不再在英文结果里出现 `注：`（0.54.26 加渲染时把前缀写死了）。
+- Excel 导出里「（图表见上方）」的占位文字跟随语言（`localize('（图表见上方）', lang)` → `(chart above)`）。
+
 ## 0.54.64
 
 - Word/Excel 导出的**文字外壳**跟随界面语言：表注前缀、来源戳、文档属性（`dc:title`/`dc:subject`/`dc:description`）、空表占位、表太长提示都走 `localize()`，`buildDocx`/`buildXlsx` 接 `lang`，`exportOffice` 传 `uiLanguage`。数据值（`甲`/`乙`、变量名、值标签）照旧原样（Win10 0.54.60 报告 P1-①）。

@@ -4979,7 +4979,7 @@ function normalizeChoices(list) {
                         : null,
                     noteLines.length > 0
                       ? h('ul', { key: 'notes', className: 'ap-notes' },
-                        noteLines.map((text, index) => h('li', { key: index, className: 'ap-note' }, `注：${text}`)))
+                        noteLines.map((text, index) => h('li', { key: index, className: 'ap-note' }, tr('注：{0}', text))))
                       : null,
                   ])
                 })())
