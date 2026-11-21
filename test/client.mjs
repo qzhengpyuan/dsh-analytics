@@ -2078,6 +2078,37 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   }
   const leftovers = [...new Set((fullHost.textContent.match(/[\u4e00-\u9fff]+/g) ?? []))]
   assert.deepEqual(leftovers, [], `translated panel still shows Chinese: ${leftovers.join(' / ')}`)
+  // The HTML export leaves the panel, so its chrome has to follow the same
+  // language: a file whose title says "PSPP 输出" and whose notes say "注：" is a
+  // half-translated document, which is what the reader keeps.
+  {
+    const realCreate = window.URL.createObjectURL
+    const realGlobalUrl = globalThis.URL
+    const realClick = window.HTMLAnchorElement.prototype.click
+    globalThis.URL = window.URL
+    const files = []
+    window.URL.createObjectURL = (blob) => { files.push(blob); return 'blob:stub' }
+    window.HTMLAnchorElement.prototype.click = function noop() {}
+    const fileButton = [...fullHost.querySelectorAll('.ap-menu-button')].find((node) => node.textContent === 'File')
+    assert.ok(fileButton, 'the file menu is translated')
+    await act(async () => {
+      fileButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 40))
+    })
+    const entry = [...fullHost.querySelectorAll('.ap-menu-pop button')].find((node) => /HTML/.test(node.textContent))
+    assert.ok(entry, 'the file menu offers the HTML export in English')
+    await act(async () => {
+      entry.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 40))
+    })
+    window.URL.createObjectURL = realCreate
+    globalThis.URL = realGlobalUrl
+    window.HTMLAnchorElement.prototype.click = realClick
+    assert.equal(files.length, 1, 'the english export produced a file')
+    const html = await files[0].text()
+    assert.match(html, /<title>PSPP Output<\/title>/, `the exported title follows the language: ${html.slice(0, 80)}`)
+    assert.doesNotMatch(html, /PSPP 输出/, 'the exported title is not left in Chinese')
+  }
   await act(async () => { fullRoot.unmount() })
   console.log('ok  the rendered english panel has no chinese text left in it')
 }

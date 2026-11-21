@@ -6512,7 +6512,7 @@ let ITEM_CSV_PENDING = null
           ))
         }
         const parts = [
-          '<!doctype html><meta charset="utf-8"><title>PSPP 输出</title>',
+          '<!doctype html><meta charset="utf-8"><title>' + escapeForExport(tr('PSPP 输出')) + '</title>',
           '<style>body{font:13px/1.6 "Segoe UI","Noto Sans CJK SC",sans-serif;padding:24px;color:#111}' +
           'table{border-collapse:collapse;margin:0 0 18px}caption{caption-side:top;text-align:left;font-weight:600;padding:2px 0 4px}' +
           'th,td{border:1px solid #9aa1ad;padding:3px 7px}th{background:#f0f2f6}img{max-width:100%;border:1px solid #d5d8dd}' +
@@ -6544,7 +6544,7 @@ let ITEM_CSV_PENDING = null
                 : { html: matrixHtml(item.table?.matrix, `ap-tbl-${tableStyle}`, null, limit), total: bodyRows, shown: limit > 0 ? Math.min(limit, bodyRows) : bodyRows }
             parts.push(stampStyle(drawn.html))
             if (clipBody && drawn.total > drawn.shown) {
-              parts.push(`<div class="ap-export-note">${tr(`表太长：这张表共 ${drawn.total} 行，这个文件里只放了前 ${drawn.shown} 行；完整数据请用「导出表格为 CSV」。`)}</div>`)
+              parts.push(`<div class="ap-export-note">${tr('表太长：这张表共 {0} 行，这个文件里只放了前 {1} 行；完整数据请用「导出表格为 CSV」。', drawn.total, drawn.shown)}</div>`)
             }
             // One line per table saying which data it came from: the block at
             // the bottom lists every source in the session, which does not tell
@@ -6558,9 +6558,9 @@ let ITEM_CSV_PENDING = null
               const size = typeof from.sourceSize === 'number'
                 ? (from.sourceSize < 1024 ? `${from.sourceSize} B` : `${(from.sourceSize / 1024).toFixed(1)} KB`)
                 : null
-              const runNo = Number.isFinite(Number(from.runId)) && Number(from.runId) > 0 ? ` · 运行 #${Number(from.runId)}` : ''
-              const digest = typeof from.digest === 'string' && from.digest ? ` · 数据指纹 ${from.digest}` : ''
-              parts.push(`<p class="ap-export-source">${escapeForExport(tr(`来源：${which} · ${from.caseCount} 例${size ? ` · ${size}` : ''}${when ? ` · 打开于 ${when}` : ''}${runNo}${digest}`))}</p>`)
+              const runNo = Number.isFinite(Number(from.runId)) && Number(from.runId) > 0 ? tr(' · 运行 #{0}', Number(from.runId)) : ''
+              const digest = typeof from.digest === 'string' && from.digest ? tr(' · 数据指纹 {0}', from.digest) : ''
+              parts.push(`<p class="ap-export-source">${escapeForExport(tr('来源：{0} · {1} 例{2}{3}{4}{5}', which, from.caseCount, size ? ` · ${size}` : '', when ? tr(' · 打开于 {0}', when) : '', runNo, digest))}</p>`)
             }
             // The caveats (separation, skipped variables) are part of the table:
             // an HTML copy without them reads as if nothing was wrong.
@@ -6568,7 +6568,7 @@ let ITEM_CSV_PENDING = null
               const text = String(note ?? '').trim()
               if (!text) continue
               const safe = text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-              parts.push(`<p class="ap-export-note">注：${safe}</p>`)
+              parts.push(`<p class="ap-export-note">${tr('注：')}${safe}</p>`)
             }
           }
           else if (item.kind === 'image') parts.push(`<h3>${escapeForExport(item.title ?? '')}</h3><img src="${new URL(item.artifactUrl, document.baseURI)}" alt="${escapeForExport(item.alt ?? '')}">`)
