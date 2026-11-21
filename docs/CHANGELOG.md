@@ -1,5 +1,14 @@
 <!-- 计数口径：从 0.54.58 起，各段写的「全量 N 条 ok」一律按**没装 pdftotext 的机器**计 —— 即全量 `grep -cE '^ok\b'` 的结果里不含 `pdf-notes` 套件那一条（只有装了 poppler 的机器才会跑它，会多 1）。本机与 CI 都装了 poppler，所以同一棵树上本机数字比这里写的大 1。0.54.57 及更早小节保留当时的旧口径（含 skip），不再改。 -->
 
+## 0.54.79
+
+Win10 0.54.78 报告的 P2-①（这条说得对：0.54.78 段自称覆盖全部工具，实际有 5 个从未调用）：
+
+- **补齐 5 个工具的 happy path**，`test/tools.mjs` 从 14 条到 **20** 条：`pspp_append_cases`（追加 1 行后 `total` +1）、`pspp_run_file` 成功路径（真写一个 `.sps` 再跑，`tables.length ≥ 1`）、`pspp_edit_chart`（拿绘图返回的 `runId` 改标题并断言新标题）、`pspp_export_chart` + `pspp_export_document`（png 与 pdf 都写出非空文件）、`pspp_merge`（另存一个 `.sav` 后 `kind: 'add'` 合并，`total` 不减）。
+- **加一条自检**：套件内部记录实际调过的工具名，最后一条断言「23 个工具全部被跑过」（`never called: …`），以后新增工具忘了加用例会直接红。
+- 按 Win10 P3 修：`await await check(...)` 的双 await、用例名 `pspp_run returns tables with html` → `… with rows and provenance`（断言一直是 `rows`/`provenance`，名字误导）。
+- 测试数：33 套件 / **562** 条 ok（tools 20；装了 poppler 的机器 563）。
+
 ## 0.54.78
 
 两件事，都不改引擎行为：

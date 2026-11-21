@@ -43,11 +43,15 @@ const registry = new WorkspaceRegistry({
 const tools = createTools({ registry, config: { timeoutMs: 120000 } })
 const exec = { agent: { session: { id: 'tools-test', header: { cwd: dir } } } }
 const byName = new Map(tools.map((tool) => [tool.name, tool]))
+// Which tools actually ran: the point of this suite is the `execute()` bodies,
+// and it is easy to add a tool later and forget to call it here.
+const exercised = new Set()
 
 // Runs a tool the way the host does: execute, then render the output.
 async function call(name, args = {}) {
   const tool = byName.get(name)
   assert.ok(tool, `tool ${name} is missing`)
+  exercised.add(name)
   const value = await tool.execute(args, exec)
   if (tool.output?.render) {
     const rendered = tool.output.render(args, value)
@@ -90,7 +94,7 @@ await check('pspp_data returns rows and a total', async () => {
   assert.equal(data.total, 8)
 })
 
-await check('pspp_run returns tables with html', async () => {
+await check('pspp_run returns tables with rows and provenance', async () => {
   const run = await call('pspp_run', { syntax: 'FREQUENCIES /VARIABLES=score.' })
   assert.ok(run.tables.length >= 1, JSON.stringify(run).slice(0, 300))
   // The agent gets the matrix, not the html: `rows` is what the model reads and
@@ -175,11 +179,56 @@ await check('the export tools write real files', async () => {
   assert.ok(existsSync(converted), 'convert wrote nothing')
 })
 
+await check('pspp_append_cases appends a case', async () => {
+  const before = await call('pspp_data', { limit: 1 })
+  const appended = await call('pspp_append_cases', { cases: [{ score: 55, group: '1', grp: 'A' }] })
+  assert.ok(appended, 'append returned nothing')
+  const after = await call('pspp_data', { limit: 1 })
+  assert.equal(after.total, before.total + 1, `${before.total} -> ${after.total}`)
+})
+
+await check('pspp_run_file runs a syntax file on disk', async () => {
+  const script = join(dir, 'job.sps')
+  writeFileSync(script, 'DESCRIPTIVES /VARIABLES=score.\n')
+  const run = await call('pspp_run_file', { path: script })
+  assert.ok(run.tables.length >= 1, JSON.stringify(run).slice(0, 300))
+})
+
+await check('pspp_edit_chart retitles a chart from its run', async () => {
+  const drawn = await call('pspp_chart', { type: 'histogram', variable: 'score' })
+  const edited = await call('pspp_edit_chart', { runId: drawn.runId, title: '标题改过了' })
+  const title = edited?.chart?.title ?? edited?.title ?? ''
+  assert.equal(title, '标题改过了')
+})
+
+await check('pspp_export_chart and pspp_export_document write files', async () => {
+  const drawn = await call('pspp_chart', { type: 'bar', variable: 'score', by: 'group' })
+  const png = join(dir, 'chart.png')
+  await call('pspp_export_chart', { path: png, runId: drawn.runId })
+  assert.ok(existsSync(png) && statSync(png).size > 0, 'export_chart wrote nothing')
+  const pdf = join(dir, 'doc.pdf')
+  await call('pspp_export_document', { path: pdf })
+  assert.ok(existsSync(pdf) && statSync(pdf).size > 0, 'export_document wrote nothing')
+})
+
+await check('pspp_merge adds the variables of another system file', async () => {
+  const other = join(dir, 'more.csv')
+  writeFileSync(other, 'extra\n1\n2\n3\n4\n5\n6\n7\n8\n9\n')
+  await call('pspp_open', { path: other })
+  await call('pspp_save', { path: join(dir, 'more.sav') })
+  await open()
+  const before = await call('pspp_data', { limit: 1 })
+  const merged = await call('pspp_merge', { path: join(dir, 'more.sav'), kind: 'add' })
+  assert.ok(merged, 'merge returned nothing')
+  const after = await call('pspp_data', { limit: 1 })
+  assert.ok(after.total >= before.total, `${before.total} -> ${after.total}`)
+})
+
 await check('pspp_run_file needs an existing file', async () => {
   await assert.rejects(() => byName.get('pspp_run_file').execute({ path: join(dir, 'none.sps') }, exec), /file path|ENOENT|no such file/i)
 })
 
-await await check('pspp_new and pspp_add_variable start an empty dataset', async () => {
+await check('pspp_new and pspp_add_variable start an empty dataset', async () => {
   const created = await call('pspp_new', { name: 'blank', variables: [{ name: 'x', type: 'numeric' }] })
   assert.ok(created, 'pspp_new returned nothing')
   const added = await call('pspp_add_variable', { name: 'y', type: 'numeric' })
@@ -187,6 +236,11 @@ await await check('pspp_new and pspp_add_variable start an empty dataset', async
   const variables = await call('pspp_variables')
   const names = (variables.variables ?? variables).map((entry) => entry.name ?? entry)
   assert.ok(names.includes('y'), names.join(' '))
+})
+
+await check('every tool has been exercised by this suite', () => {
+  const missing = tools.map((tool) => tool.name).filter((name) => !exercised.has(name))
+  assert.deepEqual(missing, [], `never called: ${missing.join(' ')}`)
 })
 
 rmSync(dir, { recursive: true, force: true })
