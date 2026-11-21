@@ -2039,6 +2039,9 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
         title: 'Descriptive Statistics',
         runId: 1,
         table: { caption: 'Descriptive Statistics', matrix: [['', 'N', 'Mean'], ['score', '12', '50.25']] },
+        // The prefix is produced by the panel, not by the note: it used to be
+        // written as 注： directly, so an English panel showed a Chinese prefix.
+        notes: ['Levene p = 0.003'],
       },
     ],
     importNotes: [],
@@ -2090,6 +2093,11 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     assert.ok(pop, 'the edit menu opened')
     assert.match(pop.textContent, /Undo \(Ctrl\+Z\)/, `the undo entry keeps its shortcut: ${pop.textContent.slice(0, 120)}`)
     assert.match(pop.textContent, /Copy \(Ctrl\+C\)/, 'copy keeps its shortcut too')
+  }
+  {
+    const note = fullHost.querySelector('.ap-note')
+    assert.ok(note, 'the table note is drawn in the english panel')
+    assert.match(note.textContent, /^Note: Levene p = 0\.003$/, `the note prefix follows the language: ${note.textContent}`)
   }
   const leftovers = [...new Set((fullHost.textContent.match(/[\u4e00-\u9fff]+/g) ?? []))]
   assert.deepEqual(leftovers, [], `translated panel still shows Chinese: ${leftovers.join(' / ')}`)
