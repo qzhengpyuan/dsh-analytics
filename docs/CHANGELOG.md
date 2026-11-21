@@ -2,6 +2,16 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.54.88
+
+Win10 0.54.86 报告的两条 P2 是同一族：0.54.84 让面板与导出「给出同一个时间串」，但**没有任何断言校值**，只有形状（`YYYY-MM-DD HH:MM`）。把任一侧改成 `getUTC*`，全量 34 个套件一条都不红，而真渲染下面板与导出差 8 小时。
+
+- **面板侧（P2-①）**：`test/client.mjs` 里那条 `assert.match(..., /打开于 \d{4}-\d{2}-\d{2} \d{2}:\d{2}(?!:)/)` 换成值断言 —— 用同一个 `openedAt`（`1794740000000`）按本地时间手工算出 `YYYY-MM-DD HH:MM`，再 `assert.ok(title.includes(\`打开于 ${expectedWhen}\`))`。把 `client.js` 的 `formatWhen` 换成 `getUTC*` 版本实测 rc=1，红在 `the panel writes the export's local timestamp`。
+- **导出侧（P2-②）**：`lib/office.js` 的 `readableTime(ms)` 改成导出符号；`test/office.mjs` 的「each table carries its own source line」用例里断言导出的 XML 含 `打开于 ${readableTime(1794804225859)}`，并断言 `readableTime` 的返回值等于按本地时间手工拼出的串。换成 `getUTC*` 实测 rc=1，红在 `readableTime is local time, to the minute`。
+- **P3-①**：0.54.86 段补上「`translateOne()` 判据按原样保留」的决策与理由（0.54.86 的改动本身没问题，只是当时没把理由写进文件）。
+- **P3-②**：词典条数。0.54.83 净减 1 条（加两个整句模板、删三条死碎片键）时没同步 `docs/FEATURES.md`，而 0.54.87 又净加 1 条 —— 现测 `strings` 恰为 **1292** 条 / 160 条模板，与 FEATURES 的写法一致，故不需改数字；`docs/CHANGELOG.md` 的 0.54.69 段写的是当时的事实，按文件头约定保留。
+- 测试：34 套件 / **563** 条 ok（装了 poppler 的机器 564）。
+
 ## 0.54.87
 
 自查（等 Win10 报告时扫面板的裸模板，与 0.54.83 的 P2-① 同族）：**视图/数据/输出那几个菜单在英文界面下仍混着中文**，因为勾选状态的标签是「把 `✓ ` 拼在中文串前面」再交给 `menuLabel()` 整串查词典 —— 整串 `✓ 显示值标签` 永远查不到。
@@ -20,6 +30,7 @@ Win10 0.54.83 报告的唯一 P1：功能三项全 PASS，但我这版新加的�
 - **变异 B（注文归因传回 `requested`）不变红**：没有任何用例走「跨两次 `runSyntax` 的 `WEIGHT BY` 重放」，`test/regression.mjs` 里 8 条 `annotateZeroCases` 用例都是单次纯函数调用、自己传脚本，绕过了 preamble 注入。新增 `test/weight.mjs`（需要引擎）：同一个工作区先 `WEIGHT BY w.`（w 全 0）再 `DESCRIPTIVES score.`，断言注文匹配 `/加权后有效个案是 0/` 且不匹配 `/不是权重的问题/`；把两个参数改回 `requested` 后这条红。套件已接进 `npm test` 与 CI 的两个引擎作业。
 - **P2-① 英文面板的「无汉字」断言与设计互斥**：它对整个面板扫汉字，而注文正文按设计就是中文 ⇒ 任何人想加一条真中文注文都会先被它打红，而这正是上一个洞藏住的原因。改成只扫 chrome（跳过 `.ap-note` 子树），注文正文单独断言。
 - **P2-② 文档里的 CI 作业名**：0.54.82 段把作业写成「`engine` 与 `engine-cross`」，实际是 `pdf-notes` 与 `engine-cross`（后者矩阵展开成三条 `engine (<platform>)`），已改正。
+- **`translateOne()` 的汉字判据按原样保留**（决策，非缺陷）：判据是 `/[\u4e00-\u9fff]/`，全角标点（`：` 是 U+FF1A）不在其中。放宽成「含全角标点也算中文」会让「拉丁字母 + 全角标点」的串开始走模板匹配，而这类串现在一律原样返回；插件自己写的句子都含汉字，不放宽也不会漏翻，风险大于收益。
 - 测试：34 套件 / **563** 条 ok（装了 poppler 的机器 564）。
 
 ## 0.54.85

@@ -1123,8 +1123,16 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   // One timestamp, one format: the panel used to say 2026/1/2 03:44:05 while the
   // exports of the same provenance said 2026-01-02 03:44, and stayed in the
   // zh-CN layout even when the panel was English.
-  assert.match(prov.getAttribute('title'), /打开于 \d{4}-\d{2}-\d{2} \d{2}:\d{2}(?!:)/,
-    `the panel writes the export's timestamp format: ${prov.getAttribute('title')}`)
+  // The exact value, not just the shape: a helper that switched to UTC would keep
+  // the format and silently move the stamp by the machine's offset, and the two
+  // exits (panel chip, Word/Excel/HTML stamp) would disagree by that much.
+  const expectedWhen = (() => {
+    const date = new Date(1794740000000)
+    const pad = (value) => String(value).padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  })()
+  assert.ok(prov.getAttribute('title').includes(`打开于 ${expectedWhen}`),
+    `the panel writes the export's local timestamp: ${prov.getAttribute('title')} vs ${expectedWhen}`)
   assert.ok(!/\d{1,2}:\d{2}:\d{2}/.test(prov.getAttribute('title')),
     `the panel keeps no seconds the export drops: ${prov.getAttribute('title')}`)
   const badge = [...stateHost.querySelectorAll('.ap-status button')].find((node) => /导入说明/.test(node.textContent))

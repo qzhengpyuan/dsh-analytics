@@ -4,7 +4,7 @@ import { inflateRawSync } from 'node:zlib'
 import assert from 'node:assert'
 
 import { buildZip, xmlEscape } from '../lib/zip.js'
-import { buildDocx, buildXlsx, cellRuns, clipMatrix, describeSources, escapeSheetName, formulaMap, imageExtent, pairCharts, pngSize, sheetName, sheetXml, tableXml } from '../lib/office.js'
+import { buildDocx, buildXlsx, cellRuns, clipMatrix, describeSources, escapeSheetName, formulaMap, imageExtent, pairCharts, pngSize, readableTime, sheetName, sheetXml, tableXml } from '../lib/office.js'
 
 let checks = 0
 const failures = []
@@ -240,6 +240,15 @@ await check('each table carries its own source line, not just the document foote
   })
   const document = unzip(docx)['word/document.xml'].toString('utf8')
   assert.match(document, /来源：a\.sav · 60 例 · 45\.4 KB · 打开于 /, 'the table names its own source')
+  // The exact stamp, not just the shape: a helper that switched to UTC would
+  // keep the format and move the value by the machine's offset.
+  assert.ok(document.includes(`打开于 ${readableTime(1794804225859)}`),
+    `the stamp carries the local time: ${readableTime(1794804225859)}`)
+  assert.equal(readableTime(1794804225859), (() => {
+    const date = new Date(1794804225859)
+    const pad = (value) => String(value).padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  })(), 'readableTime is local time, to the minute')
   // Which run, and which bytes: a reader handed one table must be able to tell
   // two re-runs of the same file apart.
   assert.match(document, /运行 #3/, 'the stamp names the run that produced the table')
