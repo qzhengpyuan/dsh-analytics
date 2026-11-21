@@ -1,3 +1,12 @@
+## 0.54.49
+
+Win10 0.54.43 报告 §4 与 §5 各一条：
+
+- §4.1 权重会随 `SAVE OUTFILE` 存进 `.sav`，之后 `GET FILE` 跑分析，表里 `N = .00` 而语法里没有 `WEIGHT BY`，旧实现完全不解释 —— 正是这条注文想消灭的情形。新增 `annotateZeroCases(items, dataset)`：内存里有 N 例、而某张表的 `N` 列有 0 时给注文「这张表的有效个案是 0，可内存里这份数据有 N 例：最可能是数据文件里存着权重…先跑一次 WEIGHT OFF」。已有「加权后有效个案是 0」的表不重复加。
+- §5 D `END DATA` 与命令同一行时 PSPP 报 `END DATA must appear by itself on a single line`，直译英文对用户没帮助。新增 `inlineDataTailProblem(script)`：跑引擎之前就报「END DATA 必须独占一行：它后面还有「…」。PSPP 读到这一行就停，把后面的命令挪到下一行再跑」。
+
+`test/regression.mjs` 加两条（零个案注文四种情形、同行命令检查三种情形）：78 条；32 套件 / 519 条 ok。
+
 ## 0.54.48
 
 Win10 0.54.42 报告 V2 判 FAIL，三条残留都在「参数没翻」这个家族里：

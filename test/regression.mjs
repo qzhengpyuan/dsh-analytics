@@ -1,7 +1,7 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
 import { collinearityTable, durbinWatsonTable, influenceTable } from '../lib/regression.js'
-import { classifyScript, nearestVariableName, splitStatements, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, annotateWeightedEmpty, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
+import { classifyScript, nearestVariableName, splitStatements, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, annotateWeightedEmpty, annotateZeroCases, inlineDataTailProblem, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
 const failures = []
@@ -1285,6 +1285,27 @@ check('double quoted strings hold periods too', () => {
   assert.equal(mixed.asksForResults, false, 'an apostrophe inside double quotes does not end the string')
   const other = classifyScript("COMPUTE s = 'a\"b. DESCRIPTIVES x'.")
   assert.equal(other.asksForResults, false, 'a double quote inside single quotes does not end the string')
+})
+
+check('a table that says N = 0 while the panel holds cases explains itself', () => {
+  const dataset = { rows: [[1], [2], [3]] }
+  const table = () => [{ kind: 'table', title: 'Descriptive Statistics', notes: [], table: { caption: 'Descriptive Statistics', matrix: [['', 'N', 'Mean'], ['score', '0', '.']] } }]
+  const items = table()
+  assert.equal(annotateZeroCases(items, dataset), 1)
+  assert.match(items[0].notes[0], /WEIGHT OFF/)
+  const healthy = [{ kind: 'table', title: 'D', notes: [], table: { caption: 'D', matrix: [['', 'N', 'Mean'], ['score', '3', '2.0']] } }]
+  assert.equal(annotateZeroCases(healthy, dataset), 0)
+  const noCases = table()
+  assert.equal(annotateZeroCases(noCases, { rows: [] }), 0)
+  const already = table()
+  already[0].notes.push('加权后有效个案是 0：…')
+  assert.equal(annotateZeroCases(already, dataset), 0)
+})
+
+check('END DATA sharing a line with a command is explained before the engine sees it', () => {
+  assert.match(inlineDataTailProblem('BEGIN DATA\n1\nEND DATA. DESCRIPTIVES v.'), /独占一行/)
+  assert.equal(inlineDataTailProblem('BEGIN DATA\n1\nEND DATA.\nDESCRIPTIVES v.'), null)
+  assert.equal(inlineDataTailProblem('DESCRIPTIVES v.'), null)
 })
 
 check('command abbreviations the engine accepts are still analyses', () => {
