@@ -5666,13 +5666,13 @@ let ITEM_CSV_PENDING = null
             setBusy(false)
           }
         }
-        if (action === 'insertCase') return run3('已在第 ' + (row + 1) + ' 行插入个案', async () => {
+        if (action === 'insertCase') return run3(tr('已在第 {0} 行插入个案', row + 1), async () => {
           const value = await api('api/case', { sessionId, action: 'insert', row })
           setSt(stateOf(value))
           const page = await loadRows(0, 500)
           setRows(page.rows); setTotal(page.total)
         })
-        if (action === 'deleteCase') return run3('已删除第 ' + (row + 1) + ' 行', async () => {
+        if (action === 'deleteCase') return run3(tr('已删除第 {0} 行', row + 1), async () => {
           const value = await api('api/case', { sessionId, action: 'delete', row })
           setSt(stateOf(value))
           const page = await loadRows(0, 500)
@@ -6108,7 +6108,9 @@ let ITEM_CSV_PENDING = null
           setRows(page.rows)
           setTotal(page.total)
           setSelected(null)
-          notify(tr('{0}：{1}', action === 'redo' ? tr('已重做') : tr('已撤销'), value.result?.label ?? ''))
+          const verb = action === 'redo' ? tr('已重做') : tr('已撤销')
+          const what = value.result?.label ?? ''
+          notify(what === '' ? verb : tr('{0}：{1}', verb, what))
         } catch (error) {
           notify(error.message)
         } finally {

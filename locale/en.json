@@ -1193,6 +1193,15 @@
     "已导出 {0}（{1} KB，{2} 个表、{3} 张图）": "Exported {0} ({1} KB, {2} tables, {3} charts)",
     "已导出 {0}（{1} KB）": "Exported {0} ({1} KB)",
     "已导出 {0}": "Exported {0}",
-    "已导出报告卡 {0}（{1} KB，{2} 个结果）": "Exported the report card to {0} ({1} KB, {2} results)"
+    "已导出报告卡 {0}（{1} KB，{2} 个结果）": "Exported the report card to {0} ({1} KB, {2} results)",
+    "{0} 的直方图": "Histogram of {0}",
+    "{0} 与 {1} 的散点图": "Scatterplot of {0} and {1}",
+    "{0} 按 {1} 的箱线图": "Boxplot of {0} by {1}",
+    "{0} 的箱线图": "Boxplot of {0}",
+    "{0} 的构成": "Composition of {0}",
+    "{0} 的构成（环形）": "Composition of {0} (donut)",
+    "{0}：{1}": "{0}: {1}",
+    "已在第 {0} 行插入个案": "Inserted a case at row {0}",
+    "已删除第 {0} 行": "Deleted row {0}"
   }
 }

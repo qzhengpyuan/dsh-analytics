@@ -70,6 +70,18 @@ check('the language setting accepts exactly the two languages it ships', () => {
   assert.equal(normalizeLang(undefined), 'zh')
 })
 
+check('chart titles are templates, so the variable name survives the switch', () => {
+  // The panel tab and the exported file name both show this string; a variable
+  // called `score` must stay `score`.
+  assert.equal(localize('score 的直方图', 'en'), 'Histogram of score')
+  assert.equal(localize('score 与 group 的散点图', 'en'), 'Scatterplot of score and group')
+  assert.equal(localize('score 按 group 的箱线图', 'en'), 'Boxplot of score by group')
+  assert.equal(localize('score 的箱线图', 'en'), 'Boxplot of score')
+  assert.equal(localize('group 的构成（环形）', 'en'), 'Composition of group (donut)')
+  assert.equal(localize('已在第 4 行插入个案', 'en'), 'Inserted a case at row 4')
+  assert.equal(localize('已删除第 2 行', 'en'), 'Deleted row 2')
+})
+
 console.log()
 if (process.exitCode) console.log(`${checks} checks passed, some failed`)
 else console.log(`${checks} checks passed`)
