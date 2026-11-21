@@ -1,3 +1,11 @@
+## 0.54.71
+
+Win10 0.54.70 报告的 P2 两条 + P3 一条：
+
+- **`splitStatements()` 认得自己在不在 `MATRIX` 块里**（P2-①）：新增一遍行首状态机（`MATRIX` 置真、`END MATRIX` 置假），于是①普通数据块只由 `END DATA` 收尾 —— 数据值恰为 `END MATRIX.`/`END MATRIX` 时该块的行结构不再被合并丢掉（0.54.69「取先出现者」的副作用）；②`MATRIX` 块里的句点不再切开语句，矩阵组整块丢弃时不会留下 `1.5\nEND MATRIX.` 这种残句（P3-①）。
+- 测试：「a data value that reads END MATRIX does not close the inline block」的断言从「块里含 `* 7`」改成正整数块字符串（`BEGIN DATA\nEND MATRIX.\n* 7\nEND DATA.`），另加「matrix algebra is dropped whole, with its data group」（矩阵数据组与纯代数两种形态都只剩块后的命令），regression 90、全量 535。
+- **CHANGELOG 计数统一口径**（P2-②）：全篇一律写本机实测的 `^ok` 行数（不含 `pdf-notes` 那条 skip），0.54.68 段 533 → 532、0.54.69 段 534 → 533；`docs/FEATURES.md` 的 535 同样注明「没有 pdftotext 的机器少 1 条」。
+
 ## 0.54.70
 
 - 文档口径（Win10 0.54.68 报告 P2 / P3-③）：0.54.67 段的总数按实测改回 531（532 是 0.54.68 的数），0.54.59 段改回 525，0.54.58 段改回 524，并给 0.54.60 段补上缺失的计数行 527（regression 85）。三段数字现在是各自 tag 树的实测值。
@@ -6,13 +14,13 @@
 ## 0.54.69
 
 - **`MATRIX … END MATRIX` 不再吞掉它后面的数据块**：`splitStatements()` 在 `BEGIN DATA` 处同时算出 `END DATA` 与 `END MATRIX` 的位置、取**先出现**的那个收尾。原来先用 `END DATA` 试探，于是矩阵数据组一直吞到文件后半段那个 `END DATA`，中间的 `DATA LIST`、数据块和整段分析全都不见了（`classifyScript()` 连 `definesData` 都报假，0.54.58–0.54.68 同现）。Win10 0.54.68 报告 V9-P1。
-- `test/regression.mjs` 新增「a matrix data group does not swallow the data block after it」（切分结果必须是 `["DATA LIST FREE /x.", "BEGIN DATA\n1\nEND DATA.", "DESCRIPTIVES x."]`，`definesData`/`asksForResults` 都为真）。全套 534 条 ok。
+- `test/regression.mjs` 新增「a matrix data group does not swallow the data block after it」（切分结果必须是 `["DATA LIST FREE /x.", "BEGIN DATA\n1\nEND DATA.", "DESCRIPTIVES x."]`，`definesData`/`asksForResults` 都为真）。全套 533 条 ok（不含 pdftotext 的 skip 行）。
 - 文档：`docs/FEATURES.md` 的界面语言一节按现状重写（1292 条词条、`{0}` 模板按字面长度降序、导出外壳与表注前缀跟随语言、表注正文仍中文）。
 
 ## 0.54.68
 
 - `MATRIX … END MATRIX` 里的内联数据组不再被句点切开：这类块没有自己的 `END DATA`，`splitStatements()` 现在把 `END MATRIX` 也当块尾，矩阵代数里的 `1.5 2.25` 不会被当成两条命令交给分类器（这条与 0.54.67 的 P3 同源，方向相反：块内的 `END MATRIX` 收尾，块外的值不收尾）。
-- `test/regression.mjs` 加一条（矩阵内联块切分结果必须正好是块后的两条命令），regression 88、总数 533。
+- `test/regression.mjs` 加一条（矩阵内联块切分结果必须正好是块后的两条命令），regression 88、总数 532。
 
 ## 0.54.67
 

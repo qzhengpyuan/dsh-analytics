@@ -1706,8 +1706,19 @@ check('a data value that reads END MATRIX does not close the inline block', () =
   for (const value of ['END MATRIX.', 'END MATRIX']) {
     const script = `DATA LIST FREE /s (A20).\nBEGIN DATA\n${value}\n* 7\nEND DATA.\nLIST.`
     const block = splitStatements(script).find((piece) => /^BEGIN DATA/i.test(piece.trim())) ?? ''
-    assert.ok(/\* 7/.test(block), `${value} is a value, not the end of the data: ${JSON.stringify(block)}`)
+    // The exact block, not just "contains * 7": merging put the value back on one
+    // line and the row structure the block guarantees was gone.
+    assert.equal(block, `BEGIN DATA\n${value}\n* 7\nEND DATA.`, JSON.stringify(block))
   }
+})
+
+check('matrix algebra is dropped whole, with its data group', () => {
+  // The data group inside MATRIX ends at END MATRIX; the leftover rows of that
+  // group used to survive as a statement of their own (`1.5\nEND MATRIX.`).
+  const parts = splitStatements('MATRIX.\nBEGIN DATA\n1.5\nEND MATRIX.\nDESCRIPTIVES x.')
+  assert.deepEqual(parts, ['DESCRIPTIVES x.'], JSON.stringify(parts))
+  const algebra = splitStatements('MATRIX.\nCOMPUTE x = 1.\nEND MATRIX.\nDESCRIPTIVES x.')
+  assert.deepEqual(algebra, ['DESCRIPTIVES x.'], JSON.stringify(algebra))
 })
 
 console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)
