@@ -5756,7 +5756,7 @@ let ITEM_CSV_PENDING = null
             const droppedBefore = Number(before?.history?.dropped ?? 0)
             const droppedNow = Number(fresh.history?.dropped ?? 0)
             if (droppedNow > droppedBefore) {
-              notify(`数据集较大，撤销记录超出内存预算：最早的 ${droppedNow - droppedBefore} 步已丢弃`)
+              notify(tr('数据集较大，撤销记录超出内存预算：最早的 {0} 步已丢弃', droppedNow - droppedBefore))
             }
             // The data sheet only has to reload when the data itself moved:
             // a new variable, a different case count or another file.
@@ -5873,7 +5873,7 @@ let ITEM_CSV_PENDING = null
           setSelected(null)
           setView('data')
           const extra = result.duplicates ? `，重复的「标识+索引」保留了第一个，共 ${result.duplicates} 处` : ''
-          notify(`${title ?? '重构'}完成：${result.cases ?? 0} 个个案、${result.variables ?? 0} 个变量${result.created ? `（新增 ${result.created} 列）` : ''}${extra}`)
+          notify(tr('{0}完成：{1} 个个案、{2} 个变量{3}{4}', title ?? tr('重构'), result.cases ?? 0, result.variables ?? 0, result.created ? tr('（新增 {0} 列）', result.created) : '', extra))
           setDialog(null)
         } catch (error) {
           notify(error.message)
@@ -5895,7 +5895,7 @@ let ITEM_CSV_PENDING = null
             setRows(page.rows)
             setTotal(page.total)
           }
-          notify(`${title ?? '标识重复个案'}：${result.groups ?? 0} 组重复、共 ${result.duplicates ?? 0} 个个案${(result.created ?? []).length ? `；已新增 ${result.created.join('、')}` : ''}`)
+          notify(tr('{0}：{1} 组重复、共 {2} 个个案{3}', title ?? tr('标识重复个案'), result.groups ?? 0, result.duplicates ?? 0, (result.created ?? []).length ? tr('；已新增 {0}', result.created.join('、')) : ''))
           setDialog(null)
         } catch (error) {
           notify(error.message)
@@ -5916,7 +5916,7 @@ let ITEM_CSV_PENDING = null
             setTotal(page.total)
           }
           const band = `${result.lowPercent ?? 5}%–${result.highPercent ?? 95}%`
-          notify(`${title ?? '标识异常个案'}：按 ${band} 界值查出 ${result.hits ?? 0} 处越界、落在 ${result.flagged ?? 0} 个个案上${(result.created ?? []).length ? `；已新增 ${result.created.join('、')}` : ''}`)
+          notify(tr('{0}：按 {1} 界值查出 {2} 处越界、落在 {3} 个个案上{4}', title ?? tr('标识异常个案'), band, result.hits ?? 0, result.flagged ?? 0, (result.created ?? []).length ? tr('；已新增 {0}', result.created.join('、')) : ''))
           setDialog(null)
         } catch (error) {
           notify(error.message)
@@ -5942,7 +5942,7 @@ let ITEM_CSV_PENDING = null
               ? `${title ?? '替换缺失值'}完成：在 ${names} 上补了 ${result.filled} 个格子（${result.method === 'mean' ? '序列平均值' : result.method === 'linear' ? '线性趋势' : '临近点'}），一次撤销可以整批退回`
               : `${names} 没有缺失值，什么也没改`)
           } else {
-            notify(`${title ?? '缺失值分析'}完成：${result.tables ?? 0} 张表，基于 ${result.cases ?? 0} 个个案`)
+            notify(tr('{0}完成：{1} 张表，基于 {2} 个个案', title ?? tr('缺失值分析'), result.tables ?? 0, result.cases ?? 0))
           }
           setDialog(null)
         } catch (error) {
@@ -5962,10 +5962,10 @@ let ITEM_CSV_PENDING = null
         if (names.length === 0) { notify('剪贴板里没有内容'); return }
         const known = (st?.dataset?.variables ?? []).map((variable) => variable.name)
         const found = names.filter((name) => known.some((entry) => entry.toLowerCase() === name.toLowerCase()))
-        if (found.length === 0) { notify(`剪贴板里的 ${names.length} 个名字都不是当前数据集的变量`); return }
+        if (found.length === 0) { notify(tr('剪贴板里的 {0} 个名字都不是当前数据集的变量', names.length)); return }
         setView('variables')
         setVariableJump({ name: found[0], seq: Date.now() })
-        notify(`剪贴板里有 ${found.length} 个变量：${found.slice(0, 6).join('、')}${found.length > 6 ? '…' : ''}${found.length < names.length ? `；另有 ${names.length - found.length} 个名字没有匹配到变量` : ''}`)
+        notify(tr('剪贴板里有 {0} 个变量：{1}{2}{3}', found.length, found.slice(0, 6).join('、'), found.length > 6 ? '…' : '', found.length < names.length ? tr('；另有 {0} 个名字没有匹配到变量', names.length - found.length) : ''))
       }, [st])
 
       // Everything a multiple response set can do: refresh its frequency table,
@@ -5982,7 +5982,7 @@ let ITEM_CSV_PENDING = null
           }
           if (action === 'remove') {
             setActiveMr(null)
-            notify(`已删除多选题 ${name}`)
+            notify(tr('已删除多选题 {0}', name))
           }
         } catch (error) {
           notify(error.message)
@@ -5998,7 +5998,7 @@ let ITEM_CSV_PENDING = null
           setSt(stateOf(value))
           setView('output')
           const notes = value.result?.notes ?? []
-          notify(`已生成：${value.result?.item?.title ?? '表格'}${notes.length ? `（${notes.length} 条提示）` : ''}`)
+          notify(tr('已生成：{0}{1}', value.result?.item?.title ?? tr('表格'), notes.length ? tr('（{0} 条提示）', notes.length) : ''))
           setDialog(null)
         } catch (error) {
           notify(error.message)
@@ -6014,7 +6014,7 @@ let ITEM_CSV_PENDING = null
           setSt(stateOf(value))
           setView('output')
           const count = (value.result?.matrix?.length ?? 1) - 1
-          notify(`两两比较：${count} 对${value.result?.notes?.length ? `（${value.result.notes.length} 条提示）` : ''}`)
+          notify(tr('两两比较：{0} 对{1}', count, value.result?.notes?.length ? tr('（{0} 条提示）', value.result.notes.length) : ''))
           setDialog(null)
         } catch (error) {
           notify(error.message)
@@ -6030,7 +6030,7 @@ let ITEM_CSV_PENDING = null
           setSt(stateOf(value))
           setView('output')
           const count = (value.result?.matrix?.length ?? 1) - 1
-          notify(`偏相关：${count} 对变量${value.result?.notes?.length ? `（${value.result.notes.length} 条提示）` : ''}`)
+          notify(tr('偏相关：{0} 对变量{1}', count, value.result?.notes?.length ? tr('（{0} 条提示）', value.result.notes.length) : ''))
           setDialog(null)
         } catch (error) {
           notify(error.message)
@@ -6063,7 +6063,7 @@ let ITEM_CSV_PENDING = null
           const value = await api('api/chart', { sessionId, kind: chart.kind, options: chart })
           setSt(stateOf(value))
           setView('output')
-          notify(`已生成图表：${value.result?.chart?.title ?? '图表'}`)
+          notify(tr('已生成图表：{0}', value.result?.chart?.title ?? tr('图表')))
           setDialog(null)
         } catch (error) {
           notify(error.message)
@@ -6108,7 +6108,7 @@ let ITEM_CSV_PENDING = null
           setRows(page.rows)
           setTotal(page.total)
           setSelected(null)
-          notify(`${action === 'redo' ? '已重做' : '已撤销'}：${value.result?.label ?? ''}`)
+          notify(tr('{0}：{1}', action === 'redo' ? tr('已重做') : tr('已撤销'), value.result?.label ?? ''))
         } catch (error) {
           notify(error.message)
         } finally {
@@ -6192,7 +6192,7 @@ let ITEM_CSV_PENDING = null
           target: 'bottom',
           meta: { docId, ...(open ? { openPath: open } : {}), ...(importOptions ? { import: importOptions } : {}) },
         })
-        notify(`新标签页：${name ?? path}`)
+        notify(tr('新标签页：{0}', name ?? path))
         return true
       }, [ctx, baseSessionId, notify])
 
@@ -6228,10 +6228,10 @@ let ITEM_CSV_PENDING = null
         // The grid shows fewer rows than the file has, and looks exactly like a
         // smaller file. Only the panel knows why, so it says so once per open.
         if (renamed.length === 0 && value?.state?.dataset?.truncated === true) {
-          notify(`已按「数据视图最多载入个案数」只显示前 ${value.state.dataset.caseCount} 例；分析、保存与导出仍在完整数据上跑`)
+          notify(tr('已按「数据视图最多载入个案数」只显示前 {0} 例；分析、保存与导出仍在完整数据上跑', value.state.dataset.caseCount))
         }
         if (renamed.length > 0) {
-          notify(`${renamed.length} 列的表头不符合 PSPP 变量名规则，已改名（原表头保留为标签）：${renamed[0]}${renamed.length > 1 ? ` 等 ${renamed.length} 条，细节见状态栏「导入说明」` : ''}`)
+          notify(tr('{0} 列的表头不符合 PSPP 变量名规则，已改名（原表头保留为标签）：{1}{2}', renamed.length, renamed[0], renamed.length > 1 ? tr(' 等 {0} 条，细节见状态栏「导入说明」', renamed.length) : ''))
         }
         return 'data'
       }, [docId, baseSessionId, ctx, setSyntax, notify])
@@ -6292,7 +6292,7 @@ let ITEM_CSV_PENDING = null
             setDocId(nextId)
             applyOpenResult(value)
             setBrowser(null)
-            notify(`已打开 ${displayPath(path)}`)
+            notify(tr('已打开 {0}', displayPath(path)))
           } catch (error) {
             setDocs((list) => list.filter((doc) => doc.id !== nextId))
             notify(error.message)
@@ -6306,7 +6306,7 @@ let ITEM_CSV_PENDING = null
           const value = await api('api/open', { sessionId, path, options: options.import })
           applyOpenResult(value)
           setBrowser(null)
-          notify(`已打开 ${displayPath(path)}`)
+          notify(tr('已打开 {0}', displayPath(path)))
         } catch (error) {
           notify(error.message)
         } finally {
@@ -6358,7 +6358,7 @@ let ITEM_CSV_PENDING = null
             await openPath(value.result.path, { seed: '', title: value.result.name ?? file.name })
             // The browser never reveals where a dropped file came from, so say
             // it plainly instead of showing the copy's path as if it were real.
-            notify(`已拖入 ${file.name}：原路径未知（浏览器不给路径），要写回原文件请用「文件 → 打开数据…」`)
+            notify(tr('已拖入 {0}：原路径未知（浏览器不给路径），要写回原文件请用「文件 → 打开数据…」', file.name))
           }
         } catch (error) {
           notify(error.message)
@@ -6478,7 +6478,7 @@ let ITEM_CSV_PENDING = null
         try {
           await api('api/save', { sessionId, path })
           await refresh()
-          notify(`已保存 ${path}`)
+          notify(tr('已保存 {0}', path))
         } catch (error) {
           notify(error.message)
         } finally {
@@ -7518,7 +7518,7 @@ let ITEM_CSV_PENDING = null
               setDialog(null)
               setView('variables')
               setVariableJump({ name, seq: Date.now() })
-              if (!exists) notify(`没有这个变量：${name}`)
+              if (!exists) notify(tr('没有这个变量：{0}', name))
             },
           },
           h(Field, { label: '变量名', hint: '输入名字后点「跳转」，下面列出全部变量' },
@@ -7641,7 +7641,7 @@ let ITEM_CSV_PENDING = null
               try {
                 const value = await api('api/mrset', { sessionId, action: 'define', set: setDefinition })
                 setSt(stateOf(value))
-                notify(`已定义多选题 ${setDefinition.name}`)
+                notify(tr('已定义多选题 {0}', setDefinition.name))
               } catch (error) { notify(error.message) }
             },
           })
@@ -7704,7 +7704,7 @@ let ITEM_CSV_PENDING = null
                 } else {
                   setSelected({ row: match.row, column: match.column })
                 }
-                notify(`找到 ${value.result.total}${value.result.truncated ? '+' : ''} 处，第一处在第 ${match.row + 1} 行的 ${match.variable}`)
+                notify(tr('找到 {0}{1} 处，第一处在第 {2} 行的 {3}', value.result.total, value.result.truncated ? '+' : '', match.row + 1, match.variable))
               } catch (error) {
                 notify(error.message)
               }
@@ -7735,7 +7735,7 @@ let ITEM_CSV_PENDING = null
               try {
                 const value = await api('api/convert', { sessionId, path: spec.path })
                 setDialog(null)
-                notify(`已转换为 ${String(value.result.format).toUpperCase()}：${value.result.path}（${Math.round(value.result.bytes / 1024)} KB）`)
+                notify(tr('已转换为 {0}：{1}（{2} KB）', String(value.result.format).toUpperCase(), value.result.path, Math.round(value.result.bytes / 1024)))
               } catch (error) {
                 notify(error.message)
               } finally {
@@ -7779,13 +7779,13 @@ let ITEM_CSV_PENDING = null
               const labels = {}
               for (const line of entries) {
                 const at = line.indexOf('=')
-                if (at < 0) { notify(`无法解析「${line}」，应为 值=标签`); return }
+                if (at < 0) { notify(tr('无法解析「{0}」，应为 值=标签', line)); return }
                 labels[line.slice(0, at).trim()] = line.slice(at + 1).trim()
               }
               const value = await api('api/variable', { sessionId, action: 'update', name: labelsDialog.name, patch: { valueLabels: labels } })
               setSt(stateOf(value))
               setLabelsDialog(null)
-              notify(`已更新 ${labelsDialog.name} 的 ${Object.keys(labels).length} 个值标签`)
+              notify(tr('已更新 {0} 的 {1} 个值标签', labelsDialog.name, Object.keys(labels).length))
             },
           },
           h('div', { className: 'ap-hint' }, '每行一个：值=标签。保存后数据视图显示标签，写回数据文件时写入 VALUE LABELS。'),
@@ -7942,7 +7942,7 @@ let ITEM_CSV_PENDING = null
               if (mode === 'merge') { setDialog((prev) => (prev && prev.kind === 'merge' ? { ...prev, path } : prev)); return }
               if (mode === 'save') {
                 setBusy(true)
-                try { await api('api/save', { sessionId, path }); await refresh(); notify(`已保存 ${path}`) }
+                try { await api('api/save', { sessionId, path }); await refresh(); notify(tr('已保存 {0}', path)) }
                 catch (error) { notify(error.message) }
                 finally { setBusy(false) }
                 return
@@ -7952,7 +7952,7 @@ let ITEM_CSV_PENDING = null
                 if (!syntax.trim()) { notify('语法编辑器是空的，先写点东西再保存'); return }
                 try {
                   const value = await api('api/saveSyntax', { sessionId, path, text: syntax })
-                  notify(`已保存语法 ${value.result.path}（${value.result.bytes} 字节）`)
+                  notify(tr('已保存语法 {0}（{1} 字节）', value.result.path, value.result.bytes))
                 } catch (error) { notify(error.message) }
                 return
               }
@@ -7961,7 +7961,7 @@ let ITEM_CSV_PENDING = null
                 try {
                   const value = await api('api/exportOffice', { sessionId, path, scope: browser.scope ?? 'session', formulas: browser.formulas !== false, data: browser.dataSheet === true, items: browser.only ?? null })
                   const r = value.result
-                  notify(`已导出 ${r.path}（${Math.round(r.bytes / 1024)} KB，${r.tables} 个表、${r.images} 张图）`)
+                  notify(tr('已导出 {0}（{1} KB，{2} 个表、{3} 张图）', r.path, Math.round(r.bytes / 1024), r.tables, r.images))
                 } catch (error) { notify(error.message) }
                 finally { setBusy(false) }
                 return
@@ -7970,7 +7970,7 @@ let ITEM_CSV_PENDING = null
                 setBusy(true)
                 try {
                   const value = await api('api/chart/export', { sessionId, runId: browser.runId, path, format: browser.format })
-                  notify(`已导出 ${value.result.path}（${Math.round(value.result.bytes / 1024)} KB）`)
+                  notify(tr('已导出 {0}（{1} KB）', value.result.path, Math.round(value.result.bytes / 1024)))
                 } catch (error) { notify(error.message) }
                 finally { setBusy(false) }
                 return
@@ -7982,7 +7982,7 @@ let ITEM_CSV_PENDING = null
               }
               if (mode === 'export') {
                 setBusy(true)
-                try { await api('api/export', { sessionId, path }); notify(`已导出 ${path}`) }
+                try { await api('api/export', { sessionId, path }); notify(tr('已导出 {0}', path)) }
                 catch (error) { notify(error.message) }
                 finally { setBusy(false) }
                 return
@@ -7994,7 +7994,7 @@ let ITEM_CSV_PENDING = null
                 setBusy(true)
                 try {
                   const value = await api('api/writeText', { sessionId, path, text: pending.text })
-                  notify(`已导出 ${value.result.path}（${Math.round(value.result.bytes / 1024)} KB）`)
+                  notify(tr('已导出 {0}（{1} KB）', value.result.path, Math.round(value.result.bytes / 1024)))
                 } catch (error) { notify(error.message) }
                 finally { setBusy(false) }
                 return
@@ -8014,7 +8014,7 @@ let ITEM_CSV_PENDING = null
                     format: browser.format,
                     script: scripts.join('\n'),
                   })
-                  notify(`已导出报告卡 ${value.result.path}（${Math.round(value.result.bytes / 1024)} KB，${scripts.length} 个结果）`)
+                  notify(tr('已导出报告卡 {0}（{1} KB，{2} 个结果）', value.result.path, Math.round(value.result.bytes / 1024), scripts.length))
                 } catch (error) { notify(error.message) }
                 finally { setBusy(false) }
                 return
@@ -8023,7 +8023,7 @@ let ITEM_CSV_PENDING = null
                 setBusy(true)
                 try {
                   const value = await api('api/exportDoc', { sessionId, path, format: browser.format })
-                  notify(`已导出 ${value.result.path}（${Math.round(value.result.bytes / 1024)} KB）`)
+                  notify(tr('已导出 {0}（{1} KB）', value.result.path, Math.round(value.result.bytes / 1024)))
                 } catch (error) { notify(error.message) }
                 finally { setBusy(false) }
               }
