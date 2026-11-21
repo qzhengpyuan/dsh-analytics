@@ -1520,6 +1520,17 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
       assert.ok(scroller.querySelector('table.ap-tbl-three'), 'the table preset class survives the windowed render')
       const windowRows = () => scroller.querySelectorAll('tbody tr').length
       assert.ok(windowRows() < 200, 'the expanded table draws a window, got ' + windowRows() + ' rows')
+      // The drawn rows must be exactly what virtualWindow asks for, not merely
+      // "fewer than the table": a renderer that hard-codes a different size would
+      // still pass the loose check above.
+      const drawnBody = [...scroller.querySelectorAll('tbody tr')]
+        .filter((row) => !row.classList.contains('ap-tbl-spacer')).length - 1
+      const expectedWindow = hooks.virtualWindow(3000, 0, 520, 26, 10)
+      assert.equal(
+        drawnBody,
+        expectedWindow.end - expectedWindow.start,
+        `the first window draws virtualWindow's rows (drawn ${drawnBody}, expected ${expectedWindow.end - expectedWindow.start})`,
+      )
 
       // (b) the two spacer rows hold the scrollbar at the real length, and the
       // window follows the offset.

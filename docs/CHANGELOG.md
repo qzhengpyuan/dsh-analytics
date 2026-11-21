@@ -2,6 +2,16 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.54.91
+
+Win10 在 0.54.88 报告里判断「虚拟化路径完全没有测试覆盖，jsdom 里 `box.height > 0` 恒假」。查证下来这条**不成立**：`test/client.mjs` 的 3000 行用例本来就把 `Element.prototype.getBoundingClientRect` 打桩成「`.ap-tbl-vscroll` 返回 600×560」，于是窗口化分支会真的跑起来，并断言了滚动容器、`maxHeight: 520px`、两条 spacer 的高度相加等于 `3000 × 26`、滚动后窗口平移、第一行离开 DOM、复制的 CSV 仍是 3001 行。把 `measure` 里的高度强改成 0 实测 `rc=1`（红在 `a measurable long table gets a scroller of its own`）—— 说明它是活的。
+
+真正松的是**行数**：原来只断言「画出来的行数 `< 200`」，一个写死 12 行的窗口也能过。这一版把它收紧成「第一屏画出的正文行数 === `virtualWindow(3000, 0, 520, 26, 10)` 的结果」（40 行）；把渲染改成写死 12 行实测 `rc=1`（`drawn 12, expected 40`）。统计时排除 spacer 行与表头行。
+
+顺带删掉一个没必要的改动：先前为这条覆盖加的 `globalThis.__AP_TEST_BOX__` 注入钩子（`VirtualTable` 的惰性 `useState` 与 `measure` 里的强制高度）已回滚 —— 打桩 `getBoundingClientRect` 已经够用，多一条只给测试用的生产分支不值得。
+
+测试数不变：34 套件 / **563** 条 ok（装了 poppler 的机器 564）。
+
 ## 0.54.90
 
 Win10 0.54.88 报告的两条 P2 + 两条 P3，全部落在「测试绿着但守不住东西」这一族：
