@@ -834,6 +834,29 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('a run whose filter removed every case says so')
 }
 
+// `END DATA` with a command after it on the same line stops the engine with
+// "Missing END DATA while reading inline data" — an English sentence about the
+// wrong thing. The check that says "END DATA 必须独占一行" used to sit after the
+// branch that reports the engine's own failure, so it never ran.
+{
+  const tail = new Workspace({ id: 'smoke-tail', engine, root, config: { timeoutMs: 60000 } })
+  await tail.init()
+  await tail.createDataset({
+    name: 'tail',
+    variables: [{ name: 'v', type: 'numeric' }],
+    rows: [[1], [2], [3]],
+  })
+  let tailSaid = ''
+  try {
+    await tail.runSyntax('DATA LIST FREE /v.\nBEGIN DATA\n1\n2\nEND DATA. DESCRIPTIVES VARIABLES=v.')
+  } catch (error) {
+    tailSaid = error.message
+  }
+  assert.match(tailSaid, /END DATA 必须独占一行/, `tail said: ${tailSaid}`)
+  assert.doesNotMatch(tailSaid, /Missing END DATA/, `tail kept the engine wording: ${tailSaid}`)
+  console.log('a command after END DATA is explained in Chinese, not as an inline-data error')
+}
+
 // Crashes are reported through the exit code and stderr; the core file PSPP
 // would otherwise drop into /var/lib/systemd/coredump is noise. The wrapper that
 // sets the limit must not touch argv either (spaces and non-ASCII survive).

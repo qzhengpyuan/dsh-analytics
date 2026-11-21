@@ -1,3 +1,13 @@
+## 0.54.55
+
+Win10 0.54.49 报告 V3 的 FAIL：`END DATA` 同行命令的中文提示是**死代码**。`inlineDataTailProblem(requested)` 的检查写在「引擎退出码非 0 且没有任何表」那个分支**之后**，而 PSPP 对这类脚本必定 exit 1 且零表，所以永远先抛出英文原文 `Missing END DATA while reading inline data.`（`lib/workspace.js` 里那段检查在 `parsed.length === 0` 分支内，走不到）。
+
+- 把检查提到 `(result.code !== 0 || result.signal) && parsed.length === 0` 分支的**最前面**，命中就抛中文。
+- 报告 §4/§6 的误报（`DESCRIPTIVES` 的 `Missing N (listwise) = 0` 行、`T-TEST` 空组）在 0.54.51 已因「所有 N 都为 0」判据修好，本包复核覆盖：12 例普通数据 `DESCRIPTIVES score.` 不再挂权重注文。
+- `test/smoke.mjs` 加真引擎用例（`END DATA. DESCRIPTIVES …` 必须报「必须独占一行」且不含 `Missing END DATA`）。
+
+32 套件 / 523 条 ok（smoke 套件只打印不计数）。
+
 ## 0.54.54
 
 Win10 0.54.48 报告 V6 的 7 处英文残留，根因是同一个：**模板按「key 长度」排序**，通用键 `{0}：{1}` 比 `拆分：{0}` 长，于是任何「前缀：后缀」都被它吃掉，只把全角冒号换半角 —— 产出 `拆分: grp`、`删除第 1 cases`、`Histogram of 画 score` 这种半汉半英。
