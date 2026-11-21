@@ -2296,6 +2296,7 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     // and only an item with no title can reach the fallback word.
     assert.equal(hooks.tr('▸ 表格'), '▸ Table', 'the collapsed marker does not stop translation')
     assert.equal(hooks.tr('▸ 图'), '▸ Graphs', 'the collapsed marker does not stop translation')
+    assert.equal(hooks.tr('▾ 表格'), '▾ Table', 'the expanded marker does not stop translation either')
   }
   // The HTML export leaves the panel, so its chrome has to follow the same
   // language: a file whose title says "PSPP 输出" and whose notes say "注：" is a

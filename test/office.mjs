@@ -883,7 +883,7 @@ check('an English export writes English shell text and keeps data values', () =>
   const docx = unzip(buildDocx({ items, sources, lang: 'en' }))
   const body = docx['word/document.xml'].toString('utf8')
   assert.match(body, /Note: /, 'the note prefix is translated')
-  assert.match(body, /Source: New dataset \(d\.sav\)/, `source stamp: ${body.slice(0, 400)}`)
+  assert.match(body, /Source: New dataset\(d\.sav\)/, `source stamp: ${body.slice(0, 400)}`)
   assert.match(body, /Run #3/, 'the run number is translated')
   assert.match(body, /Data fingerprint ab12cd34/, 'the fingerprint label is translated')
   assert.match(body, /甲|乙/, 'data values stay as entered')

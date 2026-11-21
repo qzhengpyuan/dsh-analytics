@@ -72,7 +72,7 @@ window.__ModuleLoader__.load({
       if (!/[\u4e00-\u9fff]/.test(text) || text.length > 600) return text
       // Both the checked marker and the collapsed marker ride in front of an
       // otherwise translatable label; peel them off instead of failing the match.
-      const marked = /^([✓▸]\s*)(.*)$/.exec(text)
+      const marked = /^([✓▸▾]\s*)(.*)$/.exec(text)
       if (marked) return `${marked[1]}${translateOne(marked[2])}`
       for (const { pattern, value } of DICT_TEMPLATES) {
         const match = pattern.exec(text)
