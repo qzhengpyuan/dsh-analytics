@@ -880,6 +880,24 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('a command after END DATA is explained in Chinese, not as an inline-data error')
 }
 
+// A run can return tables and still have rejected part of the syntax. The panel
+// does not show `diagnostics`, so without a note on the first table the result
+// reads as a clean run of everything that was pasted.
+{
+  const banner = new Workspace({ id: 'banner', root: join(root, 'banner'), engine })
+  await banner.init()
+  await banner.createDataset({
+    variables: [{ name: 'a', type: 'numeric', measure: 'scale' }],
+    rows: [{ a: 1 }, { a: 2 }, { a: 3 }],
+  })
+  const run = await banner.runSyntax('DESCRIPTIVES a.\nSORT CASES BY nosuch.')
+  assert.ok(run.items.length > 0, 'expected at least one table')
+  const notes = run.items.flatMap((item) => item.notes ?? [])
+  assert.ok(notes.some((note) => /处错误/.test(note)), `notes: ${JSON.stringify(notes)}`)
+  assert.ok(!notes.some((note) => /处错误/.test(note) && /0 处/.test(note)), 'count must not be zero')
+  console.log('a partial run says on its first table that part of the syntax was rejected')
+}
+
 // Crashes are reported through the exit code and stderr; the core file PSPP
 // would otherwise drop into /var/lib/systemd/coredump is noise. The wrapper that
 // sets the limit must not touch argv either (spaces and non-ASCII survive).

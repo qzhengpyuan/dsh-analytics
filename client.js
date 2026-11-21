@@ -6610,9 +6610,13 @@ let ITEM_CSV_PENDING = null
               ? tr('新建数据集{0}', from.name ? tr('（{0}，未保存）', from.name) : tr('（未保存）'))
               : (from.sourcePath ?? from.name ?? '未命名数据')
             const size = band(from.sourceSize)
-            return tr(`${escapeForExport(which)} · ${from.caseCount} 例 · ${from.varCount} 变量${size ? ` · ${size}` : ''}${when ? ` · 打开于 ${escapeForExport(when)}` : ''}`)
+            // Filled once with translated pieces: `tr()` only replaces at render
+            // time, so interpolating ` · 打开于 …` first left that fragment in
+            // Chinese inside the English file.
+            return tr('{0} · {1} 例 · {2} 变量{3}{4}', escapeForExport(which), from.caseCount, from.varCount,
+              size ? ` · ${size}` : '', when ? tr(' · 打开于 {0}', escapeForExport(when)) : '')
           })
-          parts.push(`<hr><p class="ap-export-note"><b>${tr('数据来源：')}</b><br>` + lines.map((line) => tr(line)).join('<br>') + '</p>')
+          parts.push(`<hr><p class="ap-export-note"><b>${tr('数据来源：')}</b><br>` + lines.join('<br>') + '</p>')
           parts.push(`<p class="ap-export-note">${tr('（由 dsh-analytics-pspp 生成，引擎 GNU PSPP；改动数据后请重新运行分析。）')}</p>`)
         }
         const blob = new Blob([parts.join('\n')], { type: 'text/html;charset=utf-8' })

@@ -844,8 +844,8 @@ await check('a very long table is clipped in the document, with a note that says
   const docx = unzip(buildDocx({ items, maxRows: 500 }))['word/document.xml'].toString('utf8')
   const rowsInDocx = (docx.match(/<w:tr[ >]/g) ?? []).length
   assert.equal(rowsInDocx, 501, `the document carries 500 body rows plus the header, got ${rowsInDocx}`)
-  assert.match(docx, /表太长：这张表共 3000 行，文档里只放了前 500 行/, 'the note names the real size')
-  assert.match(docx, /导出为 CSV/, 'and points at the way to get everything')
+  assert.match(docx, /表太长：这张表共 3000 行，这个文件里只放了前 500 行/, 'the note names the real size')
+  assert.match(docx, /导出表格为 CSV/, 'and points at the way to get everything')
   assert.equal(docx.includes('取值501'), false, 'nothing past the limit leaks into the document')
 
   const small = unzip(buildDocx({ items: [{ kind: 'table', table: { caption: '取值', matrix: matrix.slice(0, 11) } }], maxRows: 500 }))['word/document.xml'].toString('utf8')
@@ -854,6 +854,37 @@ await check('a very long table is clipped in the document, with a note that says
   const sheet = unzip(buildXlsx({ items, maxRows: 500 }))['xl/worksheets/sheet1.xml'].toString('utf8')
   assert.match(sheet, /注：表太长：这张表共 3000 行/, 'the Excel sheet carries the same note')
   assert.equal(sheet.includes('取值501'), false, 'and the same cut')
+})
+
+// The export shell follows the interface language; data values do not. A reader
+// of the English document should not meet 中文 headings, and 甲/乙 must survive
+// exactly as entered.
+check('an English export writes English shell text and keeps data values', () => {
+  const items = [
+    {
+      kind: 'table',
+      title: 'Frequencies',
+      runId: 3,
+      notes: ['有 9 个单元格的期望频数 < 5'],
+      table: { caption: 'Frequencies', matrix: [['', 'N'], ['甲', '1'], ['乙', '2']] },
+      provenance: { name: 'd.sav', caseCount: 4, varCount: 2, openedAt: Date.now(), origin: 'new', runId: 3, digest: 'ab12cd34' },
+    },
+  ]
+  const sources = [{ name: 'd.sav', caseCount: 4, varCount: 2, origin: 'new', openedAt: Date.now() }]
+  const docx = unzip(buildDocx({ items, sources, lang: 'en' }))
+  const body = docx['word/document.xml'].toString('utf8')
+  assert.match(body, /Note: /, 'the note prefix is translated')
+  assert.match(body, /Source: New dataset \(d\.sav\)/, `source stamp: ${body.slice(0, 400)}`)
+  assert.match(body, /Run #3/, 'the run number is translated')
+  assert.match(body, /Data fingerprint ab12cd34/, 'the fingerprint label is translated')
+  assert.match(body, /甲|乙/, 'data values stay as entered')
+  assert.equal(/新建数据集|来源|打开于|数据指纹|运行 #/.test(body), false, `shell text left in Chinese: ${body.match(/[^\x00-\x7F]{2,}/g)}`)
+  const core = docx['docProps/core.xml'].toString('utf8')
+  assert.match(core, /Source: /, 'the document properties are translated too')
+  const sheet = unzip(buildXlsx({ items, sources, lang: 'en' }))['xl/worksheets/sheet1.xml'].toString('utf8')
+  assert.match(sheet, /Note: /, 'the Excel note prefix is translated')
+  const empty = unzip(buildXlsx({ items: [], lang: 'en' }))['xl/worksheets/sheet1.xml'].toString('utf8')
+  assert.match(empty, /no table output/, 'the empty-sheet placeholder is translated')
 })
 
 if (failures.length > 0) {
