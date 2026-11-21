@@ -1745,6 +1745,15 @@ check('a data group far from MATRIX. is not the matrix group', () => {
   assert.deepEqual(parts, ['DESCRIPTIVES y.', 'DATA LIST FREE /x.', 'BEGIN DATA\n1\nEND DATA.', 'DESCRIPTIVES x.'], JSON.stringify(parts))
 })
 
+check('blank lines do not separate MATRIX. from its data group', () => {
+  // "Only whitespace in between" has to include blank lines, otherwise the same
+  // malformed block kept its data group just because the user left a gap.
+  for (const gap of ['\n', '\n\n', '\n\t\n', '\r\n\r\n']) {
+    const parts = splitStatements(`MATRIX.${gap}BEGIN DATA\n1\nEND DATA.\nDESCRIPTIVES x.`)
+    assert.deepEqual(parts, ['DESCRIPTIVES x.'], JSON.stringify([gap, parts]))
+  }
+})
+
 check('junk after END DATA still ends the matrix data group', () => {
   // `END DATA 5` is a syntax error PSPP reports, but leaving the block open glued
   // every following command into one statement.
