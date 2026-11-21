@@ -1660,4 +1660,13 @@ await check('the collinearity note stays on a coefficient table', async () => {
   assert.match(said, /共线性诊断/)
 })
 
+check('a star value in the middle of inline data stays data', () => {
+  // The block-end test used to run on the whole rest of the file, so a later
+  // `END DATA.` cleared the "inside inline data" flag on the first data line and
+  // every `*`-prefixed value from the second line on was stripped as a comment.
+  const script = 'DATA LIST FREE /s (A20).\nBEGIN DATA\naaa\n* 7\nEND DATA.\nLIST.'
+  const block = splitStatements(script).find((piece) => /^BEGIN DATA/i.test(piece.trim())) ?? ''
+  assert.ok(/\* 7/.test(block), `a star value in the middle of the data stays data: ${JSON.stringify(block)}`)
+})
+
 console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)

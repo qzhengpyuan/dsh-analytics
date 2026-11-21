@@ -1940,6 +1940,21 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   console.log('ok  the i18n wrapper translates text and props, and falls back to Chinese')
 }
 
+// A cell holds a value, not a caption: the dictionary has short Chinese keys
+// such as 保存/缺失/总计, so running data through tr() turned 总计 into "Total"
+// and a variable named 保存 into "Save" in the English panel.
+{
+  hooks.setDictionary({ 保存: 'Save', 缺失: 'Missing', 总计: 'Total', '{0} 个': '{0}' })
+  const cell = hooks.h('td', { translate: false }, '总计')
+  assert.equal(cell.props.children, '总计', 'a value marked as content stays verbatim')
+  assert.equal(cell.props.translate, undefined, 'the marker never reaches the DOM')
+  const header = hooks.h('span', { className: 'ap-head-name', translate: false }, '保存')
+  assert.equal(header.props.children, '保存', 'a variable name stays verbatim')
+  assert.equal(hooks.h('td', null, '总计').props.children, 'Total', 'interface text still translates')
+  hooks.setDictionary(null)
+  console.log('ok  data values and variable names are not translated')
+}
+
 // Panel side of the same feature: state.locale drives one fetch of api/locale,
 // and the panel redraws in English without a reload.
 {

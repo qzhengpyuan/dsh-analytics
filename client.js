@@ -90,6 +90,15 @@ window.__ModuleLoader__.load({
     // translated on the way in, everything else goes to React unchanged.
     function h(type, props, ...children) {
       let next = props
+      // Data values, variable names and labels are content, not interface: the
+      // dictionary has short Chinese keys such as 保存/缺失/总计, so running a
+      // data cell through tr() turns a value into a menu label. `translate:false`
+      // switches the walk off for that subtree.
+      const keepText = props?.translate === false
+      if (props && props.translate !== undefined) {
+        next = { ...props }
+        delete next.translate
+      }
       if (props && DICT) {
         for (const key of TRANSLATED_PROPS) {
           if (typeof props[key] === 'string') {
@@ -99,7 +108,7 @@ window.__ModuleLoader__.load({
         }
       }
       if (children.length === 0) return React.createElement(type, next)
-      return React.createElement(type, next, ...children.map(mapText))
+      return React.createElement(type, next, ...children.map(keepText ? (child) => child : mapText))
     }
 
     // The 编辑 menu lives in the panel, but copy/cut/paste/clear belong to the
@@ -3848,11 +3857,11 @@ function normalizeChoices(list) {
                   onWidth?.(variable.name, Math.max(48, Math.min(600, 16 + longest * 8)))
                 },
               },
-              h('span', { className: 'ap-head-name' }, variable.name),
+              h('span', { className: 'ap-head-name', translate: false }, variable.name),
               // SPSS prints the variable label under the name in the header, so
               // a sheet of v1..v9 still reads as age/sex/score. Only two lines:
               // a third would push the rows down for nothing.
-              variable.label ? h('span', { className: 'ap-head-label' }, variable.label) : null,
+              variable.label ? h('span', { className: 'ap-head-label', translate: false }, variable.label) : null,
               h('span', { className: 'ap-col-resize' }))),
             Array.from({ length: spareCount }, (unused, offset) => h('th', {
               key: `__spare-${offset}`,
@@ -3979,6 +3988,8 @@ function normalizeChoices(list) {
                   return h('td', {
                     key: variable.name,
                     className: `${alignOf(variable)} ${isSelected ? 'ap-sel' : ''} ${picked ? 'ap-cell-selected' : ''} ${freeze.cols !== false && column === 0 ? 'ap-freeze-col' : ''}`.trim(),
+                    // A cell holds a value, not a caption.
+                    translate: false,
                     title: showLabels === false ? labelled : raw,
                     onDoubleClick: () => { setEditing({ row: rowIndex, column }); onSelect?.({ row: rowIndex, column }) },
                     onMouseDown: (event) => startMarquee(event, rowIndex, column),
@@ -4456,6 +4467,7 @@ function normalizeChoices(list) {
                   className: 'ap-var-name',
                   style: { color: 'var(--ap-text)', fontWeight: 600 },
                   title: '单击改名',
+                  translate: false,
                 }, variable.name),
                 h('button', {
                   className: 'ap-tool',
