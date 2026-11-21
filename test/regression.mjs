@@ -1287,12 +1287,20 @@ check('double quoted strings hold periods too', () => {
   assert.equal(other.asksForResults, false, 'a double quote inside single quotes does not end the string')
 })
 
+check('sampling everything away is not called a filter', () => {
+  const stats = classifyScript('SAMPLE .01.\nDESCRIPTIVES score.')
+  assert.equal(stats.samplesData, true)
+  assert.equal(stats.filtersData, false)
+  assert.equal(classifyScript('SAMPLE 50 FROM 1000.\nDESCRIPTIVES score.').samplesData, true)
+})
+
 check('a table that says N = 0 while the panel holds cases explains itself', () => {
   const dataset = { rows: [[1], [2], [3]] }
   const table = () => [{ kind: 'table', title: 'Descriptive Statistics', notes: [], table: { caption: 'Descriptive Statistics', matrix: [['', 'N', 'Mean'], ['score', '0', '.']] } }]
   const items = table()
   assert.equal(annotateZeroCases(items, dataset), 1)
   assert.match(items[0].notes[0], /WEIGHT OFF/)
+  assert.match(items[0].notes[0], /缺失值/)
   const healthy = [{ kind: 'table', title: 'D', notes: [], table: { caption: 'D', matrix: [['', 'N', 'Mean'], ['score', '3', '2.0']] } }]
   assert.equal(annotateZeroCases(healthy, dataset), 0)
   const noCases = table()
