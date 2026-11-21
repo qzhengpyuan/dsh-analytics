@@ -1,3 +1,15 @@
+## 0.54.46
+
+Win10 0.54.41 报告 §5 的两条 P2：
+
+- `MATRIX` 的结束判据改回行首锚定（`/^[ \t]*END\s+MATRIX\b/im`）：矩阵字符串里写 `'END MATRIX here'` 不再提前收尾，块内的 `COMPUTE` 也就不会留下来当数据步（0 行数据集上那句「这段语法先改了数据」是错误归因）。
+- `END DATA` 的块尾判据收紧：后面只允许空白与一个可选句点（`/^[ \t]*END\s+DATA[ \t]*(?:\.[ \t]*.*)?$/im`）。数据值恰好以 `END DATA` 开头（`END DATA DESCRIPTIVES VARIABLES=s`）时不再被当成块尾 —— PSPP 自己也不认这种行。
+- `stripCommentLines()` 的块尾判断同步收紧，数据值开头的 `END DATA …` 不会提前清掉 `inInlineData`。
+
+用例：矩阵字符串含 `END MATRIX` 时整块丢弃、只留 `DESCRIPTIVES`；`END DATA DESCRIPTIVES …` 留在数据区且 `asksForResults=false`。
+
+32 个套件 / 515 条 ok（regression 75）。
+
 ## 0.54.45
 
 `annotateWeightedEmpty` 改为读语句而不是整段文本：`* WEIGHT BY w.` 这种注释、以及 `TITLE 'WEIGHT BY w'.` 里的字符串都不算加权；出现两次 `WEIGHT BY` 时取最后一条（与引擎一致）。以前注释里提到权重也会给表加注文。

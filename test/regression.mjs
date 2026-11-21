@@ -1287,6 +1287,22 @@ check('double quoted strings hold periods too', () => {
   assert.equal(other.asksForResults, false, 'a double quote inside single quotes does not end the string')
 })
 
+check('a matrix string that says END MATRIX does not end the block', () => {
+  const script = "MATRIX.\nCOMPUTE s = 'END MATRIX here'.\nCOMPUTE x = {1}.\nEND MATRIX.\nDESCRIPTIVES VARIABLES=v."
+  const parts = splitStatements(script)
+  assert.equal(parts.length, 1, JSON.stringify(parts))
+  assert.equal(parts[0], 'DESCRIPTIVES VARIABLES=v.')
+  assert.equal(classifyScript(script).changesData, false)
+})
+
+check('a data value that starts with END DATA is still data', () => {
+  const script = 'DATA LIST FREE /s (A34).\nBEGIN DATA\nEND DATA DESCRIPTIVES VARIABLES=s\n2\nEND DATA.'
+  const parts = splitStatements(script)
+  assert.equal(parts.length, 2, JSON.stringify(parts))
+  assert.ok(parts[1].includes('END DATA DESCRIPTIVES VARIABLES=s'), parts[1])
+  assert.equal(classifyScript(script).asksForResults, false)
+})
+
 check('a data block inside matrix algebra does not leak its state', () => {
   // `BEGIN DATA` inside MATRIX never gets an END DATA of its own; the flag used
   // to stay on and the rest of the file stopped being comment-stripped.
