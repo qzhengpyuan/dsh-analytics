@@ -1250,6 +1250,11 @@ check('inline data is data, not syntax', () => {
   assert.equal(status.loadsData, true, 'inline data defines the dataset')
   assert.equal(status.asksForResults, false, 'data rows are not commands')
   assert.equal(status.changesData, false, 'data rows are not data steps either')
+  // Commands after the block must survive: the merge used to look at the next
+  // piece and, when END DATA was already inside the current one, eat the rest.
+  const after = classifyScript('BEGIN DATA\n1 2\nEND DATA.\nDESCRIPTIVES x.')
+  assert.equal(after.asksForResults, true, 'the analysis after inline data still counts')
+  assert.equal(after.loadsData, true, 'inline data still counts as loading')
 })
 
 check('a comment-looking line inside a string stays part of the string', () => {
