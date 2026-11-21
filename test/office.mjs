@@ -770,7 +770,7 @@ const builtInPanel = { sessionId: 'session-b', origin: 'new', sourcePath: null, 
 
 await check('describeSources names a built dataset as data, not as a file', () => {
   const [fileLine, builtLine] = describeSources([fromFile, builtInPanel])
-  assert.match(fileLine, /^\/data\/a\.sav · 60 例 · 5 变量，2\.0 KB · 打开于 /)
+  assert.match(fileLine, /^\/data\/a\.sav · 60 例 · 5 变量 · 2\.0 KB · 打开于 /)
   // The old label printed "prov-probe · 3 例 · 1 变量", which reads like a path.
   assert.match(builtLine, /^新建数据集（prov-probe，未保存） · 3 例 · 1 变量$/)
   assert.ok(!builtLine.includes('/data/'), 'a built dataset must not invent a path')
