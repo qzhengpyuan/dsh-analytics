@@ -1287,6 +1287,16 @@ check('double quoted strings hold periods too', () => {
   assert.equal(other.asksForResults, false, 'a double quote inside single quotes does not end the string')
 })
 
+check('the end of an inline block is a command, not a value', () => {
+  // `END DATA` at the start of a line ends the block; the same words inside a
+  // value do not.
+  const parts = splitStatements('BEGIN DATA\n1 END DATA 2\nEND DATA.\nDESCRIPTIVES v.')
+  assert.equal(parts.length, 2, JSON.stringify(parts))
+  assert.ok(parts[0].endsWith('END DATA.'), parts[0])
+  const quoted = splitStatements("TITLE 'BEGIN DATA'. DESCRIPTIVES v.")
+  assert.equal(quoted.length, 2, JSON.stringify(quoted))
+})
+
 check("an apostrophe in the data does not open a string", () => {
   // `Bob's` is a value, not the start of a quoted string. Reading it as one
   // swallowed every command after END DATA, and the run went silent.
