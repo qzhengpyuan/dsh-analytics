@@ -111,6 +111,17 @@ window.__ModuleLoader__.load({
       return React.createElement(type, next, ...children.map(keepText ? (child) => child : mapText))
     }
 
+    // One timestamp, one format, wherever it is shown: the panel used to call
+    // toLocaleString('zh-CN') while the Word/Excel/HTML exports wrote
+    // "2026-11-16 13:20", so the same provenance line looked different in the
+    // two places — and stayed in the zh-CN layout even in an English panel.
+    function formatWhen(ms) {
+      if (typeof ms !== 'number' || !Number.isFinite(ms)) return null
+      const date = new Date(ms)
+      const pad = (value) => String(value).padStart(2, '0')
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+    }
+
     // The 编辑 menu lives in the panel, but copy/cut/paste/clear belong to the
     // data grid (only it knows the selected rectangle). Rather than thread a
     // ref through three components, the grid publishes a tiny command table and
@@ -4824,7 +4835,7 @@ function normalizeChoices(list) {
               const from = item.provenance
               if (!from) return null
               const name = from.name ?? (from.sourcePath ? basenameOf(from.sourcePath) : null)
-              const opened = from.openedAt ? new Date(from.openedAt).toLocaleString('zh-CN', { hour12: false }) : null
+              const opened = formatWhen(from.openedAt)
               // A dataset built in the panel has no file, so its name must not be
               // printed as if it were one ("prov-probe · 3 例" reads like a path).
               const built = from.origin === 'new'
@@ -4837,7 +4848,7 @@ function normalizeChoices(list) {
               const size = typeof from.sourceSize === 'number'
                 ? (from.sourceSize < 1024 ? `${from.sourceSize} B` : `${(from.sourceSize / 1024).toFixed(1)} KB`)
                 : null
-              const modified = from.sourceMtime ? new Date(from.sourceMtime).toLocaleString('zh-CN', { hour12: false }) : null
+              const modified = formatWhen(from.sourceMtime)
               const detail = [
                 built
                   ? '这份数据没有对应的磁盘文件（在面板里新建的）'
@@ -6571,7 +6582,7 @@ let ITEM_CSV_PENDING = null
               const which = from.origin === 'new'
                 ? `新建数据集${from.name ? `（${from.name}）` : ''}`
                 : (from.name ?? from.sourcePath ?? '未命名数据')
-              const when = from.openedAt ? new Date(from.openedAt).toLocaleString('zh-CN', { hour12: false }) : null
+              const when = formatWhen(from.openedAt)
               const size = typeof from.sourceSize === 'number'
                 ? (from.sourceSize < 1024 ? `${from.sourceSize} B` : `${(from.sourceSize / 1024).toFixed(1)} KB`)
                 : null
@@ -6605,7 +6616,7 @@ let ITEM_CSV_PENDING = null
             ? (value < 1024 ? `${value} B` : `${(value / 1024).toFixed(1)} KB`)
             : null)
           const lines = [...seenSources.values()].map((from) => {
-            const when = from.openedAt ? new Date(from.openedAt).toLocaleString('zh-CN', { hour12: false }) : null
+            const when = formatWhen(from.openedAt)
             const which = from.origin === 'new'
               ? tr('新建数据集{0}', from.name ? tr('（{0}，未保存）', from.name) : tr('（未保存）'))
               : (from.sourcePath ?? from.name ?? '未命名数据')

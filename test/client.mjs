@@ -1120,6 +1120,13 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.ok(prov, 'a table carries a provenance chip')
   assert.match(prov.textContent, /a\.sav · 5 例 · 1 变量/, 'the chip names the file and the case count')
   assert.match(prov.getAttribute('title'), /来源路径：\/tmp\/a\.sav/, 'the tooltip has the full path')
+  // One timestamp, one format: the panel used to say 2026/1/2 03:44:05 while the
+  // exports of the same provenance said 2026-01-02 03:44, and stayed in the
+  // zh-CN layout even when the panel was English.
+  assert.match(prov.getAttribute('title'), /打开于 \d{4}-\d{2}-\d{2} \d{2}:\d{2}(?!:)/,
+    `the panel writes the export's timestamp format: ${prov.getAttribute('title')}`)
+  assert.ok(!/\d{1,2}:\d{2}:\d{2}/.test(prov.getAttribute('title')),
+    `the panel keeps no seconds the export drops: ${prov.getAttribute('title')}`)
   const badge = [...stateHost.querySelectorAll('.ap-status button')].find((node) => /导入说明/.test(node.textContent))
   assert.ok(badge, 'the status bar keeps an import-notes entry')
   assert.match(badge.textContent, /导入说明 1/)
@@ -1129,6 +1136,28 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   const noteModal = stateHost.querySelector('.ap-modal')
   assert.ok(noteModal && /原表头保留为标签/.test(noteModal.textContent), 'the dialog lists why each column was renamed')
+  // Notes arrive from three different annotators and are appended, never
+  // sorted: a table with three of them must read in the order they were added,
+  // each carrying the prefix exactly once.
+  payload.state.items[0].notes = ['甲：第一', '乙条不含冒号', '丙：第三']
+  window.fetch = async () => ({ ok: true, status: 200, text: async () => JSON.stringify(payload) })
+  globalThis.fetch = window.fetch
+  const noteHost = window.document.createElement('div')
+  window.document.body.appendChild(noteHost)
+  const noteRoot = createRoot(noteHost)
+  await act(async () => {
+    noteRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+  })
+  const noteTab = [...noteHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
+  await act(async () => {
+    noteTab.click()
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const rendered = [...noteHost.querySelectorAll('.ap-note')].map((node) => node.textContent)
+  assert.deepEqual(rendered, ['注：甲：第一', '注：乙条不含冒号', '注：丙：第三'],
+    `three notes keep their order and get one prefix each: ${rendered.join(' | ')}`)
+  await act(async () => { noteRoot.unmount() })
   await act(async () => { stateRoot.unmount() })
 
   // A dataset built in the panel has no file: the chip must not print its label
