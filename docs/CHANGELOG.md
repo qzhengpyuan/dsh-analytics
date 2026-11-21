@@ -1,3 +1,11 @@
+## 0.54.44
+
+Win10 0.54.39 报告 V5-④：`MATRIX` 块里的 `BEGIN DATA` 没有自己的 `END DATA`，`stripCommentLines()` 的 `inInlineData` 标记会一直开着，导致后面整份文件都不再剔除注释（低危，但会改变分类结果）。`END MATRIX` 现在也清这个标记。
+
+用例：`MATRIX. / BEGIN DATA / END MATRIX. / * a note / DESCRIPTIVES v.` 的 `asksForResults` 必须仍为 true。
+
+32 个套件 / 512 条 ok（regression 72）。
+
 ## 0.54.43
 
 Win10 0.54.38 报告 §6 的两条：

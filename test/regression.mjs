@@ -1287,6 +1287,13 @@ check('double quoted strings hold periods too', () => {
   assert.equal(other.asksForResults, false, 'a double quote inside single quotes does not end the string')
 })
 
+check('a data block inside matrix algebra does not leak its state', () => {
+  // `BEGIN DATA` inside MATRIX never gets an END DATA of its own; the flag used
+  // to stay on and the rest of the file stopped being comment-stripped.
+  const stats = classifyScript('MATRIX.\nBEGIN DATA\nEND MATRIX.\n* a note\nDESCRIPTIVES v.')
+  assert.equal(stats.asksForResults, true)
+})
+
 check('the end of an inline block is a command, not a value', () => {
   // `END DATA` at the start of a line ends the block; the same words inside a
   // value do not.
