@@ -1,5 +1,13 @@
 <!-- 计数口径：从 0.54.58 起，各段写的「全量 N 条 ok」一律按**没装 pdftotext 的机器**计 —— 即全量 `grep -cE '^ok\b'` 的结果里不含 `pdf-notes` 套件那一条（只有装了 poppler 的机器才会跑它，会多 1）。本机与 CI 都装了 poppler，所以同一棵树上本机数字比这里写的大 1。0.54.57 及更早小节保留当时的旧口径（含 skip），不再改。 -->
 
+## 0.54.75
+
+Win10 0.54.74 报告的两条 P3（都只在「未闭合 `MATRIX`」这类畸形脚本上出现，只影响分类文本，不影响引擎与出表）：
+
+- **只剥紧邻 `MATRIX.` 的数据组**（P3-①）：0.54.74 的剥离正则 `^[ \s]*BEGIN` 在 `m` 模式下能命中尾巴里任意行首，把「跟 `DATA LIST` 走的数据块」也当矩阵数据剥掉了，`DATA LIST FREE /x.` 于是成了没有数据块的孤命令。现在改成显式判断「`MATRIX.` 之后只有空白就接 `BEGIN DATA`」才剥：`MATRIX.` + `DESCRIPTIVES y.` + `DATA LIST FREE /x.` + 数据块 + `DESCRIPTIVES x.` 切出四条，数据块仍在。
+- **`END DATA` 带杂物也收尾**（P3-②）：新增 `END_DATA_ANY = /^[ \t]*END\s+DATA\b[^\n]*$/im`，只在矩阵代数里用它认块尾。`MATRIX.` + `BEGIN DATA` + `1` + `END DATA 5` + `DESCRIPTIVES x.` 以前整段粘成一条（`asksForResults:false`），现在只剩 `["DESCRIPTIVES x."]`。PSPP 自己会对 `END DATA 5` 报 `Syntax error expecting end of command.`，插件只负责不把后面的命令埋进去。
+- 测试：新增「a data group far from MATRIX. is not the matrix group」「junk after END DATA still ends the matrix data group」，regression 96、全量 **540**（装了 poppler 的机器 541）。
+
 ## 0.54.74
 
 Win10 0.54.73 报告的三条 P3：

@@ -1738,6 +1738,20 @@ check('MATRIX DATA is a command, not algebra', () => {
   assert.equal(parts[0], 'MATRIX DATA VARIABLES=x y.', JSON.stringify(parts))
 })
 
+check('a data group far from MATRIX. is not the matrix group', () => {
+  // The strip used to key on any line start, so a data group that belonged to a
+  // DATA LIST further into the tail was thrown away with the algebra.
+  const parts = splitStatements('MATRIX.\nDESCRIPTIVES y.\nDATA LIST FREE /x.\nBEGIN DATA\n1\nEND DATA.\nDESCRIPTIVES x.')
+  assert.deepEqual(parts, ['DESCRIPTIVES y.', 'DATA LIST FREE /x.', 'BEGIN DATA\n1\nEND DATA.', 'DESCRIPTIVES x.'], JSON.stringify(parts))
+})
+
+check('junk after END DATA still ends the matrix data group', () => {
+  // `END DATA 5` is a syntax error PSPP reports, but leaving the block open glued
+  // every following command into one statement.
+  const parts = splitStatements('MATRIX.\nBEGIN DATA\n1\nEND DATA 5\nDESCRIPTIVES x.')
+  assert.deepEqual(parts, ['DESCRIPTIVES x.'], JSON.stringify(parts))
+})
+
 check('an unterminated MATRIX drops only itself', () => {
   // No END MATRIX and no END DATA: the splitter keeps the tail in one statement,
   // and everything after `MATRIX.` belongs to the user, not to the algebra.
