@@ -1202,6 +1202,14 @@
     "{0} 的构成（环形）": "Composition of {0} (donut)",
     "{0}：{1}": "{0}: {1}",
     "已在第 {0} 行插入个案": "Inserted a case at row {0}",
-    "已删除第 {0} 行": "Deleted row {0}"
+    "已删除第 {0} 行": "Deleted row {0}",
+    "{0} · 第 {1} 行": "{0} · Row {1}",
+    "第 {0} 行（还没有变量）": "Row {0} (no variable yet)",
+    "在第 {0} 行前插入个案": "Insert a case before row {0}",
+    "删除第 {0} 个个案": "Delete case {0}",
+    "整表按 {0} 升序": "Sort the whole sheet by {0} ascending",
+    "整表按 {0} 降序": "Sort the whole sheet by {0} descending",
+    "画 {0} 的直方图": "Histogram of {0}",
+    "{0} · {1} 个变量：{2}": "{0} · {1} variables: {2}"
   }
 }

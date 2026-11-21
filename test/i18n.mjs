@@ -82,6 +82,19 @@ check('chart titles are templates, so the variable name survives the switch', ()
   assert.equal(localize('已删除第 2 行', 'en'), 'Deleted row 2')
 })
 
+check('a specific template beats a generic one of the same shape', () => {
+  // `{0}：{1}` is long as a pattern but carries one character of text; it used to
+  // win over `拆分：{0}`, leaving "拆分: grp" — half translated.
+  assert.equal(localize('拆分：grp', 'en'), 'Split by: grp')
+  assert.equal(localize('会话：default', 'en'), 'Session: default')
+  assert.equal(localize('score · 第 1 行', 'en'), 'score · Row 1')
+  assert.equal(localize('删除第 5 个个案', 'en'), 'Delete case 5')
+  assert.equal(localize('整表按 score 升序', 'en'), 'Sort the whole sheet by score ascending')
+  assert.equal(localize('画 score 的直方图', 'en'), 'Histogram of score')
+  assert.equal(localize('第 3 行（还没有变量）', 'en'), 'Row 3 (no variable yet)')
+  assert.equal(localize('在第 2 行前插入个案', 'en'), 'Insert a case before row 2')
+})
+
 console.log()
 if (process.exitCode) console.log(`${checks} checks passed, some failed`)
 else console.log(`${checks} checks passed`)

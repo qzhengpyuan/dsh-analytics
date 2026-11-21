@@ -33,9 +33,13 @@ window.__ModuleLoader__.load({
           .filter(([key, value]) => /\{\d+\}/.test(key) && typeof value === 'string' && /\{\d+\}/.test(value))
           .map(([key, value]) => {
             const parts = key.split(/\{\d+\}/).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-            return { pattern: new RegExp(`^${parts.join('(.+?)')}$`), value }
+            const literal = key.replace(/\{\d+\}/g, '').length
+            return { pattern: new RegExp(`^${parts.join('(.+?)')}$`), value, literal }
           })
-          .sort((a, b) => b.pattern.source.length - a.pattern.source.length)
+          // Sort by how much literal text the key carries, not by the length of
+          // the generated regex: `{0}：{1}` is long as a pattern but says nothing,
+          // and it used to shadow `拆分：{0}` and friends, producing "拆分: grp".
+          .sort((a, b) => b.literal - a.literal)
         : []
       TR_CACHE.clear()
     }
@@ -1492,7 +1496,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             current
               ? h('div', { className: 'ap-mr-detail' },
                 h('div', { className: 'ap-hint' },
-                  `${current.kind === 'mdgroup' ? '多分类' : '二分法'} · ${current.variables.length} 个变量：${current.variables.join(' ')}`),
+                  tr('{0} · {1} 个变量：{2}', tr(current.kind === 'mdgroup' ? '多分类' : '二分法'), current.variables.length, current.variables.join(' '))),
                 h('div', { className: 'ap-row' },
                   h('button', { className: 'ap-tool', onClick: () => onAction('frequency', current.name, { percentBase }) }, '频数表'),
                   h('button', { className: 'ap-tool', onClick: () => onEdit(current) }, '编辑…'),
@@ -7000,7 +7004,7 @@ let ITEM_CSV_PENDING = null
       const sessionChips = [
         st?.splitBy?.length
           ? {
-            label: tr(`拆分：${st.splitBy.join(' ')}`),
+            label: tr('拆分：{0}', st.splitBy.join(' ')),
             title: 'SPLIT FILE 正在生效：每个结果按该变量的取值分组输出',
             onClear: () => clearSession('SPLIT FILE OFF.'),
           }
@@ -7091,17 +7095,17 @@ let ITEM_CSV_PENDING = null
           },
           h('div', { className: 'ap-menu-label' },
             cellMenu.variable
-              ? `${cellMenu.variable} · 第 ${cellMenu.row + 1} 行`
-              : `第 ${cellMenu.row + 1} 行（还没有变量）`),
+              ? tr('{0} · 第 {1} 行', cellMenu.variable, cellMenu.row + 1)
+              : tr('第 {0} 行（还没有变量）', cellMenu.row + 1)),
           h('button', { className: 'ap-var-item', onClick: () => cellMenuAction('copy') }, '复制这个值'),
           h('div', { className: 'ap-sep' }),
-          h('button', { className: 'ap-var-item', onClick: () => cellMenuAction('insertCase') }, `在第 ${cellMenu.row + 1} 行前插入个案`),
-          h('button', { className: 'ap-var-item', onClick: () => cellMenuAction('deleteCase') }, `删除第 ${cellMenu.row + 1} 个个案`),
+          h('button', { className: 'ap-var-item', onClick: () => cellMenuAction('insertCase') }, tr('在第 {0} 行前插入个案', cellMenu.row + 1)),
+          h('button', { className: 'ap-var-item', onClick: () => cellMenuAction('deleteCase') }, tr('删除第 {0} 个个案', cellMenu.row + 1)),
           cellMenu.variable
-            ? h('button', { className: 'ap-var-item', onClick: () => cellMenuAction('sortAsc') }, `整表按 ${cellMenu.variable} 升序`)
+            ? h('button', { className: 'ap-var-item', onClick: () => cellMenuAction('sortAsc') }, tr('整表按 {0} 升序', cellMenu.variable))
             : null,
           cellMenu.variable
-            ? h('button', { className: 'ap-var-item', onClick: () => cellMenuAction('sortDesc') }, `整表按 ${cellMenu.variable} 降序`)
+            ? h('button', { className: 'ap-var-item', onClick: () => cellMenuAction('sortDesc') }, tr('整表按 {0} 降序', cellMenu.variable))
             : null,
           h('div', { className: 'ap-sep' }),
           cellMenu.variable
@@ -7118,7 +7122,7 @@ let ITEM_CSV_PENDING = null
             ? h('button', {
               className: 'ap-var-item',
               onClick: () => { setCellMenu(null); quickChart('histogram') },
-            }, `画 ${cellMenu.variable} 的直方图`)
+            }, tr('画 {0} 的直方图', cellMenu.variable))
             : null)
         })()
           : null,
