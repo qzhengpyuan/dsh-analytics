@@ -765,6 +765,33 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   assert.doesNotMatch(changedSaid, /筛/, `a data step must not be blamed on filtering: ${changedSaid}`)
   console.log('a data step before an analysis still says the dataset is empty')
 
+  // An import followed by a filter that removes everything is a filtering
+  // problem, not an empty file: blaming the file sends the user looking in the
+  // wrong place.
+  {
+    const sav = join(root, 'full.sav')
+    {
+      // A real .sav with three cases, written through the same path the panel
+      // uses, so GET FILE has something non-empty to read.
+      const importer = new Workspace({ id: 'smoke-import-filter', engine, root: join(root, 'import-filter'), config: { timeoutMs: 60000 } })
+      await importer.init()
+      await importer.createDataset({ name: 'full', variables: [{ name: 'score', type: 'numeric', measure: 'scale' }], rows: [[1], [2], [3]] })
+      await importer.save(sav)
+    }
+    const mixed = new Workspace({ id: 'smoke-import-filter2', engine, root: join(root, 'import-filter2'), config: { timeoutMs: 60000 } })
+    await mixed.init()
+    await mixed.createDataset({ name: 'full', variables: [{ name: 'score', type: 'numeric', measure: 'scale' }], rows: [[1], [2], [3]] })
+    let mixedSaid = ''
+    try {
+      await mixed.runSyntax(`GET FILE='${sav}'.\nSELECT IF score > 999.\nEXECUTE.\nDESCRIPTIVES score.`)
+    } catch (error) {
+      mixedSaid = error.message
+    }
+    assert.match(mixedSaid, /筛/, `an import plus a filter must blame the filter: ${mixedSaid}`)
+    assert.doesNotMatch(mixedSaid, /导入的那份数据是空的/, `the file is not empty: ${mixedSaid}`)
+    console.log('an import followed by a filter is blamed on the filter, not the file')
+  }
+
   // Pure data steps on an empty dataset are legitimate and must stay quiet:
   // COMPUTE and SORT are things a user does before there is data.
   for (const dataStep of ['COMPUTE z = 1.', 'SORT CASES BY score (A).']) {

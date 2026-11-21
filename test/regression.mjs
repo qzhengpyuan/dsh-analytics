@@ -1257,6 +1257,10 @@ check('a matrix block is not a data step', () => {
   // made an empty run look like "you changed the data first".
   const status = classifyScript('MATRIX.\nCOMPUTE x = {1}.\nEND MATRIX.')
   assert.equal(status.changesData, false, 'matrix algebra is not a data step')
+  // The block ends on the same line as the next command: dropping the block must
+  // not drop the analysis that follows it.
+  const sameLine = classifyScript('MATRIX.\nCOMPUTE x = {1}.\nEND MATRIX. DESCRIPTIVES score.')
+  assert.equal(sameLine.asksForResults, true, 'a command after END MATRIX still counts')
   assert.equal(classifyScript("COMPUTE note = 'GET DATA'.").loadsData, false, 'a string is not a command')
 })
 
