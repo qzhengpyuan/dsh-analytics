@@ -1133,6 +1133,10 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })()
   assert.ok(prov.getAttribute('title').includes(`打开于 ${expectedWhen}`),
     `the panel writes the export's local timestamp: ${prov.getAttribute('title')} vs ${expectedWhen}`)
+  // A provenance injected without a sessionId used to render the placeholder
+  // itself ("Session: {0}"), because tr() leaves an argument-less {0} alone.
+  assert.ok(!prov.getAttribute('title').includes('{0}'),
+    `the tooltip never shows a raw placeholder: ${prov.getAttribute('title')}`)
   assert.ok(!/\d{1,2}:\d{2}:\d{2}/.test(prov.getAttribute('title')),
     `the panel keeps no seconds the export drops: ${prov.getAttribute('title')}`)
   const badge = [...stateHost.querySelectorAll('.ap-status button')].find((node) => /导入说明/.test(node.textContent))
@@ -1171,6 +1175,14 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   // A dataset built in the panel has no file: the chip must not print its label
   // as if it were a path ("prov-probe · 3 例" read like a file name).
   payload.state.items[0].provenance = { sessionId: 'session-test', origin: 'new', sourcePath: null, name: 'prov-probe', caseCount: 3, varCount: 1, openedAt: null, at: 1794740000002 }
+  // And one that arrives without it (an item injected straight into appendItems
+  // keeps whatever provenance it was handed).
+  payload.state.items[1] = {
+    ...payload.state.items[0],
+    id: 'run-1-1',
+    title: '年龄（无会话）',
+    provenance: { origin: 'new', sourcePath: null, name: 'prov-no-session', caseCount: 2, varCount: 1, openedAt: null, at: 1794740000003 },
+  }
   window.fetch = async () => ({ ok: true, status: 200, text: async () => JSON.stringify(payload) })
   globalThis.fetch = window.fetch
   const builtHost = window.document.createElement('div')
@@ -1187,6 +1199,13 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   const builtChip = builtHost.querySelector('.ap-prov')
   assert.ok(builtChip, 'a table from a built dataset still carries a chip')
+  // The second item's provenance has no sessionId at all; the tooltip must skip
+  // that line instead of printing the template's {0}.
+  const chips = [...builtHost.querySelectorAll('.ap-prov')]
+  assert.equal(chips.length, 2, `both tables carry a chip: ${chips.length}`)
+  // The title does not repeat the dataset name, so pick the second chip by order.
+  assert.ok(!chips[1].getAttribute('title').includes('{0}'),
+    `a provenance without a session prints no placeholder: ${chips[1].getAttribute('title')}`)
   assert.match(builtChip.textContent, /新建数据集（prov-probe，未保存） · 3 例 · 1 变量/, 'a built dataset is named as data, not as a file')
   assert.equal((builtChip.textContent.match(/prov-probe · /) ?? []).length, 0, 'the old file-looking label is gone')
   assert.match(builtChip.getAttribute('title'), /没有对应的磁盘文件/, 'the tooltip explains why there is no path')
@@ -2190,10 +2209,17 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
       const pop = fullHost.querySelector('.ap-menu-pop')
       assert.ok(pop, `the ${name} menu opened`)
       const text = pop.textContent
-      assert.deepEqual([...new Set(text.match(/[\u4e00-\u9fff]+/g) ?? [])], [],
+      // Han characters are not the whole story: the sub-menu used to keep its
+      // full-width parens (U+FF08/FF09) after translating, which a CJK-only scan
+      // cannot see. Cover the full-width block and CJK punctuation too.
+      assert.deepEqual([...new Set(text.match(/[\u4e00-\u9fff\uFF00-\uFFEF\u3000-\u303F]+/g) ?? [])], [],
         `the ${name} menu still shows Chinese: ${text.slice(0, 240)}`)
       if (name === 'View') {
         assert.match(text, /Show value labels/, `the tick does not defeat the dictionary: ${text.slice(0, 200)}`)
+        // The one place that really was broken: the sub-menu label was assembled
+        // from two translated parts with a raw full-width paren between them.
+        assert.match(text, /Follow settings \(Three-line\)/,
+          `the sub-menu parens follow the language: ${text.slice(0, 240)}`)
       }
       await act(async () => {
         document.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))

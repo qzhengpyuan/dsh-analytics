@@ -122,13 +122,6 @@ window.__ModuleLoader__.load({
       return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
     }
 
-    // A checkmark in front of a menu label must not defeat the dictionary: the
-    // label is translated first and the tick added after, so "✓ 显示值标签" is
-    // still found as "显示值标签".
-    function ticked(flag, text) {
-      return `${flag ? '✓ ' : ''}${tr(text)}`
-    }
-
     // The 编辑 menu lives in the panel, but copy/cut/paste/clear belong to the
     // data grid (only it knows the selected rectangle). Rather than thread a
     // ref through three components, the grid publishes a tiny command table and
@@ -4866,7 +4859,7 @@ function normalizeChoices(list) {
                 from.sourcePath && size ? tr('读入时文件 {0}{1}', size, modified ? tr('，磁盘修改时间 {0}', modified) : '') : null,
                 tr('计算时 {0} 个个案、{1} 个变量', from.caseCount, from.varCount),
                 opened ? tr('打开于 {0}', opened) : null,
-                tr('会话：{0}', from.sessionId),
+                from.sessionId ? tr('会话：{0}', from.sessionId) : null,
               ].filter(Boolean).join('\n')
               return h('span', { className: 'ap-prov', title: detail }, label)
             })()
@@ -6752,18 +6745,18 @@ let ITEM_CSV_PENDING = null
         },
         {
           label: '视图', items: [
-            { label: ticked(showLabels, '显示值标签'), action: toggleLabels },
+            { label: `${showLabels ? '✓ ' : ''}显示值标签`, action: toggleLabels },
             { sep: true },
             { label: '列宽全部恢复默认', action: () => setColWidth(null, null) },
             { sep: true },
-            { label: ticked(showGridLines, '网格线'), action: () => {
+            { label: `${showGridLines ? '✓ ' : ''}网格线`, action: () => {
               setShowGridLines((current) => {
                 const next = !current
                 try { localStorage.setItem('ap.gridLines', next ? '1' : '0') } catch { /* private mode */ }
                 return next
               })
             } },
-            { label: ticked(showToolbar, '工具栏'), action: () => {
+            { label: `${showToolbar ? '✓ ' : ''}工具栏`, action: () => {
               setShowToolbar((current) => {
                 const next = !current
                 try { localStorage.setItem('ap.toolbar', next ? '1' : '0') } catch { /* private mode */ }
@@ -6771,17 +6764,17 @@ let ITEM_CSV_PENDING = null
               })
             } },
             { sep: true },
-            { label: ticked(freezeRows, '冻结首行（表头）'), action: () => toggleFreeze('rows') },
-            { label: ticked(freezeCols, '冻结首列（行号与第一个变量）'), action: () => toggleFreeze('cols') },
+            { label: `${freezeRows ? '✓ ' : ''}冻结首行（表头）`, action: () => toggleFreeze('rows') },
+            { label: `${freezeCols ? '✓ ' : ''}冻结首列（行号与第一个变量）`, action: () => toggleFreeze('cols') },
             { label: '跳转到个案…', action: () => setDialog({ kind: 'goto', value: String((selected?.row ?? 0) + 1) }) },
             { sep: true },
             { label: '在输出中查找…', action: () => setDialog({ kind: 'outputSearch', value: outputQuery }) },
             { label: '输出表格样式', sub: [
-              { label: ticked(styleOverride === null, tr('{0}（{1}）', tr('跟随设置'), tr(settingStyle === 'grid' ? '全框线' : '三线表'))), action: () => chooseTableStyle(null) },
-              { label: ticked(tableStyle === 'default', '引擎原样（不套样式）'), action: () => chooseTableStyle('default') },
-              { label: ticked(tableStyle === 'three', '三线表（论文用）'), action: () => chooseTableStyle('three') },
-              { label: ticked(tableStyle === 'grid', '全框线'), action: () => chooseTableStyle('grid') },
-              { label: ticked(tableStyle === 'plain', '无框线'), action: () => chooseTableStyle('plain') },
+              { label: `${styleOverride === null ? '✓ ' : ''}${tr('{0}（{1}）', tr('跟随设置'), tr(settingStyle === 'grid' ? '全框线' : '三线表'))}`, action: () => chooseTableStyle(null) },
+              { label: `${tableStyle === 'default' ? '✓ ' : ''}引擎原样（不套样式）`, action: () => chooseTableStyle('default') },
+              { label: `${tableStyle === 'three' ? '✓ ' : ''}三线表（论文用）`, action: () => chooseTableStyle('three') },
+              { label: `${tableStyle === 'grid' ? '✓ ' : ''}全框线`, action: () => chooseTableStyle('grid') },
+              { label: `${tableStyle === 'plain' ? '✓ ' : ''}无框线`, action: () => chooseTableStyle('plain') },
             ] },
           ],
         },
