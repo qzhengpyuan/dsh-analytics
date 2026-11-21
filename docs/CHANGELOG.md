@@ -1,4 +1,13 @@
-<!-- 计数口径：从 0.54.58 起，各段写的「全量 N 条 ok」一律是**本机实测** `grep -cE '^ok\b'` 的结果，不含 `pdf-notes` 那条 skip（只有装了 pdftotext 的机器才会跑它）。0.54.57 及更早小节里的数字是当时的旧口径（含那条 skip），普遍比实测多 1，保留原样以便与旧报告对账。 -->
+<!-- 计数口径：从 0.54.58 起，各段写的「全量 N 条 ok」一律按**没装 pdftotext 的机器**计 —— 即全量 `grep -cE '^ok\b'` 的结果里不含 `pdf-notes` 套件那一条（只有装了 poppler 的机器才会跑它，会多 1）。本机与 CI 都装了 poppler，所以同一棵树上本机数字比这里写的大 1。0.54.57 及更早小节保留当时的旧口径（含 skip），不再改。 -->
+
+## 0.54.73
+
+Win10 0.54.72 报告的 P2 一条 + P3 两条：
+
+- **计数口径终于自洽**（P2-① / P3-①）：文首声明改成「按没装 pdftotext 的机器计」，0.54.72 段 537 → **536**（装了 poppler 的机器 537），`docs/FEATURES.md` 那句自相矛盾的括注也改对了。前几版每版多 1 的根因就是「本机与 CI 都有 poppler，却把含 pdf-notes 的数字当成不含 skip 的口径写下来」。
+- **合并循环的判据与切分器对齐**（P3-②）：丢弃矩阵代数时只认「行首 `MATRIX` + 句点」，`MATRIX DATA VARIABLES=x y.` 因此不再从分类文本里消失；带 `BEGIN DATA … END DATA.` 的 `MATRIX DATA` 脚本现在切出 `["MATRIX DATA VARIABLES=x y.", "BEGIN DATA\n1 2\n3 4\nEND DATA.", "DESCRIPTIVES x."]`。
+- **未闭合的 `MATRIX` 只丢自己**（P3-③）：`MATRIX.` + `COMPUTE x = 1.` + `DESCRIPTIVES x.`（既无 `END MATRIX` 也无 `END DATA`）以前整段粘成一条语句、然后被整体丢弃，现在把 `MATRIX.` 之后的部分重新切分，得到 `["COMPUTE x = 1.", "DESCRIPTIVES x."]`。
+- 测试：新增「MATRIX DATA is a command, not algebra」与「an unterminated MATRIX drops only itself」，regression 94、全量 **538**（装了 poppler 的机器 539）。
 
 ## 0.54.72
 
@@ -7,7 +16,7 @@ Win10 0.54.71 报告的 P2 一条 + P3 三条：
 - **`MATRIX DATA …` 不再被当成矩阵代数**（P3-③ 之一）：`splitStatements()` 与 `stripCommentLines()` 的入口判据从「行首是 `MATRIX`」收紧成「行首是 `MATRIX` + 句点」（`/^[ \t]*MATRIX[ \t]*\./i`）。原来 `MATRIX DATA VARIABLES=x.` 会把状态置真，后面普通数据块里读作 `END MATRIX.` 的数据值就把块提前收掉、下一行 `* 7` 被当注释剥掉。
 - **矩阵状态在块收尾时无条件复位**（P3-③ 之二）：原来只在 `end === matrixEnd` 时复位，畸形脚本（`MATRIX.` 后由 `END DATA` 收尾）会让状态挂到下一次 `END MATRIX`。现在两种收尾都清。
 - **未闭合的 `MATRIX` 只丢它自己那条语句**：合并循环以前从 `MATRIX` 一路丢到文件结尾的 `END MATRIX`，找不到就把后面所有命令一起丢掉，于是 `MATRIX.` + `BEGIN DATA` + `END DATA.` + `DESCRIPTIVES x.` 切出来是空数组（等于让用户以为脚本是空的）。现在没有结束标记时只丢该语句，块后的命令照常保留。
-- 测试：新增「matrix data does not look like matrix algebra」「a matrix block that ends at END DATA still clears the flag」两条，regression 92、全量 **537**。
+- 测试：新增「matrix data does not look like matrix algebra」「a matrix block that ends at END DATA still clears the flag」两条，regression 92、全量 **536**（装了 poppler 的机器 537）。
 - 文档口径（P2-① / P3-① / P3-②）：本段起在文件头加一段计数口径说明；0.54.71 段的「全量 535」按新口径改为 **534**（并注明有 pdftotext 的机器是 535）；0.54.68 段补上「（不含 pdftotext 的 skip 行）」的括注。0.54.57 及更早的数字保持原样（旧口径，见文首说明）。
 
 ## 0.54.71

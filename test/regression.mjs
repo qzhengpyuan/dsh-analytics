@@ -1728,6 +1728,21 @@ check('a matrix block that ends at END DATA still clears the flag', () => {
   assert.ok(parts.some((piece) => /^DESCRIPTIVES x\.$/.test(piece.trim())), JSON.stringify(parts))
 })
 
+check('MATRIX DATA is a command, not algebra', () => {
+  // The merge loop used to drop any statement starting with the word MATRIX, so
+  // `MATRIX DATA …` disappeared from the classified text even after the splitter
+  // stopped treating it as algebra.
+  const parts = splitStatements('MATRIX DATA VARIABLES=x y.\nBEGIN DATA\n1 2\n3 4\nEND DATA.\nDESCRIPTIVES x.')
+  assert.equal(parts[0], 'MATRIX DATA VARIABLES=x y.', JSON.stringify(parts))
+})
+
+check('an unterminated MATRIX drops only itself', () => {
+  // No END MATRIX and no END DATA: the splitter keeps the tail in one statement,
+  // and everything after `MATRIX.` belongs to the user, not to the algebra.
+  const parts = splitStatements('MATRIX.\nCOMPUTE x = 1.\nDESCRIPTIVES x.')
+  assert.deepEqual(parts, ['COMPUTE x = 1.', 'DESCRIPTIVES x.'], JSON.stringify(parts))
+})
+
 check('matrix algebra is dropped whole, with its data group', () => {
   // The data group inside MATRIX ends at END MATRIX; the leftover rows of that
   // group used to survive as a statement of their own (`1.5\nEND MATRIX.`).
