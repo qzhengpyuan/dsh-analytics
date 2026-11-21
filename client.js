@@ -99,7 +99,7 @@ window.__ModuleLoader__.load({
         next = { ...props }
         delete next.translate
       }
-      if (props && DICT) {
+      if (props && DICT && !keepText) {
         for (const key of TRANSLATED_PROPS) {
           if (typeof props[key] === 'string') {
             if (next === props) next = { ...props }
@@ -1957,8 +1957,8 @@ function normalizeChoices(list) {
                 onClick: () => setCurrent(variable.name),
               },
                 h('input', { type: 'checkbox', checked: chosen, disabled: !compatible, onChange: () => toggle(variable.name) }),
-                h('span', null, variable.name),
-                variable.label ? h('span', { className: 'ap-hint' }, ` ${variable.label}`) : null)
+                h('span', { translate: false }, variable.name),
+                variable.label ? h('span', { className: 'ap-hint', translate: false }, ` ${variable.label}`) : null)
             })))
 
       const fieldBox = (field) => {
@@ -1976,6 +1976,7 @@ function normalizeChoices(list) {
               key: choice.value,
               className: `ap-chip ${chosen.includes(choice.value) ? 'ap-chip-on' : ''}`,
               title: choice.label,
+              translate: false,
             },
             h('input', {
               type: 'checkbox',
