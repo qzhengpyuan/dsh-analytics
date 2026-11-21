@@ -2,6 +2,14 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.54.93
+
+`annotateComparisons` 之前只有纯函数用例（自造一张 caption `Multiple Comparisons` 的表），真引擎那张的 caption 其实是 `Multiple Comparisons (score)` —— 带变量名。补一条真引擎用例：3 组 LSD，断言落在那张表上的注文含「3 次两两比较」与「14%」。
+
+变异验证：把 `runSyntax` 里的 `annotateComparisons(items)` 换成 `void items` 实测 `rc=1`，红在 `the comparisons count reaches the panel`。
+
+测试数：34 套件 / **565** 条 ok（装了 poppler 的机器 566）。
+
 ## 0.54.92
 
 Win10 0.54.90 报告的一条 P1 与三条 P2 全是同一个机制的余波：**`tr()` 只填外层模板，从不看插值进来的内容；`translate: false` 连 `title` 一起冻结**。

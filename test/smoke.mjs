@@ -107,6 +107,29 @@ console.log('value labels ok:', JSON.stringify(genderVar.valueLabels))
 // answer pasted into a cell). The save path goes through CSV, and PSPP's TXT
 // reader cannot carry an embedded newline: three cases came back as four, with
 // the value split across rows.
+// The pairwise-comparison note has to survive a real ONEWAY: the caption it hangs
+// on is "Multiple Comparisons (score)", not the bare words the fixture used.
+{
+  const posthoc = new Workspace({ id: 'smoke-posthoc', engine, root: join(root, 'posthoc'), config: { timeoutMs: 60000 } })
+  await posthoc.init()
+  await posthoc.createDataset({
+    variables: [
+      { name: 'g', type: 'numeric', width: 2, decimals: 0 },
+      { name: 'score', type: 'numeric', width: 5, decimals: 1 },
+    ],
+  })
+  for (const group of [1, 2, 3]) {
+    for (const offset of [10, 12, 14]) posthoc.appendCase({ g: group, score: offset + group * 3 })
+  }
+  const posthocRun = await posthoc.runSyntax('ONEWAY score BY g /POSTHOC=LSD /STATISTICS=DESCRIPTIVES.')
+  const comparisons = posthocRun.items.find((item) => /Multiple Comparisons/i.test(item.table?.caption ?? ''))
+  assert.ok(comparisons, 'the engine draws the pairwise comparisons table')
+  const said = (comparisons.notes ?? []).join(' ')
+  assert.match(said, /3 次两两比较/, `the comparisons count reaches the panel: ${said}`)
+  assert.match(said, /14%/, `the note says what three tries cost: ${said}`)
+  console.log('ok  a real ONEWAY says how many pairwise comparisons it made')
+}
+
 const newlineWorkspace = new Workspace({ id: 'smoke-newline', engine, root, config: { timeoutMs: 60000 } })
 await newlineWorkspace.init()
 await newlineWorkspace.createDataset({
