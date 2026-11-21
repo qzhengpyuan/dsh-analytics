@@ -1,5 +1,13 @@
 <!-- 计数口径：从 0.54.58 起，各段写的「全量 N 条 ok」一律按**没装 pdftotext 的机器**计 —— 即全量 `grep -cE '^ok\b'` 的结果里不含 `pdf-notes` 套件那一条（只有装了 poppler 的机器才会跑它，会多 1）。本机与 CI 都装了 poppler，所以同一棵树上本机数字比这里写的大 1。0.54.57 及更早小节保留当时的旧口径（含 skip），不再改。 -->
 
+## 0.54.78
+
+两件事，都不改引擎行为：
+
+- **工具层第一次有了测试**：新增 `test/tools.mjs`（14 条断言，接进 `npm test`）。此前 `build`/`smoke`/`routes` 覆盖了语法构造、工作区与 HTTP 路由，但**没有任何用例调用过 23 个 `pspp_*` 工具的 `execute()`** —— 工具本体全坏也能全绿。现在按宿主的方式逐个跑：`pspp_status`（引擎版本 + 插件版本 + capabilities）、`pspp_open`（8 例）、`pspp_variables`、`pspp_data`（`limit`）、`pspp_run`（表有 `rows` 与 `provenance`）、`pspp_analyze` 十种过程（含 `crosstabs`/`ctables` 用 `row`/`column`、`regression` 用 `dependent`/`independents`）、未知过程名报错、`pspp_transform`（compute 长出 `twice`、sort）、`pspp_chart`（直方图与条形图都写出真 svg 文件）、`pspp_publication_table`/`pspp_pairwise`/`pspp_partial` 的矩阵、五个导出工具都写出非空文件、`pspp_run_file` 缺文件报错、`pspp_new` + `pspp_add_variable`。顺带确认：工具返回给模型的是 `rows` 矩阵而不是 HTML，且带 `provenance`。
+- **0.54.77 报告里的可选润色**：`docs/CHANGELOG.md` 口径那句的括号「（注释本身既不算紧邻，也不会挡住剥离）」删掉，主句已完整。
+- 测试数：33 套件 / **556** 条 ok（regression 98、tools 14；装了 poppler 的机器 557）。
+
 ## 0.54.77
 
 Win10 0.54.76 报告的唯一一条 P3（只关措辞）：
@@ -13,7 +21,7 @@ Win10 0.54.75 报告的一条 P3：
 
 - **空行也算「紧邻」**（P3-①）：0.54.75 的邻接判断只放行一个换行（`(?:\r?\n[ \t]*)?`），`MATRIX.` 与 `BEGIN DATA` 之间有空行、或只有制表符的一个空行时剥不掉数据组，退回到「多留一个数据块、`definesData` 假变真」的形态。现在改成 `/^[ \t\r\n]*BEGIN\s+DATA\b/i`：空行与缩进都算空白，注释行由 `stripCommentLines()` 先删掉，因此也照剥。实测一个空行、两个空行、只有制表符的行、CRLF 空行都得到 `["DESCRIPTIVES x."]`、`definesData:false`；不紧邻的数据组（`MATRIX.` 后面先有别的命令）不受影响。
 - 测试：新增「blank lines do not separate MATRIX. from its data group」（四种空行形态一起断言），regression 97、全量 **541**（装了 poppler 的机器 542）。
-- 顺带明确口径（写进本段）：只有空白（空行、缩进、制表符）能让 `MATRIX.` 与数据组分开；注释行会被 `stripCommentLines()` 先删掉，因此带注释的写法与带空行的写法等价（注释本身既不算紧邻，也不会挡住剥离）。
+- 顺带明确口径（写进本段）：只有空白（空行、缩进、制表符）能让 `MATRIX.` 与数据组分开；注释行会被 `stripCommentLines()` 先删掉，因此带注释的写法与带空行的写法等价。
 
 ## 0.54.75
 
