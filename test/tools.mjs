@@ -206,8 +206,11 @@ await check('pspp_edit_chart retitles a chart from its run', async () => {
   assert.deepEqual(chart.bins[0], drawn.chart.bins[0])
   // And the edit has to reach the file, not just the return value.
   const png = join(dir, 'edited.png')
-  await call('pspp_export_chart', { path: png, runId: drawn.runId })
+  // The edit answers with its own runId; export that one so the file on disk is
+  // the edited chart rather than the one before it.
+  await call('pspp_export_chart', { path: png, runId: edited.runId ?? drawn.runId })
   assert.ok(existsSync(png) && statSync(png).size > 0, 'the edited chart was not drawn')
+  assert.equal(readFileSync(png).subarray(0, 4).toString('latin1'), '\x89PNG', 'the export is not a png')
 })
 
 await check('pspp_export_chart and pspp_export_document write files', async () => {
@@ -218,9 +221,13 @@ await check('pspp_export_chart and pspp_export_document write files', async () =
   const png = join(dir, 'chart.png')
   await call('pspp_export_chart', { path: png, runId: drawn.runId })
   assert.ok(existsSync(png) && statSync(png).size > 0, 'export_chart wrote nothing')
+  // A writable-and-non-empty check passes for one byte of garbage: look at the
+  // signature the format actually starts with.
+  assert.equal(readFileSync(png).subarray(0, 4).toString('latin1'), '\x89PNG', 'export_chart did not write a png')
   const pdf = join(dir, 'doc.pdf')
   await call('pspp_export_document', { path: pdf })
   assert.ok(existsSync(pdf) && statSync(pdf).size > 0, 'export_document wrote nothing')
+  assert.match(readFileSync(pdf).subarray(0, 5).toString('latin1'), /^%PDF-/, 'export_document did not write a pdf')
 })
 
 await check('pspp_merge adds the variables of another system file', async () => {
