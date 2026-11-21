@@ -1,3 +1,9 @@
+## 0.54.69
+
+- **`MATRIX … END MATRIX` 不再吞掉它后面的数据块**：`splitStatements()` 在 `BEGIN DATA` 处同时算出 `END DATA` 与 `END MATRIX` 的位置、取**先出现**的那个收尾。原来先用 `END DATA` 试探，于是矩阵数据组一直吞到文件后半段那个 `END DATA`，中间的 `DATA LIST`、数据块和整段分析全都不见了（`classifyScript()` 连 `definesData` 都报假，0.54.58–0.54.68 同现）。Win10 0.54.68 报告 V9-P1。
+- `test/regression.mjs` 新增「a matrix data group does not swallow the data block after it」（切分结果必须是 `["DATA LIST FREE /x.", "BEGIN DATA\n1\nEND DATA.", "DESCRIPTIVES x."]`，`definesData`/`asksForResults` 都为真）。全套 534 条 ok。
+- 文档：`docs/FEATURES.md` 的界面语言一节按现状重写（1292 条词条、`{0}` 模板按字面长度降序、导出外壳与表注前缀跟随语言、表注正文仍中文）。
+
 ## 0.54.68
 
 - `MATRIX … END MATRIX` 里的内联数据组不再被句点切开：这类块没有自己的 `END DATA`，`splitStatements()` 现在把 `END MATRIX` 也当块尾，矩阵代数里的 `1.5 2.25` 不会被当成两条命令交给分类器（这条与 0.54.67 的 P3 同源，方向相反：块内的 `END MATRIX` 收尾，块外的值不收尾）。

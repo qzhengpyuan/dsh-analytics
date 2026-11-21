@@ -1688,6 +1688,17 @@ check('a data group inside matrix algebra is not split into statements', () => {
   assert.deepEqual(parts, ['COMPUTE x = 1.', 'DESCRIPTIVES v.'], JSON.stringify(parts))
 })
 
+check('a matrix data group does not swallow the data block after it', () => {
+  // Both end markers matched somewhere later in the file, and taking `END DATA`
+  // because it was tested first skipped from the matrix data group straight to
+  // the ordinary block's end: its DATA LIST and the analysis after it vanished.
+  const parts = splitStatements('MATRIX.\nBEGIN DATA\n1.5 2.25\n3.5 4.25\nEND MATRIX.\nDATA LIST FREE /x.\nBEGIN DATA\n1\nEND DATA.\nDESCRIPTIVES x.')
+  assert.deepEqual(parts, ['DATA LIST FREE /x.', 'BEGIN DATA\n1\nEND DATA.', 'DESCRIPTIVES x.'], JSON.stringify(parts))
+  const stats = classifyScript('MATRIX.\nBEGIN DATA\n1.5 2.25\nEND MATRIX.\nDATA LIST FREE /x.\nBEGIN DATA\n1\nEND DATA.\nDESCRIPTIVES x.')
+  assert.equal(stats.definesData, true)
+  assert.equal(stats.asksForResults, true)
+})
+
 check('a data value that reads END MATRIX does not close the inline block', () => {
   // Only `END DATA` closes inline data. A value that happens to be `END MATRIX.`
   // on its own line is data for PSPP, and treating it as the block end stripped
