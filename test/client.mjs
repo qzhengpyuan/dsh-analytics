@@ -2095,7 +2095,11 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
         // The second note carries a full-width colon on purpose: the panel used
         // to run the whole line through the translator again, and the generic
         // "{0}：{1}" template turned that colon into a half-width one.
-        notes: ['Levene p = 0.003', 'Levene test：variances differ'],
+        // A note with Chinese text is what the second tr() pass actually breaks:
+        // translateOne() only walks strings that contain Han characters, so a
+        // Latin note with a full-width colon slipped through untouched and left
+        // this assertion green even with translate: false removed.
+        notes: ['Levene p = 0.003', 'Levene test：variances differ', '方差齐性检验：各组方差不等'],
       },
       {
         // A 250-row table, so the truncation bar is on screen while the panel
@@ -2168,11 +2172,22 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     const notes = [...fullHost.querySelectorAll('.ap-note')].map((node) => node.textContent)
     assert.ok(notes.includes('Note: Levene test：variances differ'),
       `the note body keeps its own punctuation: ${notes.join(' | ')}`)
+    assert.ok(notes.includes('Note: 方差齐性检验：各组方差不等'),
+      `a Chinese note body keeps its full-width colon: ${notes.join(' | ')}`)
     const truncation = fullHost.querySelector('.ap-table-more')
     assert.ok(truncation, 'the truncation bar is drawn for the 250-row table')
     assert.match(truncation.textContent, /This table has 250 rows/, `the truncation bar follows the language: ${truncation.textContent}`)
   }
-  const leftovers = [...new Set((fullHost.textContent.match(/[\u4e00-\u9fff]+/g) ?? []))]
+  // Note bodies are Chinese by design (they carry variable names and numbers, so
+  // they are never run through the dictionary). Scanning them would force the
+  // fixture to stay free of Chinese notes, which is exactly how the untranslated
+  // truncation bar stayed hidden. Scan the chrome only.
+  const chromeText = [...fullHost.querySelectorAll('*')]
+    .filter((node) => !node.closest('.ap-note'))
+    .filter((node) => node.childElementCount === 0)
+    .map((node) => node.textContent)
+    .join(' ')
+  const leftovers = [...new Set((chromeText.match(/[\u4e00-\u9fff]+/g) ?? []))]
   assert.deepEqual(leftovers, [], `translated panel still shows Chinese: ${leftovers.join(' / ')}`)
   // The HTML export leaves the panel, so its chrome has to follow the same
   // language: a file whose title says "PSPP 输出" and whose notes say "注：" is a

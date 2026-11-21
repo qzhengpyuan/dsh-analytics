@@ -2,6 +2,16 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.54.86
+
+Win10 0.54.83 报告的唯一 P1：功能三项全 PASS，但我这版新加的两条断言都不守目标行为（两个变异都不变红）。另外按它的 P2-① 修了英文面板用例的自相矛盾处。
+
+- **变异 A（`translate: false` 被删）不变红**：`translateOne()` 有 `if (!/[\u4e00-\u9fff]/.test(text) || text.length > 600) return text` 的提前返回，而 fixture 里那条注文 `Levene test：variances differ` 一个汉字都没有（全角 `：` 是 U+FF1A，不在 `\u4e00-\u9fff` 里）⇒ 二次翻译根本不会触发。现在 fixture 加一条真中文注文 `方差齐性检验：各组方差不等` 并断言它渲染成 `Note: 方差齐性检验：各组方差不等`；删掉 `translate: false` 后这条立刻红（实测 `Note: 方差齐性检验: 各组方差不等`）。
+- **变异 B（注文归因传回 `requested`）不变红**：没有任何用例走「跨两次 `runSyntax` 的 `WEIGHT BY` 重放」，`test/regression.mjs` 里 8 条 `annotateZeroCases` 用例都是单次纯函数调用、自己传脚本，绕过了 preamble 注入。新增 `test/weight.mjs`（需要引擎）：同一个工作区先 `WEIGHT BY w.`（w 全 0）再 `DESCRIPTIVES score.`，断言注文匹配 `/加权后有效个案是 0/` 且不匹配 `/不是权重的问题/`；把两个参数改回 `requested` 后这条红。套件已接进 `npm test` 与 CI 的两个引擎作业。
+- **P2-① 英文面板的「无汉字」断言与设计互斥**：它对整个面板扫汉字，而注文正文按设计就是中文 ⇒ 任何人想加一条真中文注文都会先被它打红，而这正是上一个洞藏住的原因。改成只扫 chrome（跳过 `.ap-note` 子树），注文正文单独断言。
+- **P2-② 文档里的 CI 作业名**：0.54.82 段把作业写成「`engine` 与 `engine-cross`」，实际是 `pdf-notes` 与 `engine-cross`（后者矩阵展开成三条 `engine (<platform>)`），已改正。
+- 测试：34 套件 / **563** 条 ok（装了 poppler 的机器 564）。
+
 ## 0.54.85
 
 Win10 0.54.81 报告 P3-④ 的建议：先把大表那套「先画 200 行 + 显示全部 → 滚动窗口」的边界写成纯函数用例，再谈实机验收。
@@ -32,7 +42,7 @@ Win10 0.54.81 报告的两条面板 P2（都是既有问题，V1–V3 仍然全 
 
 自查（不是 Win10 报的，是我在等报告时翻 CI 配置发现的）：
 
-- **新套件根本没进 CI**：`test/tools.mjs` 需要引擎，而 `.github/workflows/test.yml` 的 `engine` 与 `engine-cross` 两个作业的命令列表里都没有它 —— 0.54.78 加的 20 条断言只在本地跑过。两个作业都补上（engine-cross 覆盖 linux-x64 / win32-x64 / darwin-arm64），并更新两处注释。
+- **新套件根本没进 CI**：`test/tools.mjs` 需要引擎，而 `.github/workflows/test.yml` 里真正跑引擎的那两个作业（`pdf-notes`，以及矩阵展开成三条 `engine (<platform>)` 的 `engine-cross`）的命令列表里都没有它 —— 0.54.78 加的 20 条断言只在本地跑过。两个作业都补上（engine-cross 覆盖 linux-x64 / win32-x64 / darwin-arm64），并更新两处注释。
 - **`docs/FEATURES.md` 的版本戳还停在 0.54.68**：0.54.69–0.54.81 十几版都在改计数、忘了改文件头。现在写 0.54.82。
 - 顺带修正它对 CI 的描述：原文写「Node 20/22 跑 `node --check` + 纯函数测试」，实际矩阵是 **20/22/24**，且需要引擎的 `smoke`/`routes`/`flow`/`tools` 会在 Linux 与 win32-x64、darwin-arm64 上各跑一遍（`pdf-notes` 只在装 poppler 的作业里跑）。
 - 测试数不变：33 套件 / **562** 条 ok（tools 20；装了 poppler 的机器 563）。

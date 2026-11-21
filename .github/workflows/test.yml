@@ -119,6 +119,7 @@ jobs:
           node test/routes.mjs
           node test/flow.mjs
           node test/tools.mjs
+          node test/weight.mjs
 
       - name: pdf table notes
         run: node test/pdf-notes.mjs
@@ -232,4 +233,5 @@ jobs:
           node test/routes.mjs
           node test/flow.mjs
           node test/tools.mjs
+          node test/weight.mjs
           node test/pdf-notes.mjs
