@@ -887,6 +887,38 @@ check('an English export writes English shell text and keeps data values', () =>
   assert.match(empty, /no table output/, 'the empty-sheet placeholder is translated')
 })
 
+// Sheet names and the placeholders that stand in for a picture are shell text
+// too: an English workbook used to come out with 图表 / 数据 tabs and a
+// 图表见上方 spacer, and a docx with no dataset name kept 统计输出 in the title.
+check('sheet names, chart placeholders and the title fallback are translated too', () => {
+  const wb = unzip(buildXlsx({ items: [], lang: 'en', data: { variables: [{ name: 'g' }], rows: [[1]] } }))
+  const names = [...wb['xl/workbook.xml'].toString('utf8').matchAll(/name="([^"]*)"/g)].map((match) => match[1])
+  assert.ok(names.includes('Data'), `the data sheet is named in English: ${JSON.stringify(names)}`)
+  assert.equal(names.some((name) => /数据|图表/.test(name)), false, `no Chinese sheet names: ${JSON.stringify(names)}`)
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000154a24f7a0000000049454e44ae426082', 'hex')
+  const chartOnly = unzip(buildXlsx({
+    items: [{ kind: 'image', title: 'Histogram', url: '/analytics/api/artifact/c.png' }],
+    images: [{ url: '/analytics/api/artifact/c.png', bytes: png, width: 100, height: 60 }],
+    lang: 'en',
+  }))
+  const chartNames = [...chartOnly['xl/workbook.xml'].toString('utf8').matchAll(/name="([^"]*)"/g)].map((match) => match[1])
+  assert.deepEqual(chartNames, ['Charts'], `the chart sheet is named in English: ${JSON.stringify(chartNames)}`)
+  const spacer = chartOnly['xl/worksheets/sheet1.xml'].toString('utf8')
+  assert.match(spacer, /charts above/, 'the spacer says where the picture went, in English')
+  const missing = unzip(buildDocx({
+    items: [{ kind: 'image', title: 'Histogram', url: '/analytics/api/artifact/missing.png' }],
+    images: [],
+    lang: 'en',
+  }))['word/document.xml'].toString('utf8')
+  assert.match(missing, /chart missing/, 'a picture that could not be embedded says so in English')
+  const titled = unzip(buildDocx({
+    items: [{ kind: 'table', title: 'Frequencies', table: { caption: 'Frequencies', matrix: [['', 'N'], ['a', '1']] } }],
+    sources: [{ name: 'd.sav', caseCount: 4, varCount: 2, origin: 'new', openedAt: Date.now() }],
+    lang: 'en',
+  }))['docProps/core.xml'].toString('utf8')
+  assert.match(titled, /Statistical output/, `the fallback title is translated: ${titled.slice(0, 200)}`)
+})
+
 if (failures.length > 0) {
   console.error(`${failures.length} failed, ${checks - failures.length} passed`)
 } else {

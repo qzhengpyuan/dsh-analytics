@@ -1680,4 +1680,15 @@ check('a star value in the middle of inline data stays data', () => {
   assert.ok(/\* 7/.test(block), `a star value in the middle of the data stays data: ${JSON.stringify(block)}`)
 })
 
+check('a data value that reads END MATRIX does not close the inline block', () => {
+  // Only `END DATA` closes inline data. A value that happens to be `END MATRIX.`
+  // on its own line is data for PSPP, and treating it as the block end stripped
+  // the next line as a comment.
+  for (const value of ['END MATRIX.', 'END MATRIX']) {
+    const script = `DATA LIST FREE /s (A20).\nBEGIN DATA\n${value}\n* 7\nEND DATA.\nLIST.`
+    const block = splitStatements(script).find((piece) => /^BEGIN DATA/i.test(piece.trim())) ?? ''
+    assert.ok(/\* 7/.test(block), `${value} is a value, not the end of the data: ${JSON.stringify(block)}`)
+  }
+})
+
 console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)

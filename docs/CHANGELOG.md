@@ -1,3 +1,17 @@
+## 0.54.67
+
+Win10 0.54.64 报告的五条，全部采纳：
+
+- Excel 的工作表名与占位文字也跟界面语言：`图表` / `数据` 两个页签在英文导出里是 `Charts` / `Data`，`（图表见上方）` 有词条了（`(charts above)`），空工作簿的默认页签也不再写死 `Sheet1`（Win10 P1-①）。
+- Word 导出的兜底标题同一处漏翻：数据集没有名字时，正文标题与 `docProps/core.xml` 的 `dc:title` 仍拼中文 `统计输出`；改成走同一套 `localize()`，英文导出是 `Statistical output · PSPP Output`（P1-②）。
+- `（图表缺失）` 的占位原来有词条却没用：图片取不到时 Word 文档里仍是中文，现在跟语言走（P2-①）。
+- CHANGELOG 的结构理顺：0.54.59 的小节标题在整理时丢了，它的正文（`inlineCommandProblem`）被并进 0.54.60 段，现在拆回独立小节；同时按实测改正两处计数（0.54.59 段 526 → 527、0.54.58 段 525 → 524），这是 Win10 连着两轮指出的同一类偏差（P2-②）。
+- 内联数据块只有 `END DATA` 能收尾：数据值恰好是 `END MATRIX.` / `END MATRIX` 独占一行时，以前也会把块关掉，紧随其后的 `* 7` 被当注释剔；现在 `END MATRIX` 只在 MATRIX 块内部（它自己那套 `BEGIN DATA` 没有 `END DATA`）才结束内联数据（P3-①）。
+
+测试：`test/office.mjs` 加一条「sheet names, chart placeholders and the title fallback are translated too」（英文工作簿的页签名、图表页、`charts above`、`chart missing`、`Statistical output`）；`test/regression.mjs` 加一条「a data value that reads END MATRIX does not close the inline block」，并在 MATRIX 内联块那条用例上补注释说明两种块的区别。
+
+32 套件 / 532 条 ok（regression 87、office 54）。
+
 ## 0.54.66
 
 - 英文导出的来源行里，文件大小前面原本是中文逗号（`… · 2 variables，32 B`），在 `docProps/core.xml` 里留下一个汉字；改成语言中立的分隔符 ` · `，英文文档的属性里不再有中文。
@@ -33,6 +47,7 @@
 - 英文界面不再翻译数据：数据网格的单元格、表头里的变量名与标签、变量视图的名称都标了 `translate: false`，`总计`/`缺失`/`保存` 这类值不会被字典换成 `Total`/`Missing`/`Save`（Win10 0.54.57 报告 §6.1）。
 - 内联数据块里以 `*` 开头的数据值从第二行起不再被当注释删掉：块尾判据只对当前行生效（`END_DATA_ONE`/`END_MATRIX_ONE`），不再让文件后面出现的 `END DATA.` 在第一个数据行就把标记清掉（Win10 0.54.57 报告 §6.2，0.54.52 引入的回归）。
 
+## 0.54.59
 
 真引擎电池（40 段常见语法）里发现一条真实的手感问题：**两条命令写在同一行**。PSPP 只在行首开始读命令，`DESCRIPTIVES a. DESCRIPTIVES b.` 会被当成一条命令、`DESCRIPTIVES` 变成变量名，引擎回的是「`a.` is not a variable name」——一句完全指错方向的话。粘贴一行合成语法的人最容易踩到这个。
 
@@ -41,7 +56,7 @@
 - `runSyntax` 在引擎错误分支之前调用它（与 `END DATA` 同行提示同一个位置）。
 - `test/regression.mjs` 加一条九断言；`test/smoke.mjs` 加真引擎用例（同一行必须给中文提示且不含 `is not a variable name`，换行后仍出两张表）。
 
-32 套件 / 526 条 ok（regression 84）。
+32 套件 / 527 条 ok（regression 84）。
 
 ## 0.54.58
 
@@ -53,7 +68,7 @@
 - 词典 1270 → 1276 条。
 - `test/client.mjs` 英文面板用例补一段：点「File → HTML 导出」，断言导出的 `<title>` 是 `PSPP Output` 且文件里不再出现 `PSPP 输出`。
 
-32 套件 / 525 条 ok（client 29）。
+32 套件 / 524 条 ok（client 29）。
 
 ## 0.54.57
 
