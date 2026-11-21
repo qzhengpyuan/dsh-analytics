@@ -1,3 +1,13 @@
+## 0.54.40
+
+Win10 0.54.35 报告 V5 的 B 项：内联数据里的撇号会开出一个不闭合的字符串。
+
+`BEGIN DATA` 之后到 `END DATA` 之前整块交给「数据」，引号状态机完全不参与（`splitStatements()` 在 `quote === ''` 且看到 `BEGIN DATA` 时直接跳到 `END DATA` 之后）。以前 `BEGIN DATA / Bob's data / END DATA. / SELECT IF … / DESCRIPTIVES …` 会被切成**一条**语句，`asks=false`、`filters=false` —— 0.54.34 的注释剔除让它变成静默的空输出。
+
+回归用例：该脚本必须切成三条，且 `asksForResults`/`filtersData` 都为 true。
+
+32 个套件 / 509 条 ok（regression 69）。
+
 ## 0.54.39
 
 Win10 0.54.34 报告 V5 的两条静态意见：

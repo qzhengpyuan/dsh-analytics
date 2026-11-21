@@ -1287,6 +1287,17 @@ check('double quoted strings hold periods too', () => {
   assert.equal(other.asksForResults, false, 'a double quote inside single quotes does not end the string')
 })
 
+check("an apostrophe in the data does not open a string", () => {
+  // `Bob's` is a value, not the start of a quoted string. Reading it as one
+  // swallowed every command after END DATA, and the run went silent.
+  const script = "BEGIN DATA\nBob's data\nEND DATA.\nSELECT IF v > 9.\nDESCRIPTIVES v."
+  const parts = splitStatements(script)
+  assert.equal(parts.length, 3, JSON.stringify(parts))
+  const stats = classifyScript(script)
+  assert.equal(stats.asksForResults, true)
+  assert.equal(stats.filtersData, true)
+})
+
 check('a data line that starts with a star is still a data line', () => {
   // Between BEGIN DATA and END DATA every line is a value. Stripping a line that
   // happens to start with `*` left a hole in the block, and the commands after
