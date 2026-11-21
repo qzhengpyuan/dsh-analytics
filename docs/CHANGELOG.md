@@ -1,12 +1,19 @@
 <!-- 计数口径：从 0.54.58 起，各段写的「全量 N 条 ok」一律按**没装 pdftotext 的机器**计 —— 即全量 `grep -cE '^ok\b'` 的结果里不含 `pdf-notes` 套件那一条（只有装了 poppler 的机器才会跑它，会多 1）。本机与 CI 都装了 poppler，所以同一棵树上本机数字比这里写的大 1。0.54.57 及更早小节保留当时的旧口径（含 skip），不再改。 -->
 
+## 0.54.77
+
+Win10 0.54.76 报告的唯一一条 P3（只关措辞）：
+
+- **口径那句改写**（P3-①）：0.54.76 段里「注释行不算 —— 所以实际效果是注释也不挡住剥离」前后相反。改成「只有空白能让 `MATRIX.` 与数据组分开；注释行会被 `stripCommentLines()` 先删掉，因此带注释的写法与带空行的写法等价（注释本身既不算紧邻，也不会挡住剥离）」。
+- **把注释形态钉进用例**（Win10 提醒这一格目前没有断言，若将来 `stripCommentLines()` 挪到切分之后行为会变）：新增「a comment line before the matrix data group does not keep it」，断言 `MATRIX.` + `* note` + `BEGIN DATA` + `1` + `END DATA.` + `DESCRIPTIVES x.` → `["DESCRIPTIVES x."]`。regression 98、全量 **542**（装了 poppler 的机器 543）。
+
 ## 0.54.76
 
 Win10 0.54.75 报告的一条 P3：
 
 - **空行也算「紧邻」**（P3-①）：0.54.75 的邻接判断只放行一个换行（`(?:\r?\n[ \t]*)?`），`MATRIX.` 与 `BEGIN DATA` 之间有空行、或只有制表符的一个空行时剥不掉数据组，退回到「多留一个数据块、`definesData` 假变真」的形态。现在改成 `/^[ \t\r\n]*BEGIN\s+DATA\b/i`：空行与缩进都算空白，注释行由 `stripCommentLines()` 先删掉，因此也照剥。实测一个空行、两个空行、只有制表符的行、CRLF 空行都得到 `["DESCRIPTIVES x."]`、`definesData:false`；不紧邻的数据组（`MATRIX.` 后面先有别的命令）不受影响。
 - 测试：新增「blank lines do not separate MATRIX. from its data group」（四种空行形态一起断言），regression 97、全量 **541**（装了 poppler 的机器 542）。
-- 顺带明确口径（写进本段）：**只有空白（空行、缩进、制表符）算紧邻，注释行不算** —— 注释在切分前就被 `stripCommentLines()` 删掉了，所以实际效果是注释也不挡住剥离。
+- 顺带明确口径（写进本段）：只有空白（空行、缩进、制表符）能让 `MATRIX.` 与数据组分开；注释行会被 `stripCommentLines()` 先删掉，因此带注释的写法与带空行的写法等价（注释本身既不算紧邻，也不会挡住剥离）。
 
 ## 0.54.75
 

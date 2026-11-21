@@ -1754,6 +1754,13 @@ check('blank lines do not separate MATRIX. from its data group', () => {
   }
 })
 
+check('a comment line before the matrix data group does not keep it', () => {
+  // The comment is removed before splitting, so this behaves like a blank line.
+  // If stripCommentLines() ever moves after the splitter, this case changes.
+  const parts = splitStatements('MATRIX.\n* note\nBEGIN DATA\n1\nEND DATA.\nDESCRIPTIVES x.')
+  assert.deepEqual(parts, ['DESCRIPTIVES x.'], JSON.stringify(parts))
+})
+
 check('junk after END DATA still ends the matrix data group', () => {
   // `END DATA 5` is a syntax error PSPP reports, but leaving the block open glued
   // every following command into one statement.
