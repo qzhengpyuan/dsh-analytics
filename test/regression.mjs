@@ -1305,6 +1305,8 @@ check('a table that says N = 0 while the panel holds cases explains itself', () 
   assert.equal(annotateZeroCases(healthy, dataset), 0)
   const noCases = table()
   assert.equal(annotateZeroCases(noCases, { rows: [] }), 0)
+  const oneEmptyGroup = [{ kind: 'table', title: 'Group Statistics', notes: [], table: { caption: 'Group Statistics', matrix: [['g', 'N', 'Mean'], ['1', '0', '.'], ['2', '2', '3.0']] } }]
+  assert.equal(annotateZeroCases(oneEmptyGroup, dataset), 0)
   const already = table()
   already[0].notes.push('加权后有效个案是 0：…')
   assert.equal(annotateZeroCases(already, dataset), 0)
