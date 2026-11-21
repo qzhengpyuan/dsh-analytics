@@ -834,6 +834,29 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('a run whose filter removed every case says so')
 }
 
+// Two commands on one line: PSPP reads the second as a variable name and
+// answers "`a.` is not a variable name" — say what actually happened.
+{
+  const lines = new Workspace({ id: 'smoke-oneline', engine, root, config: { timeoutMs: 60000 } })
+  await lines.init()
+  await lines.createDataset({
+    name: 'oneline',
+    variables: [{ name: 'a', type: 'numeric' }, { name: 'b', type: 'numeric' }],
+    rows: [[1, 2], [3, 5], [4, 7]],
+  })
+  let said = ''
+  try {
+    await lines.runSyntax('DESCRIPTIVES a. DESCRIPTIVES b.')
+  } catch (error) {
+    said = error.message
+  }
+  assert.match(said, /另起一行/, `one-line run said: ${said}`)
+  assert.doesNotMatch(said, /is not a variable name/, `one-line run kept the engine wording: ${said}`)
+  const split = await lines.runSyntax('DESCRIPTIVES a.\nDESCRIPTIVES b.')
+  assert.equal(split.items.filter((item) => item.kind === 'table').length, 2, 'two lines run as two commands')
+  console.log('two commands on one line are explained, and two lines still work')
+}
+
 // `END DATA` with a command after it on the same line stops the engine with
 // "Missing END DATA while reading inline data" — an English sentence about the
 // wrong thing. The check that says "END DATA 必须独占一行" used to sit after the

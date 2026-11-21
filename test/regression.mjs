@@ -1,7 +1,7 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
 import { collinearityTable, durbinWatsonTable, influenceTable } from '../lib/regression.js'
-import { classifyScript, nearestVariableName, splitStatements, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, annotateWeightedEmpty, annotateZeroCases, inlineDataTailProblem, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
+import { classifyScript, inlineCommandProblem, nearestVariableName, splitStatements, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, annotateWeightedEmpty, annotateZeroCases, inlineDataTailProblem, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
 const failures = []
@@ -1369,6 +1369,22 @@ check('a table that says N = 0 while the panel holds cases explains itself', () 
     matrix: [['', 'N', 'Mean'], ['a', '0', '.'], ['b', '0', '.'], ['Valid N (listwise)', '0', '']],
   } }]
   assert.equal(annotateZeroCases(allMissing, dataset, 'DESCRIPTIVES a b.'), 1)
+})
+
+check('two commands on one line are named before the engine mangles them', () => {
+  // PSPP starts a command at the beginning of a line: `DESCRIPTIVES a.
+  // DESCRIPTIVES b.` becomes one command with a variable called DESCRIPTIVES,
+  // and the engine answers that `a.` is not a variable name.
+  assert.match(inlineCommandProblem('DESCRIPTIVES a. DESCRIPTIVES b.'), /另起一行/)
+  assert.match(inlineCommandProblem('DESCRIPTIVES a. * note'), /另起一行/)
+  assert.match(inlineCommandProblem('COMPUTE x = 1. FREQUENCIES a.'), /FREQUENCIES a\./)
+  assert.equal(inlineCommandProblem('DESCRIPTIVES a.'), null)
+  assert.equal(inlineCommandProblem('DESCRIPTIVES a.\nDESCRIPTIVES b.'), null)
+  // A period inside a string or inside a number is not a command boundary.
+  assert.equal(inlineCommandProblem("TITLE 'Step 1. Descriptives'."), null)
+  assert.equal(inlineCommandProblem('COMPUTE x = 1.5 * 2.'), null)
+  assert.equal(inlineCommandProblem('COMPUTE y = x * .05.'), null)
+  assert.equal(inlineCommandProblem("COMPUTE s = 'it''s. DESCRIPTIVES'."), null)
 })
 
 check('the zero-case note blames the weight only when the script weights', () => {
