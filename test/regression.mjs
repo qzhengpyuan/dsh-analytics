@@ -1287,6 +1287,18 @@ check('double quoted strings hold periods too', () => {
   assert.equal(other.asksForResults, false, 'a double quote inside single quotes does not end the string')
 })
 
+check('command abbreviations the engine accepts are still analyses', () => {
+  // PSPP takes any abbreviation of four characters or more; its own examples use
+  // `descript` and `freq`.
+  assert.equal(classifyScript('descript all/stat=all.').asksForResults, true)
+  assert.equal(classifyScript('freq score.').asksForResults, true)
+  assert.equal(classifyScript('crossta g by h.').asksForResults, true)
+  assert.equal(classifyScript('comp z = 1.').changesData, true)
+  assert.equal(classifyScript('selec if x > 1.').filtersData, true)
+  assert.equal(classifyScript('filt by w.').filtersData, true)
+  assert.equal(classifyScript('filt off.').filtersData, false)
+})
+
 check('a matrix string that says END MATRIX does not end the block', () => {
   const script = "MATRIX.\nCOMPUTE s = 'END MATRIX here'.\nCOMPUTE x = {1}.\nEND MATRIX.\nDESCRIPTIVES VARIABLES=v."
   const parts = splitStatements(script)

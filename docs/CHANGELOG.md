@@ -1,3 +1,13 @@
+## 0.54.47
+
+PSPP 接受四个字母以上的命令缩写（它自带的例子就用 `descript`、`freq`），旧的正则只认全名，于是 `descript all/stat=all.` 被归成「没有分析」—— 0 结果时那句解释就不会出现。
+
+`classifyScript()` 增加 `head()` / `abbreviated()` 两个小工具，`asksForResults`、`changesData`、`filtersData` 都能识别缩写（`descript`、`freq`、`crossta`、`comp`、`reco`、`sort`、`weig`、`selec`…）。`filt` 只在后面跟 `BY` 时才算筛选，`filt off` 不算。
+
+用 `/usr/share/pspp/examples/*.sps` 复核：`descript` / `regress` / `regress_categorical` / `t-test` 都判成有分析，`grid` 是纯建数据（正确）。
+
+32 个套件 / 516 条 ok（regression 76）。
+
 ## 0.54.46
 
 Win10 0.54.41 报告 §5 的两条 P2：
