@@ -2165,6 +2165,34 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     assert.match(pop.textContent, /Undo \(Ctrl\+Z\)/, `the undo entry keeps its shortcut: ${pop.textContent.slice(0, 120)}`)
     assert.match(pop.textContent, /Copy \(Ctrl\+C\)/, 'copy keeps its shortcut too')
   }
+  // The 视图 menu builds its labels from a tick plus the item name; the tick used
+  // to be glued on before translating, so "✓ 显示值标签" never matched the
+  // dictionary and the menu stayed Chinese inside an English panel.
+  {
+    // Every top-level menu, not just the two the other cases open: the transparent
+    // ones were where a glued-on tick defeated the dictionary.
+    const buttons = [...fullHost.querySelectorAll('.ap-menu-button')]
+    assert.ok(buttons.length >= 8, `the panel has its menus in English: ${buttons.map((node) => node.textContent).join(' / ')}`)
+    for (const button of buttons) {
+      const name = button.textContent
+      await act(async () => {
+        button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+        await new Promise((resolve) => setTimeout(resolve, 40))
+      })
+      const pop = fullHost.querySelector('.ap-menu-pop')
+      assert.ok(pop, `the ${name} menu opened`)
+      const text = pop.textContent
+      assert.deepEqual([...new Set(text.match(/[\u4e00-\u9fff]+/g) ?? [])], [],
+        `the ${name} menu still shows Chinese: ${text.slice(0, 240)}`)
+      if (name === 'View') {
+        assert.match(text, /Show value labels/, `the tick does not defeat the dictionary: ${text.slice(0, 200)}`)
+      }
+      await act(async () => {
+        document.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+    }
+  }
   {
     const note = fullHost.querySelector('.ap-note')
     assert.ok(note, 'the table note is drawn in the english panel')

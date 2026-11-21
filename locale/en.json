@@ -1294,6 +1294,7 @@
     "新建数据集（{0}）": "New dataset ({0})",
     "（图表见上方）": "(charts above)",
     "这张表共 {0} 行，面板先画前 {1} 行（复制 CSV 与导出仍是全部）": "This table has {0} rows; the panel draws the first {1} rows (copy CSV and export still get all of them)",
-    "正在显示全部 {0} 行": "Showing all {0} rows"
+    "正在显示全部 {0} 行": "Showing all {0} rows",
+    "{0}（{1}）": "{0} ({1})"
   }
 }
