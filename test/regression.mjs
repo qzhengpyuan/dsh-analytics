@@ -1287,6 +1287,22 @@ check('double quoted strings hold periods too', () => {
   assert.equal(other.asksForResults, false, 'a double quote inside single quotes does not end the string')
 })
 
+check('three-letter abbreviations count, and lookalike variable names do not', () => {
+  // PSPP accepts `des`, `fre`, `cro`, `correl` — its own examples use them.
+  for (const script of ['des x.', 'desc x.', 'fre x.', 'cro x BY y.', 'correl x WITH y.', 'exa x.', 'mea x BY g.', 'lis.', 'ran.', 'sho.']) {
+    assert.equal(classifyScript(script).asksForResults, true, script)
+  }
+  // Reverse prefix matching: a word only counts when it is a prefix of a command,
+  // so these variable names are not read as DOCUMENT / DO / SELECT / FILTER.
+  for (const script of ['docount = 1.', 'description = 1.', 'selector = 1.', 'filtered = 1.']) {
+    const stats = classifyScript(script)
+    assert.equal(stats.changesData, false, script)
+    assert.equal(stats.filtersData, false, script)
+  }
+  assert.equal(classifyScript('do repeat i = 1 to 3.').filtersData, false)
+  assert.equal(classifyScript('do if x > 1.').filtersData, true)
+})
+
 check('a comment after the inline block does not swallow the commands after it', () => {
   // The flag that keeps data lines verbatim used to stay on when `END DATA.` was
   // followed by a comment (a missing `m` in its regex), and the next command was

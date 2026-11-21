@@ -1,3 +1,13 @@
+## 0.54.53
+
+Win10 0.54.47 报告 §6.1 与 §6.2 两条 P1：
+
+- §6.1 PSPP 的最短缩写是**三个字母**（`des`、`fre`、`cro`、`correl`、`exa`、`mea`、`lis`、`com`、`sel`、`fil`、`wei`、`sor`），我按「四字母」设的缩略表仍漏掉一整段 —— 0 行数据集上跑 `des x.` 一句话都没有。改成**反向前缀匹配**：看语句头是不是某个命令名的前缀（命令名去空格比较），`DES`/`DESC`/`DESCRIPTIVES` 都能命中，`CORRELATIONS` 也补进表里。
+- §6.2 正向前缀会命中不是命令的词首（`docount`、`description`、`selector`、`filtered`、裸 `DO`），把用户变量名当数据步。反向匹配天然解决：`DOCUMENT` 不是任何命令名的前缀，`SELECTOR` 也不是 `SELECT IF` 的前缀。`DO REPEAT` 只算改数据、`DO IF` 才算筛选；`FIL`/`FILT`/`FILTER` 仍要求后面跟 `BY`。
+- §6.3 的 `END DATA.` 后跟注释在 0.54.52 已修，本包复核覆盖。
+
+`test/regression.mjs` 加一条（十种三字母缩写 + 四个假命令词）：81 条；32 套件 / 522 条 ok。
+
 ## 0.54.52
 
 Win10 0.54.46 报告 §6.1 抓到 0.54.46 **自己引入**的回归：`stripCommentLines()` 里清 `inInlineData` 的正则漏了 `m` 标志（同一文件里 `splitStatements()` 的对应正则是有 `/im` 的）。后果是 `END DATA.` 后面只要跟一行注释，标记就永不清除，块后所有命令被并进那条注释：
