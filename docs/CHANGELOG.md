@@ -1,3 +1,14 @@
+## 0.54.57
+
+Win10 0.54.51 报告 §6 的三条，全部采纳：
+
+- §6.4-P1 **文案按有没有 `WEIGHT BY` 分流**：`annotateZeroCases(items, dataset, script)` 现在读语句判断本次运行是否带权重 —— 带权重才说「权重列在每一行上都是 0，先跑一次 WEIGHT OFF」，不带权重直接说「参与分析的列在这 N 例上全是缺失值（不是权重的问题）」。原来一律先怪权重，对全缺失数据是错误引导。
+- §6.4-P2 **跳过自解释的汇总表**：`Case Processing Summary`/`Report`/`Summary`/`Model Summary` 已经写明 Included/Excluded/Total，不再挂注文。
+- §6.4-P2 **每个 run 只挂一次**：`MEANS`/`EXAMINE` 会打印多张同样为空的表，六段同义注文读起来像六个 bug；加注后 `break`。
+- `test/regression.mjs` 该用例改成带脚本参数并补一条（无权重 → 说缺失值且不提 WEIGHT OFF；有 `WEIGHT BY` → 提 WEIGHT OFF；汇总表不挂；两张空表只挂一条）。
+
+32 套件 / 525 条 ok（regression 83）。
+
 ## 0.54.56
 
 Win10 0.54.49 报告 §6 与 0.54.52 报告 §6.2 的三条，加一轮英文界面残留清扫：

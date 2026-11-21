@@ -1341,32 +1341,58 @@ check('a table that says N = 0 while the panel holds cases explains itself', () 
   const dataset = { rows: [[1], [2], [3]] }
   const table = () => [{ kind: 'table', title: 'Descriptive Statistics', notes: [], table: { caption: 'Descriptive Statistics', matrix: [['', 'N', 'Mean'], ['score', '0', '.']] } }]
   const items = table()
-  assert.equal(annotateZeroCases(items, dataset), 1)
-  assert.match(items[0].notes[0], /WEIGHT OFF/)
+  assert.equal(annotateZeroCases(items, dataset, 'DESCRIPTIVES score.'), 1)
   assert.match(items[0].notes[0], /缺失值/)
+  const weighted = table()
+  assert.equal(annotateZeroCases(weighted, dataset, 'WEIGHT BY w.\nDESCRIPTIVES score.'), 1)
+  assert.match(weighted[0].notes[0], /WEIGHT OFF/)
   const healthy = [{ kind: 'table', title: 'D', notes: [], table: { caption: 'D', matrix: [['', 'N', 'Mean'], ['score', '3', '2.0']] } }]
-  assert.equal(annotateZeroCases(healthy, dataset), 0)
+  assert.equal(annotateZeroCases(healthy, dataset, 'DESCRIPTIVES score.'), 0)
   const noCases = table()
-  assert.equal(annotateZeroCases(noCases, { rows: [] }), 0)
+  assert.equal(annotateZeroCases(noCases, { rows: [] }, 'DESCRIPTIVES score.'), 0)
   const oneEmptyGroup = [{ kind: 'table', title: 'Group Statistics', notes: [], table: { caption: 'Group Statistics', matrix: [['g', 'N', 'Mean'], ['1', '0', '.'], ['2', '2', '3.0']] } }]
-  assert.equal(annotateZeroCases(oneEmptyGroup, dataset), 0)
+  assert.equal(annotateZeroCases(oneEmptyGroup, dataset, 'T-TEST GROUPS=g(1 2) /VARIABLES=score.'), 0)
   const already = table()
   already[0].notes.push('加权后有效个案是 0：…')
-  assert.equal(annotateZeroCases(already, dataset), 0)
+  assert.equal(annotateZeroCases(already, dataset, 'DESCRIPTIVES score.'), 0)
   // `DESCRIPTIVES` puts `Missing N (listwise) = 0` in the same column on ordinary
   // data; counting that zero made the note appear on healthy tables.
   const withMissing = [{ kind: 'table', title: 'Descriptive Statistics', notes: [], table: {
     caption: 'Descriptive Statistics',
     matrix: [['', 'N', 'Mean'], ['score', '12', '2.4'], ['Valid N (listwise)', '12', ''], ['Missing N (listwise)', '0', '']],
   } }]
-  assert.equal(annotateZeroCases(withMissing, dataset), 0)
+  assert.equal(annotateZeroCases(withMissing, dataset, 'DESCRIPTIVES score.'), 0)
   // Two variables, one of them entirely missing: every row that names a variable
   // is zero, so the weight story is the right one to tell.
   const allMissing = [{ kind: 'table', title: 'Descriptive Statistics', notes: [], table: {
     caption: 'Descriptive Statistics',
     matrix: [['', 'N', 'Mean'], ['a', '0', '.'], ['b', '0', '.'], ['Valid N (listwise)', '0', '']],
   } }]
-  assert.equal(annotateZeroCases(allMissing, dataset), 1)
+  assert.equal(annotateZeroCases(allMissing, dataset, 'DESCRIPTIVES a b.'), 1)
+})
+
+check('the zero-case note blames the weight only when the script weights', () => {
+  const dataset = { rows: [[1], [2], [3]] }
+  const table = () => [{ kind: 'table', title: 'Descriptive Statistics', notes: [], table: { caption: 'Descriptive Statistics', matrix: [['', 'N', 'Mean'], ['score', '0', '.']] } }]
+  const plain = table()
+  assert.equal(annotateZeroCases(plain, dataset, 'DESCRIPTIVES score.'), 1)
+  assert.match(plain[0].notes[0], /全都.*缺失值|全是缺失值/)
+  assert.doesNotMatch(plain[0].notes[0], /WEIGHT OFF/)
+  const weighted = table()
+  assert.equal(annotateZeroCases(weighted, dataset, 'WEIGHT BY w.\nDESCRIPTIVES score.'), 1)
+  assert.match(weighted[0].notes[0], /WEIGHT OFF/)
+  // A Case Processing Summary prints Included / Excluded / Total itself.
+  const summary = [{ kind: 'table', title: 'Case Processing Summary', notes: [], table: {
+    caption: 'Case Processing Summary',
+    matrix: [['', 'Cases'], ['', 'Included', 'Excluded', 'Total'], ['score', '0', '2', '2']],
+  } }]
+  assert.equal(annotateZeroCases(summary, dataset, 'MEANS score BY g.'), 0)
+  // One note per run, not one per empty table.
+  const many = [
+    { kind: 'table', title: 'A', notes: [], table: { caption: 'A', matrix: [['', 'N'], ['score', '0']] } },
+    { kind: 'table', title: 'B', notes: [], table: { caption: 'B', matrix: [['', 'N'], ['score', '0']] } },
+  ]
+  assert.equal(annotateZeroCases(many, dataset, 'DESCRIPTIVES score.'), 1)
 })
 
 check('END DATA sharing a line with a command is explained before the engine sees it', () => {
