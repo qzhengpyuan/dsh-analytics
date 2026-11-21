@@ -1,3 +1,13 @@
+## 0.54.34
+
+Win10 0.54.30 报告 V2/V5 抓到的三类：
+
+- **注释行被当成命令**：`* note. DESCRIPTIVES x.` 让 `asks=true`，一段只有注释的语法在 6 例数据上抛假错误；`COMMENT … . DESCRIPTIVES x.` 同理。PSPP 对 `*` 与 `COMMENT` 都是「忽略到行尾」，`splitStatements()` 现在先整行剔掉这两种注释再看引号。
+- **注释里的撇号会开一个不闭合的串**：`* it's a note` 之后整段被吞，该出现的「0 行」提示变成静默。整行剔除后不再发生。
+- **双引号字符串**：状态机原来只认单引号，`TITLE "Step 1. Descriptives by group".` 会从字符串中间切开。现在单/双引号各自成对（同种字符连写两次是转义），`"it's. FREQUENCIES g"` 与 `'a"b. DESCRIPTIVES x'` 都不再切错。
+
+32 个套件 / 504 条 ok（regression 64）。
+
 ## 0.54.33
 
 Win10 0.54.29 报告 V4-① 指出我在 0.54.29 引入了一处归因退化：「`GET FILE` 导入 + `SELECT IF` 筛光 + 分析」落到了「导入的那份数据是空的」，而文件其实有 12 例，真正的原因是用户自己的筛选。

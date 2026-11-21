@@ -1252,6 +1252,27 @@ check('inline data is data, not syntax', () => {
   assert.equal(status.changesData, false, 'data rows are not data steps either')
 })
 
+check('a comment is not a command, even when it holds an apostrophe', () => {
+  // PSPP ignores everything after `*` or COMMENT on the line. A note like
+  // `* it's here` used to open a string that never closed, so the analysis on
+  // the next line disappeared and the panel stayed silent.
+  const star = classifyScript('* note. DESCRIPTIVES x.')
+  assert.equal(star.asksForResults, false, 'a comment is not an analysis')
+  const apostrophe = classifyScript("* it's a note\nDESCRIPTIVES score.")
+  assert.equal(apostrophe.asksForResults, true, 'the command after a comment still counts')
+  const comment = classifyScript('COMMENT this. DESCRIPTIVES x.\nDESCRIPTIVES score.')
+  assert.equal(comment.asksForResults, true, 'the command after COMMENT still counts')
+})
+
+check('double quoted strings hold periods too', () => {
+  const title = classifyScript('TITLE "Step 1. Descriptives by group".')
+  assert.equal(title.asksForResults, false, 'a double quoted title is not an analysis')
+  const mixed = classifyScript("COMPUTE s = \"it's. FREQUENCIES g\".")
+  assert.equal(mixed.asksForResults, false, 'an apostrophe inside double quotes does not end the string')
+  const other = classifyScript("COMPUTE s = 'a\"b. DESCRIPTIVES x'.")
+  assert.equal(other.asksForResults, false, 'a double quote inside single quotes does not end the string')
+})
+
 check('a matrix block is not a data step', () => {
   // MATRIX … END MATRIX carries a COMPUTE of its own; reading it as a data step
   // made an empty run look like "you changed the data first".
