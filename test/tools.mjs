@@ -197,11 +197,23 @@ await check('pspp_run_file runs a syntax file on disk', async () => {
 await check('pspp_edit_chart retitles a chart from its run', async () => {
   const drawn = await call('pspp_chart', { type: 'histogram', variable: 'score' })
   const edited = await call('pspp_edit_chart', { runId: drawn.runId, title: '标题改过了' })
-  const title = edited?.chart?.title ?? edited?.title ?? ''
-  assert.equal(title, '标题改过了')
+  const chart = edited?.chart ?? {}
+  assert.equal(chart.title, '标题改过了')
+  // Everything except the title has to be the chart that was drawn: echoing the
+  // argument back would pass a title-only check.
+  assert.equal(chart.kind, drawn.chart.kind)
+  assert.equal(chart.bins.length, drawn.chart.bins.length, 'the edited chart lost its bins')
+  assert.deepEqual(chart.bins[0], drawn.chart.bins[0])
+  // And the edit has to reach the file, not just the return value.
+  const png = join(dir, 'edited.png')
+  await call('pspp_export_chart', { path: png, runId: drawn.runId })
+  assert.ok(existsSync(png) && statSync(png).size > 0, 'the edited chart was not drawn')
 })
 
 await check('pspp_export_chart and pspp_export_document write files', async () => {
+  // Deliberately re-run an analysis first: `export_document` renders the last
+  // run, so a case that leaned on an earlier one would be order-dependent.
+  await call('pspp_run', { syntax: 'FREQUENCIES /VARIABLES=group.' })
   const drawn = await call('pspp_chart', { type: 'bar', variable: 'score', by: 'group' })
   const png = join(dir, 'chart.png')
   await call('pspp_export_chart', { path: png, runId: drawn.runId })
@@ -220,8 +232,14 @@ await check('pspp_merge adds the variables of another system file', async () => 
   const before = await call('pspp_data', { limit: 1 })
   const merged = await call('pspp_merge', { path: join(dir, 'more.sav'), kind: 'add' })
   assert.ok(merged, 'merge returned nothing')
+  // `more.csv` holds nine rows: an implementation that only echoed its argument
+  // would satisfy "total did not shrink", so demand the exact count and the
+  // variable that came with the file.
   const after = await call('pspp_data', { limit: 1 })
-  assert.ok(after.total >= before.total, `${before.total} -> ${after.total}`)
+  assert.equal(after.total, before.total + 9, `${before.total} -> ${after.total}`)
+  const variables = await call('pspp_variables')
+  const names = (variables.variables ?? variables).map((entry) => entry.name ?? entry)
+  assert.ok(names.includes('extra'), names.join(' '))
 })
 
 await check('pspp_run_file needs an existing file', async () => {
