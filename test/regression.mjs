@@ -1287,6 +1287,21 @@ check('double quoted strings hold periods too', () => {
   assert.equal(other.asksForResults, false, 'a double quote inside single quotes does not end the string')
 })
 
+check('a comment after the inline block does not swallow the commands after it', () => {
+  // The flag that keeps data lines verbatim used to stay on when `END DATA.` was
+  // followed by a comment (a missing `m` in its regex), and the next command was
+  // merged into the comment: silent empty output, or the filter blamed on a file.
+  const empty = 'DATA LIST FREE /v (F8.1).\nBEGIN DATA\nEND DATA.\n* keep this note\nDESCRIPTIVES VARIABLES=v.'
+  const parts = splitStatements(empty)
+  assert.equal(parts.length, 3, JSON.stringify(parts))
+  assert.equal(parts[2], 'DESCRIPTIVES VARIABLES=v.')
+  assert.equal(classifyScript(empty).asksForResults, true)
+  const filtered = 'DATA LIST FREE /v (F8.1).\nBEGIN DATA\nEND DATA.\n* note\nSELECT IF v > 999.\nDESCRIPTIVES v.'
+  const stats = classifyScript(filtered)
+  assert.equal(stats.asksForResults, true)
+  assert.equal(stats.filtersData, true)
+})
+
 check('sampling everything away is not called a filter', () => {
   const stats = classifyScript('SAMPLE .01.\nDESCRIPTIVES score.')
   assert.equal(stats.samplesData, true)
