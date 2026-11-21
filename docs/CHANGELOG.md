@@ -1,3 +1,8 @@
+## 0.54.70
+
+- 文档口径（Win10 0.54.68 报告 P2 / P3-③）：0.54.67 段的总数按实测改回 531（532 是 0.54.68 的数），0.54.59 段改回 525，0.54.58 段改回 524，并给 0.54.60 段补上缺失的计数行 527（regression 85）。三段数字现在是各自 tag 树的实测值。
+- 关于 P3-①（中文导出的 `变量，12 B` 变成 `变量 · 12 B`）：`describeSources()` 那一行在中文里本来就全程用 ` · ` 分隔（`来源 · 3 例 · 1 变量`），大小跟着用同一个分隔符是刻意的，不再单独为中文切回全角逗号；英文侧因此也没有残留中文标点。
+
 ## 0.54.69
 
 - **`MATRIX … END MATRIX` 不再吞掉它后面的数据块**：`splitStatements()` 在 `BEGIN DATA` 处同时算出 `END DATA` 与 `END MATRIX` 的位置、取**先出现**的那个收尾。原来先用 `END DATA` 试探，于是矩阵数据组一直吞到文件后半段那个 `END DATA`，中间的 `DATA LIST`、数据块和整段分析全都不见了（`classifyScript()` 连 `definesData` 都报假，0.54.58–0.54.68 同现）。Win10 0.54.68 报告 V9-P1。
@@ -21,7 +26,7 @@ Win10 0.54.64 报告的五条，全部采纳：
 
 测试：`test/office.mjs` 加一条「sheet names, chart placeholders and the title fallback are translated too」（英文工作簿的页签名、图表页、`charts above`、`chart missing`、`Statistical output`）；`test/regression.mjs` 加一条「a data value that reads END MATRIX does not close the inline block」，并在 MATRIX 内联块那条用例上补注释说明两种块的区别。
 
-32 套件 / 532 条 ok（regression 87、office 54）。
+32 套件 / 531 条 ok（regression 87、office 54）。
 
 ## 0.54.66
 
@@ -58,6 +63,8 @@ Win10 0.54.64 报告的五条，全部采纳：
 - 英文界面不再翻译数据：数据网格的单元格、表头里的变量名与标签、变量视图的名称都标了 `translate: false`，`总计`/`缺失`/`保存` 这类值不会被字典换成 `Total`/`Missing`/`Save`（Win10 0.54.57 报告 §6.1）。
 - 内联数据块里以 `*` 开头的数据值从第二行起不再被当注释删掉：块尾判据只对当前行生效（`END_DATA_ONE`/`END_MATRIX_ONE`），不再让文件后面出现的 `END DATA.` 在第一个数据行就把标记清掉（Win10 0.54.57 报告 §6.2，0.54.52 引入的回归）。
 
+32 套件 / 527 条 ok（regression 85）。
+
 ## 0.54.59
 
 真引擎电池（40 段常见语法）里发现一条真实的手感问题：**两条命令写在同一行**。PSPP 只在行首开始读命令，`DESCRIPTIVES a. DESCRIPTIVES b.` 会被当成一条命令、`DESCRIPTIVES` 变成变量名，引擎回的是「`a.` is not a variable name」——一句完全指错方向的话。粘贴一行合成语法的人最容易踩到这个。
@@ -67,7 +74,7 @@ Win10 0.54.64 报告的五条，全部采纳：
 - `runSyntax` 在引擎错误分支之前调用它（与 `END DATA` 同行提示同一个位置）。
 - `test/regression.mjs` 加一条九断言；`test/smoke.mjs` 加真引擎用例（同一行必须给中文提示且不含 `is not a variable name`，换行后仍出两张表）。
 
-32 套件 / 527 条 ok（regression 84）。
+32 套件 / 525 条 ok（regression 84）。
 
 ## 0.54.58
 
@@ -90,7 +97,7 @@ Win10 0.54.51 报告 §6 的三条，全部采纳：
 - §6.4-P2 **每个 run 只挂一次**：`MEANS`/`EXAMINE` 会打印多张同样为空的表，六段同义注文读起来像六个 bug；加注后 `break`。
 - `test/regression.mjs` 该用例改成带脚本参数并补一条（无权重 → 说缺失值且不提 WEIGHT OFF；有 `WEIGHT BY` → 提 WEIGHT OFF；汇总表不挂；两张空表只挂一条）。
 
-32 套件 / 525 条 ok（regression 83）。
+32 套件 / 524 条 ok（regression 83）。
 
 ## 0.54.56
 
