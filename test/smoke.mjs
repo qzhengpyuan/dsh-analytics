@@ -790,6 +790,20 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
     assert.match(mixedSaid, /筛/, `an import plus a filter must blame the filter: ${mixedSaid}`)
     assert.doesNotMatch(mixedSaid, /导入的那份数据是空的/, `the file is not empty: ${mixedSaid}`)
     console.log('an import followed by a filter is blamed on the filter, not the file')
+
+    // The mirror case: an empty file plus a data step that is not a filter.
+    // Blaming "the filter" here sends the user to a script he never wrote.
+    const emptySource = join(root, 'empty-import.txt')
+    await writeFile(emptySource, '')
+    let dataStepSaid = ''
+    try {
+      await mixed.runSyntax(`GET DATA /TYPE=TXT /FILE='${emptySource}' /VARIABLES=x F8.1.\nCOMPUTE z = 1.\nDESCRIPTIVES /VARIABLES=z.`)
+    } catch (error) {
+      dataStepSaid = error.message
+    }
+    assert.match(dataStepSaid, /导入的那份数据是空的/, `an empty file is an empty file: ${dataStepSaid}`)
+    assert.doesNotMatch(dataStepSaid, /筛/, `no filter was written: ${dataStepSaid}`)
+    console.log('an empty import plus a plain data step is still blamed on the file')
   }
 
   // Pure data steps on an empty dataset are legitimate and must stay quiet:

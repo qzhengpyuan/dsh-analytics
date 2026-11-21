@@ -1287,6 +1287,16 @@ check('double quoted strings hold periods too', () => {
   assert.equal(other.asksForResults, false, 'a double quote inside single quotes does not end the string')
 })
 
+check('a filter is told apart from other data steps', () => {
+  // `SELECT IF` explains "the engine saw no cases"; COMPUTE and SORT do not, and
+  // telling the user to widen a filter he never wrote is the same mistake in the
+  // other direction.
+  assert.equal(classifyScript('SELECT IF score > 1.\nDESCRIPTIVES x.').filtersData, true)
+  assert.equal(classifyScript('FILTER BY keep.').filtersData, true)
+  assert.equal(classifyScript('COMPUTE z = 1.\nDESCRIPTIVES x.').filtersData, false)
+  assert.equal(classifyScript('SORT CASES BY x (A).\nDESCRIPTIVES x.').filtersData, false)
+})
+
 check('a matrix block is not a data step', () => {
   // MATRIX … END MATRIX carries a COMPUTE of its own; reading it as a data step
   // made an empty run look like "you changed the data first".

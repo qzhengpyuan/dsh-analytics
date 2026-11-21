@@ -1,3 +1,13 @@
+## 0.54.38
+
+Win10 0.54.33 报告 V5：0.54.33 的置顶分支只问「有没有改数据」，把 `COMPUTE`/`SORT` 也当成筛选，于是「导入空文件 + 任意数据步」被说成「筛选把个案筛光了」——正好是 0.54.29 那次错误的镜像。
+
+- `classifyScript()` 新增 `filtersData`（`SELECT IF|FILTER|DO IF|IF`），与 `changesData` 分开。
+- 分支改序：`loadsData && filtersData` → 「筛掉」（导入后被筛光）；`loadsData` → 「导入的那份数据是空的」（空文件 + COMPUTE/SORT 也走这里）；空数据集两条不变；最后 `cases > 0` → 「筛掉」。
+- 用例：`GET DATA(空文件) + COMPUTE + DESCRIPTIVES` 必须说「导入的那份数据是空的」且不得出现「筛」；`GET FILE + SELECT IF + DESCRIPTIVES` 仍说「筛掉」。
+
+32 个套件 / 506 条 ok（regression 66）。
+
 ## 0.54.37
 
 Win10 0.54.32 报告 V2 的 7 处对话框残留（0.54.27 删掉短键替换后，凡是在调用点拼好的复合串都必须有模板键）：
