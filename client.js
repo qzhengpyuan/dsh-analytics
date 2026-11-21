@@ -70,8 +70,10 @@ window.__ModuleLoader__.load({
       const exact = DICT[text]
       if (typeof exact === 'string') return exact
       if (!/[\u4e00-\u9fff]/.test(text) || text.length > 600) return text
-      const checkbox = /^(✓\s*)(.*)$/.exec(text)
-      if (checkbox) return `${checkbox[1]}${translateOne(checkbox[2])}`
+      // Both the checked marker and the collapsed marker ride in front of an
+      // otherwise translatable label; peel them off instead of failing the match.
+      const marked = /^([✓▸]\s*)(.*)$/.exec(text)
+      if (marked) return `${marked[1]}${translateOne(marked[2])}`
       for (const { pattern, value } of DICT_TEMPLATES) {
         const match = pattern.exec(text)
         if (!match) continue
@@ -4482,7 +4484,7 @@ function normalizeChoices(list) {
                   key: 'name',
                   className: 'ap-var-name',
                   style: { color: 'var(--ap-text)', fontWeight: 600 },
-                  title: '单击改名',
+                  title: tr('单击改名'),
                   translate: false,
                 }, variable.name),
                 h('button', {
@@ -4851,10 +4853,10 @@ function normalizeChoices(list) {
               const modified = formatWhen(from.sourceMtime)
               const detail = [
                 built
-                  ? '这份数据没有对应的磁盘文件（在面板里新建的）'
+                  ? tr('这份数据没有对应的磁盘文件（在面板里新建的）')
                   : dropped
-                    ? '这份数据是浏览器拖进来的副本，不是磁盘上的那份'
-                    : name ? tr('数据文件：{0}', name) : '这份数据没有对应的磁盘文件',
+                    ? tr('这份数据是浏览器拖进来的副本，不是磁盘上的那份')
+                    : name ? tr('数据文件：{0}', name) : tr('这份数据没有对应的磁盘文件'),
                 from.sourcePath ? tr('来源路径：{0}', from.sourcePath) : null,
                 from.sourcePath && size ? tr('读入时文件 {0}{1}', size, modified ? tr('，磁盘修改时间 {0}', modified) : '') : null,
                 tr('计算时 {0} 个个案、{1} 个变量', from.caseCount, from.varCount),
@@ -5268,7 +5270,7 @@ let ITEM_CSV_PENDING = null
     function describeSource(dataset) {
       if (!dataset) return ''
       if (dataset.temporary === true) return tr('{0}（拖入副本 · 路径未知）', dataset.name ?? basenameOf(dataset.sourcePath))
-      return dataset.sourcePath ? String(dataset.sourcePath) : '未命名数据集'
+      return dataset.sourcePath ? String(dataset.sourcePath) : tr('未命名数据集')
     }
 
     /* ------------------------------------------------------------------ app */
@@ -6579,9 +6581,11 @@ let ITEM_CSV_PENDING = null
             // a reader handed a single table where its numbers came from.
             if (item.provenance) {
               const from = item.provenance
+              // Each piece is translated here: `tr()` only fills the outer
+              // template, it never looks inside an interpolated value.
               const which = from.origin === 'new'
-                ? `新建数据集${from.name ? `（${from.name}）` : ''}`
-                : (from.name ?? from.sourcePath ?? '未命名数据')
+                ? tr('新建数据集{0}', from.name ? tr('（{0}）', from.name) : '')
+                : (from.name ?? from.sourcePath ?? tr('未命名数据'))
               const when = formatWhen(from.openedAt)
               const size = typeof from.sourceSize === 'number'
                 ? (from.sourceSize < 1024 ? `${from.sourceSize} B` : `${(from.sourceSize / 1024).toFixed(1)} KB`)
@@ -6619,7 +6623,7 @@ let ITEM_CSV_PENDING = null
             const when = formatWhen(from.openedAt)
             const which = from.origin === 'new'
               ? tr('新建数据集{0}', from.name ? tr('（{0}，未保存）', from.name) : tr('（未保存）'))
-              : (from.sourcePath ?? from.name ?? '未命名数据')
+              : (from.sourcePath ?? from.name ?? tr('未命名数据'))
             const size = band(from.sourceSize)
             // Filled once with translated pieces: `tr()` only replaces at render
             // time, so interpolating ` · 打开于 …` first left that fragment in

@@ -2,6 +2,19 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.54.92
+
+Win10 0.54.90 报告的一条 P1 与三条 P2 全是同一个机制的余波：**`tr()` 只填外层模板，从不看插值进来的内容；`translate: false` 连 `title` 一起冻结**。
+
+- **P1-① HTML 导出的来源行**：`client.js:6583` 单表戳与 `:6621` 底栏的 `which` 是裸模板（`` `新建数据集${from.name ? `（${from.name}）` : ''}` ``、`?? '未命名数据'`），外面那层 `tr('来源：{0} …')` 只替 `{0}`，于是英文文件里出现 `Source: 新建数据集（d） · 5 cases`，而同一份数据走 Word/Excel 是全英文。改成先把部件翻好再拼（`tr('新建数据集{0}', from.name ? tr('（{0}）', from.name) : '')`、`?? tr('未命名数据')`）。用例里给英文面板的数据集加上 `origin: 'new'` 的 provenance，断言导出的 `<p class="ap-export-source">` 里有 `New dataset` 且全文无 `新建数据集`；还原修复实测 `rc=1`（`Source: 新建数据集（d） · 12 cases`）。
+- **P2-① 来源 chip 的 tooltip**：`client.js:4855-4859` 三条裸串（「这份数据没有对应的磁盘文件（在面板里新建的）」等）包上 `tr()`。用例新增一条扫描：英文面板里所有 `[title]`（排除 `.ap-note`）不得含汉字。还原修复实测 `rc=1`（`Chinese tooltips: 这份数据没有对应的磁盘文件 / 在面板里新建的`）。
+- **P2-② 状态栏 tooltip 的「未命名数据集」**：`describeSource()` 最后一条分支是裸串；改成 `tr('未命名数据集')`（词条本来就在词典里）。拼进 `title` 的整串既无精确键也不匹配模板，所以 `h()` 的后备翻译救不了它。
+- **P2-③ 变量视图里变量名的 tooltip**：`title: '单击改名'` 与 `translate: false` 挂在同一个元素上，后者把 `TRANSLATED_PROPS` 一起冻结。改成 `title: tr('单击改名')`。用例切到变量视图断言 `Click to rename`；还原实测 `rc=1`。
+- **P3-① 折叠标记**：`translateOne()` 只认 `✓ ` 前缀，`▸ 表格` 这种「标记 + 词」整串查不到键；前缀规则扩成 `/^([✓▸]\s*)(.*)$/`。用例断言 `hooks.tr('▸ 表格') === '▸ Table'`；还原实测 `rc=1`。
+- **P3-②**：0.54.87 段里重复的两条「测试从点两个菜单扩到…」合并成一条。
+- 文档：`docs/FEATURES.md` 补一句虚拟窗口是怎么画的（spacer 撑高、DOM 里只留一屏加 overscan、量不到高度退回整表）。
+- 测试数不变：34 套件 / **563** 条 ok（装了 poppler 的机器 564）。
+
 ## 0.54.91
 
 Win10 在 0.54.88 报告里判断「虚拟化路径完全没有测试覆盖，jsdom 里 `box.height > 0` 恒假」。查证下来这条**不成立**：`test/client.mjs` 的 3000 行用例本来就把 `Element.prototype.getBoundingClientRect` 打桩成「`.ap-tbl-vscroll` 返回 600×560」，于是窗口化分支会真的跑起来，并断言了滚动容器、`maxHeight: 520px`、两条 spacer 的高度相加等于 `3000 × 26`、滚动后窗口平移、第一行离开 DOM、复制的 CSV 仍是 3001 行。把 `measure` 里的高度强改成 0 实测 `rc=1`（红在 `a measurable long table gets a scroller of its own`）—— 说明它是活的。

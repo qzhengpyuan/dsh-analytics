@@ -2138,6 +2138,10 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
         // Latin note with a full-width colon slipped through untouched and left
         // this assertion green even with translate: false removed.
         notes: ['Levene p = 0.003', 'Levene test：variances differ', '方差齐性检验：各组方差不等'],
+        // A dataset built in the panel: the export's source line assembles its
+        // label from pieces, and a piece that skipped tr() stayed Chinese while
+        // Word/Excel said "New dataset".
+        provenance: { sessionId: 'session-test', origin: 'new', sourcePath: null, name: 'd', caseCount: 12, varCount: 1, openedAt: null, at: 1794740000004 },
       },
       {
         // A 250-row table, so the truncation bar is on screen while the panel
@@ -2262,6 +2266,37 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     .join(' ')
   const leftovers = [...new Set((chromeText.match(/[\u4e00-\u9fff]+/g) ?? []))]
   assert.deepEqual(leftovers, [], `translated panel still shows Chinese: ${leftovers.join(' / ')}`)
+  // Tooltips are text the reader sees too, and they were the last place a raw
+  // string could hide: `tr()` fills the outer template but never looks inside an
+  // interpolated value, and `translate: false` freezes the props as well.
+  {
+    const titles = [...fullHost.querySelectorAll('[title]')]
+      .filter((node) => !node.closest('.ap-note'))
+      .map((node) => node.getAttribute('title') ?? '')
+    const cjk = [...new Set(titles.join(' \n ').match(/[\u4e00-\u9fff]+/g) ?? [])]
+    assert.deepEqual(cjk, [], `translated panel still shows Chinese tooltips: ${cjk.join(' / ')}`)
+    // `translate: false` keeps the variable name itself, but it used to freeze the
+    // element's tooltip too, so the cell said 单击改名 in an English panel.
+    const varTab = [...fullHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === 'Variable View')
+    assert.ok(varTab, 'the variable view tab is translated')
+    await act(async () => {
+      varTab.click()
+      await new Promise((resolve) => setTimeout(resolve, 40))
+    })
+    const nameCell = fullHost.querySelector('.ap-var-name')
+    assert.ok(nameCell, 'the variable view draws a name cell')
+    assert.equal(nameCell.getAttribute('title'), 'Click to rename',
+      `the variable-name tooltip follows the language: ${nameCell.getAttribute('title')}`)
+    const backTab = [...fullHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === 'Output')
+    await act(async () => {
+      backTab.click()
+      await new Promise((resolve) => setTimeout(resolve, 40))
+    })
+    // The collapsed marker rides in front of the label just like the checked one,
+    // and only an item with no title can reach the fallback word.
+    assert.equal(hooks.tr('▸ 表格'), '▸ Table', 'the collapsed marker does not stop translation')
+    assert.equal(hooks.tr('▸ 图'), '▸ Graphs', 'the collapsed marker does not stop translation')
+  }
   // The HTML export leaves the panel, so its chrome has to follow the same
   // language: a file whose title says "PSPP 输出" and whose notes say "注：" is a
   // half-translated document, which is what the reader keeps.
@@ -2292,6 +2327,12 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     const html = await files[0].text()
     assert.match(html, /<title>PSPP Output<\/title>/, `the exported title follows the language: ${html.slice(0, 80)}`)
     assert.doesNotMatch(html, /PSPP 输出/, 'the exported title is not left in Chinese')
+    // The per-table source line is built from interpolated pieces: a raw label
+    // inside the template stayed Chinese while Word/Excel said "New dataset".
+    const sourceLines = [...html.matchAll(/<p class="ap-export-source">([^<]*)<\/p>/g)].map((m) => m[1])
+    assert.ok(sourceLines.some((line) => line.includes('New dataset')),
+      `the source line names a built dataset in English: ${sourceLines.join(' | ').slice(0, 200)}`)
+    assert.doesNotMatch(html, /新建数据集/, 'the source line is not left in Chinese')
   }
   await act(async () => { fullRoot.unmount() })
   console.log('ok  the rendered english panel has no chinese text left in it')
