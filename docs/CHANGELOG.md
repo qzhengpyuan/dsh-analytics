@@ -1,3 +1,14 @@
+## 0.54.37
+
+Win10 0.54.32 报告 V2 的 7 处对话框残留（0.54.27 删掉短键替换后，凡是在调用点拼好的复合串都必须有模板键）：
+
+- `Go to Case` 的 `个案编号（1–N）`、`Bulk Import Value Labels` 的「同时套用到另外 N 个同类型变量（…）」、`Merge Files by Key Variables` 的「键变量（空格分隔，可选：…）」三句改成 `tr(模板, args)`。
+- `Pairwise comparisons` / `Table 1` / `Table 2` 的 `0 selected（不选则用…）` 半混排：`{1}` 现在传**已经翻过的片段**（`tr('（不选则用除分组外的全部变量）')`）。
+- `Partial Correlations` 的「已选 N 个分析变量、M 个控制变量（至少选两个分析变量）」改成模板。
+- 词典 1155 条。`tr` 的空串/undefined 实参保持原占位（Win10 V5 的四条边角，#2/#3/#6 已按建议在调用点处理）。
+
+32 个套件 / 505 条 ok。
+
 ## 0.54.36
 
 Win10 0.54.31 报告 V2/V5：`BEGIN DATA … END DATA` 的合并循环只检查「下一条语句是否以 END DATA 开头」，而切分器经常已经把 `END DATA.` 落在当前这条语句里，于是**块后面所有命令被整段吞掉**（`BEGIN DATA / 1 2 / END DATA. / DESCRIPTIVES x.` 的 `asks` 从 true 掉成 false）。改成看去重后的最后一块，块后命令不再丢。

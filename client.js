@@ -1373,7 +1373,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             checked: applyAll,
             onChange: (event) => setApplyAll(event.target.checked),
           }),
-          `同时套用到另外 ${siblings.length} 个同类型变量（${siblings.slice(0, 3).map((variable) => variable.name).join(' / ')}${siblings.length > 3 ? ' …' : ''}）`)
+          tr('同时套用到另外 {0} 个同类型变量（{1}{2}）', siblings.length, siblings.slice(0, 3).map((variable) => variable.name).join(' / '), siblings.length > 3 ? ' …' : ''))
         : null,
       h('div', { className: 'ap-hint', style: error ? { color: '#a33' } : null }, error ?? preview))
     }
@@ -1623,7 +1623,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             kind === 'baseline'
               ? '分类变量按 n（%）列出，P 值用 Pearson 卡方。'
               : '与表 1 相同，但去掉「总体」列。'),
-          h('div', { className: 'ap-hint' }, `已选 ${chosen.length} 个变量${chosen.length ? '' : '（不选则用除分组外的全部变量）'}`))))
+          h('div', { className: 'ap-hint' }, tr('已选 {0} 个变量{1}', chosen.length, chosen.length ? '' : tr('（不选则用除分组外的全部变量）'))))))
     }
 
     /**
@@ -1680,7 +1680,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
               h('option', { value: 'rows' }, '逐对一行（均数差、标准误、t、df、P、CI、d）'),
               h('option', { value: 'matrix' }, '矩阵表（变量 × 组对，只标星号）'))),
           h('div', { className: 'ap-hint' }, '每一对组做 Welch t 检验，不要求方差齐；矩阵表适合多组论文排版。'),
-          h('div', { className: 'ap-hint' }, `已选 ${chosen.length} 个变量${chosen.length ? '' : '（不选则用除分组外的全部数值变量）'}`))))
+          h('div', { className: 'ap-hint' }, tr('已选 {0} 个变量{1}', chosen.length, chosen.length ? '' : tr('（不选则用除分组外的全部数值变量）'))))))
     }
 
     // PSPP has no PARTIAL CORR, so this dialog drives the plugin's own table:
@@ -1732,7 +1732,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
               h('option', { value: 'matrix' }, '矩阵（变量 × 变量，只标星号，论文排版用）'))),
           h('div', { className: 'ap-hint' }, '每个变量对做一次：两个变量分别对控制变量回归，再求残差的相关（PSPP 没有 PARTIAL CORR，这张表由插件计算）。'),
           h('div', { className: 'ap-hint' }, '缺失按列表删除，N 是分析变量与控制变量都齐全的个案数；P 用 t = r·√(df/(1-r²))，df = N − 控制变量个数 − 2。'),
-          h('div', { className: 'ap-hint' }, `已选 ${chosen.length} 个分析变量、${controls.length} 个控制变量${chosen.length < 2 ? '（至少选两个分析变量）' : ''}`))))
+          h('div', { className: 'ap-hint' }, tr('已选 {0} 个分析变量、{1} 个控制变量{2}', chosen.length, controls.length, chosen.length < 2 ? tr('（至少选两个分析变量）') : '')))))
     }
 
     // PSPP's FLIP keeps numeric columns only: a string column comes back as
@@ -7615,7 +7615,7 @@ let ITEM_CSV_PENDING = null
             },
           },
           h('div', { className: 'ap-row' },
-            h('span', null, dialog.kind === 'goto' ? `个案编号（1–${total || 1}）` : '关键字'),
+            h('span', null, dialog.kind === 'goto' ? tr('个案编号（1–{0}）', total || 1) : '关键字'),
             h('input', {
               type: 'text',
               autoFocus: true,
@@ -8168,7 +8168,7 @@ let ITEM_CSV_PENDING = null
           h('button', { className: 'ap-tool', onClick: onBrowse }, '浏览…')),
         mode === 'match'
           ? h('div', null,
-            h('label', { className: 'ap-hint' }, `键变量（空格分隔，可选：${numeric.slice(0, 12).join(' ')}${numeric.length > 12 ? ' …' : ''}）`),
+            h('label', { className: 'ap-hint' }, tr('键变量（空格分隔，可选：{0}{1}）', numeric.slice(0, 12).join(' '), numeric.length > 12 ? ' …' : '')),
             h('input', {
               type: 'text',
               value: by,
