@@ -1,7 +1,7 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
 import { collinearityTable, durbinWatsonTable, influenceTable } from '../lib/regression.js'
-import { classifyScript, inlineCommandProblem, nearestVariableName, splitStatements, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, annotateWeightedEmpty, annotateZeroCases, inlineDataTailProblem, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
+import { classifyScript, inlineCommandProblem, inlineDataRanges, nearestVariableName, splitStatements, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, annotateWeightedEmpty, annotateZeroCases, inlineDataTailProblem, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
 const failures = []
@@ -1658,6 +1658,17 @@ await check('the collinearity note stays on a coefficient table', async () => {
   annotateNonFiniteCoefficients([coefficients])
   const said = (coefficients.notes ?? []).join(' ')
   assert.match(said, /共线性诊断/)
+})
+
+check('a period inside inline data is a value, not a second command', () => {
+  // `Mr. Smith` in a string column would otherwise read as two commands on one
+  // line and the whole run was refused before the engine saw it.
+  const script = 'DATA LIST FREE /name (A20).\nBEGIN DATA\nMr. Smith\nEND DATA.\nLIST.'
+  assert.equal(inlineCommandProblem(script), null, 'a data value with a period is not flagged')
+  assert.equal(inlineDataRanges(script).length, 1, 'the data block is one range')
+  // A real one-liner after the block is still caught.
+  const bad = 'BEGIN DATA\nx\nEND DATA.\nDESCRIPTIVES a. DESCRIPTIVES b.'
+  assert.match(String(inlineCommandProblem(bad)), /另起一行/)
 })
 
 check('a star value in the middle of inline data stays data', () => {
