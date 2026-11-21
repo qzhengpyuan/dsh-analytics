@@ -1,3 +1,11 @@
+## 0.54.45
+
+`annotateWeightedEmpty` 改为读语句而不是整段文本：`* WEIGHT BY w.` 这种注释、以及 `TITLE 'WEIGHT BY w'.` 里的字符串都不算加权；出现两次 `WEIGHT BY` 时取最后一条（与引擎一致）。以前注释里提到权重也会给表加注文。
+
+用例三条（注释、标题字符串、真加权）+ 原来的全 0 / 非全 0 两条。
+
+32 个套件 / 513 条 ok（regression 73）。
+
 ## 0.54.44
 
 Win10 0.54.39 报告 V5-④：`MATRIX` 块里的 `BEGIN DATA` 没有自己的 `END DATA`，`stripCommentLines()` 的 `inInlineData` 标记会一直开着，导致后面整份文件都不再剔除注释（低危，但会改变分类结果）。`END MATRIX` 现在也清这个标记。

@@ -1334,6 +1334,18 @@ check('an inline data block does not swallow the commands after it', () => {
   assert.equal(stats.filtersData, true, 'the filter after END DATA must be seen')
 })
 
+check('weighting that only appears in a comment does not count', () => {
+  const dataset = { variables: [{ name: 'score' }, { name: 'w' }], rows: [[1, 0], [2, 0]] }
+  const table = () => [{ kind: 'table', title: 'Descriptive Statistics', notes: [] }]
+  const commented = table()
+  assert.equal(annotateWeightedEmpty(commented, dataset, '* WEIGHT BY w.'), 0)
+  assert.equal(commented[0].notes.length, 0)
+  const titled = table()
+  assert.equal(annotateWeightedEmpty(titled, dataset, "TITLE 'WEIGHT BY w'."), 0)
+  const real = table()
+  assert.equal(annotateWeightedEmpty(real, dataset, 'WEIGHT BY w.\nDESCRIPTIVES score.'), 1)
+})
+
 check('a filter switch is not a filter, and an all-zero weight explains N = 0', () => {
   assert.equal(classifyScript('FILTER OFF.\nDESCRIPTIVES x.').filtersData, false)
   assert.equal(classifyScript('FILTER BY keep.\nDESCRIPTIVES x.').filtersData, true)
