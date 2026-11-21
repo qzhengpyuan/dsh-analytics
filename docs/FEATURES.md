@@ -1,6 +1,6 @@
 # dsh-analytics 功能说明
 
-> 版本 0.54.68 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 版本 0.54.82 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
 > 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
 > **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 23 个 agent 工具，让模型能在对话里直接分析、转换、画图。这些工具不再是「装了插件就有」，而是挂在插件自带的「统计分析」Agent 预设里（见 §9）。
 
@@ -488,7 +488,7 @@ CSV 导入规则：自动识别表头；列名里非法字符替换成 `_`、数
 - 平台：仓库随包 **Linux x86-64**，在原地（AlmaLinux 8, glibc 2.28）编译，所以依赖 **glibc ≥ 2.28**：RHEL/Alma/Rocky 8+、Ubuntu 18.10+/20.04+、Debian 10+、openSUSE Leap 15+ 都能跑（旧的 Fedora 44 产物要 2.43，已弃用）。
 - `lib/engine.js` 按平台选目录、按平台设动态库变量（Linux `LD_LIBRARY_PATH`、macOS `DYLD_LIBRARY_PATH`、Windows `PATH`）；找不到本平台引擎时 `pspp_status` 会给出 `hint`，按提示跑 `npm run engine:fetch` 即可从 Release 取回。
 - **五个平台的引擎由 CI 产出**（`.github/workflows/build-engine.yml`，标签 `engine-v*`）：`engine-linux-x64`（10.2 MB）、`engine-linux-arm64`（9.7 MB）、`engine-darwin-arm64`（8.6 MB）、`engine-darwin-x64`（8.9 MB）、`engine-win32-x64`（23.3 MB），已发布在 Release `engine-v1`。仓库里**只随包 `engine/linux-x64`**，其余平台用 `npm run engine:fetch` 下载。
-- 插件自身的 CI 是 `.github/workflows/test.yml`（Node 20/22 跑 `node --check` + 纯函数测试）；**改插件 JS 不触发引擎重编**，引擎只在换 PSPP 版本/依赖基线/新平台时重编。
+- 插件自身的 CI 是 `.github/workflows/test.yml`（Node 20/22/24 跑 `node --check` + 纯函数测试；需要引擎的 `smoke`/`routes`/`flow`/`tools` 在 Linux 与 win32-x64/darwin-arm64 三平台各跑一遍）；**改插件 JS 不触发引擎重编**，引擎只在换 PSPP 版本/依赖基线/新平台时重编。
 - 运行时 npm **零依赖**；peer 只有 `@deepseek-ai/cordis ^4.0.5` 与 `dsh-better-sidebar ^0.28.0`（可选，没有它就没有侧栏页签）。
 
 ---

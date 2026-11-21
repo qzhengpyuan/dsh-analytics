@@ -110,13 +110,15 @@ jobs:
 
       # These need the binary above. smoke is the data round trip (missing
       # values, newline in a string, save/reopen), routes is the whole HTTP
-      # surface — neither had ever run in CI.
+      # surface, tools is every `pspp_*` execute() — none of them had ever run in
+      # CI when they were written.
       - name: engine tests
         run: |
           set -euo pipefail
           node test/smoke.mjs
           node test/routes.mjs
           node test/flow.mjs
+          node test/tools.mjs
 
       - name: pdf table notes
         run: node test/pdf-notes.mjs
@@ -217,7 +219,8 @@ jobs:
           fi
 
       # smoke is the data round trip (missing values, newline in a string,
-      # save/reopen), routes is the whole HTTP surface. pdf-notes needs poppler's
+      # save/reopen), routes is the whole HTTP surface, tools runs every
+      # `pspp_*` tool. pdf-notes needs poppler's
       # pdftotext, which neither the Windows nor the macOS runner ships: it
       # prints its skip line there and exits 0 (installing poppler would only
       # paper over that), and the pdf-notes job above still reads the PDF back.
@@ -228,4 +231,5 @@ jobs:
           node test/smoke.mjs
           node test/routes.mjs
           node test/flow.mjs
+          node test/tools.mjs
           node test/pdf-notes.mjs

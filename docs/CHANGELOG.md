@@ -2,6 +2,15 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.54.82
+
+自查（不是 Win10 报的，是我在等报告时翻 CI 配置发现的）：
+
+- **新套件根本没进 CI**：`test/tools.mjs` 需要引擎，而 `.github/workflows/test.yml` 的 `engine` 与 `engine-cross` 两个作业的命令列表里都没有它 —— 0.54.78 加的 20 条断言只在本地跑过。两个作业都补上（engine-cross 覆盖 linux-x64 / win32-x64 / darwin-arm64），并更新两处注释。
+- **`docs/FEATURES.md` 的版本戳还停在 0.54.68**：0.54.69–0.54.81 十几版都在改计数、忘了改文件头。现在写 0.54.82。
+- 顺带修正它对 CI 的描述：原文写「Node 20/22 跑 `node --check` + 纯函数测试」，实际矩阵是 **20/22/24**，且需要引擎的 `smoke`/`routes`/`flow`/`tools` 会在 Linux 与 win32-x64、darwin-arm64 上各跑一遍（`pdf-notes` 只在装 poppler 的作业里跑）。
+- 测试数不变：33 套件 / **562** 条 ok（tools 20；装了 poppler 的机器 563）。
+
 ## 0.54.81
 
 Win10 0.54.80 报告的三条 P3 都做了，另按它的建议给文件头补一句约定：
