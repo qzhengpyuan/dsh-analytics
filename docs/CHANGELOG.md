@@ -1,3 +1,13 @@
+## 0.54.56
+
+Win10 0.54.49 报告 §6 与 0.54.52 报告 §6.2 的三条，加一轮英文界面残留清扫：
+
+- **`annotateZeroCases` 的判据**（05449 §6）：原来只看「`N` 列里任意一行是不是 0」，`DESCRIPTIVES` 的 `Missing N (listwise) = 0` 行、`T-TEST` 的空组行都会误命中（0.54.51 用「所有 N 都为 0」压住误报，但会漏掉多变量表里只有一个变量全缺失的情形）。改成**只数点名了东西的行**：第一列非空、且不是 `Valid`/`Missing`/`Total`/`Sum` 这类汇总行。
+- **`END DATA` 判据统一**（05452 §6.2）：三处判据合成常量 `const END_DATA_LINE = /^[ \t]*END\s+DATA[ \t]*(?:\.[ \t]*.*)?$/im`（`END MATRIX` 同理 `END_MATRIX_LINE`），合并循环不再用非锚定的 `/END\s+DATA\b/` —— 数据值 `END DATA now` 不再被当块尾。
+- **英文界面残留清零**：`client.js` 42 处中文模板改 `tr('…{0}…', 参数)`，`locale/en.json` 1207 → 1270 条（+63）。覆盖请求超时、批量导入值标签、多选题定义、分析对话框报错（对比系数 / 百分位）、编辑表格与值标签标题、未保存关闭确认、输出筛选与报告卡、数据集来源 tooltip、变量视图 11 个列名与 tooltip、编辑菜单与撤销标签、状态条 chips、31 处通知条、页签标题模板；toast 里的运算名改 `tr(title ?? '运行')`（原来出现 `频率 finished: 1 tables`）。jsdom 扫 109 个表面 + 84 个对话框后为 `0 distinct CJK strings`。
+
+测试：`test/regression.mjs` 加两条（带 `Missing N (listwise) = 0` 的正常表不出注文、`END DATA now` 留在块内）；`test/client.mjs` 29、`test/i18n.mjs` 9。32 套件 / 524 条 ok。
+
 ## 0.54.55
 
 Win10 0.54.49 报告 V3 的 FAIL：`END DATA` 同行命令的中文提示是**死代码**。`inlineDataTailProblem(requested)` 的检查写在「引擎退出码非 0 且没有任何表」那个分支**之后**，而 PSPP 对这类脚本必定 exit 1 且零表，所以永远先抛出英文原文 `Missing END DATA while reading inline data.`（`lib/workspace.js` 里那段检查在 `parsed.length === 0` 分支内，走不到）。

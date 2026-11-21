@@ -180,7 +180,7 @@ window.__ModuleLoader__.load({
         })
       } catch (error) {
         if (error?.name === 'AbortError') {
-          throw new Error(`请求超时（${Math.round(API_TIMEOUT_MS / 1000)} 秒没有回复）：宿主可能正忙，稍后再试`)
+          throw new Error(tr('请求超时（{0} 秒没有回复）：宿主可能正忙，稍后再试', Math.round(API_TIMEOUT_MS / 1000)))
         }
         throw error
       } finally {
@@ -1337,15 +1337,15 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       const targetType = variables.find((variable) => variable.name === target)?.type
       const siblings = variables.filter((variable) => variable.name !== target && variable.type === targetType)
       const preview = parsed.problems.length > 0
-        ? `${count} 条可识别；${parsed.problems.length} 行看不懂：${parsed.problems.slice(0, 3).join(' / ')}`
-        : count > 0 ? `${count} 条值标签` : '还没有内容'
+        ? tr('{0} 条可识别；{1} 行看不懂：{2}', count, parsed.problems.length, parsed.problems.slice(0, 3).join(' / '))
+        : count > 0 ? tr('{0} 条值标签', count) : '还没有内容'
       return h(Modal, {
         title: '批量导入值标签',
         onCancel: onClose,
         okText: '导入',
         okDisabled: !target || count === 0,
         onOk: async () => {
-          if (parsed.problems.length > 0 && !window.confirm(`${parsed.problems.length} 行看不懂，将跳过它们继续导入。继续？`)) return
+          if (parsed.problems.length > 0 && !window.confirm(tr('{0} 行看不懂，将跳过它们继续导入。继续？', parsed.problems.length))) return
           await onAssign(target, parsed.labels, merge, applyAll === true && siblings.length > 0)
         },
       },
@@ -1421,7 +1421,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         })
       }
       return h(Modal, {
-        title: initial ? `编辑多选题 — ${initial.name}` : '定义多选题',
+        title: initial ? tr('编辑多选题 — {0}', initial.name) : '定义多选题',
         wide: true,
         onCancel: onClose,
         okText: '保存',
@@ -2028,7 +2028,7 @@ function normalizeChoices(list) {
       h('button', {
         className: 'ap-dlg-arrow',
         disabled: !current || !compatibleWith(field, current),
-        title: current ? `把 ${current} 加入 / 移出这个框` : '先在左侧点一个变量',
+        title: current ? tr('把 {0} 加入 / 移出这个框', current) : '先在左侧点一个变量',
         onClick: () => toggleInField(field, current),
       }, '▶'),
       fieldBox(field))))
@@ -2858,7 +2858,7 @@ function normalizeChoices(list) {
             sum: 'SUM', median: 'MEDIAN', variance: 'VARIANCE', semean: 'SEMEAN', mode: 'MODE',
             validn: 'VALIDN', missing: 'MISSING',
           })
-          const title = String(v.title ?? '').trim() || `${v.row} 按 ${v.col} 统计`
+          const title = String(v.title ?? '').trim() || tr('{0} 按 {1} 统计', v.row, v.col)
           const level = Number(v.ciLevel)
           const cilevel = Number.isFinite(level) && level > 0 && level < 100 ? level : 95
           const includeMissing = onKeys(flags, 'categories').includes('includeMissing')
@@ -4379,7 +4379,7 @@ function normalizeChoices(list) {
           h('thead', null, h('tr', null, h('th', { className: 'ap-rownum' }, '顺序'), columns.map(([key, title]) => h('th', {
             key,
             style: { width: widthOf(key), minWidth: widthOf(key) },
-            title: `${title}（拖动右边界改列宽，双击恢复）`,
+            title: tr('{0}（拖动右边界改列宽，双击恢复）', tr(title)),
             onMouseDown: (event) => {
               const box = event.currentTarget.getBoundingClientRect()
               if (box.right - event.clientX <= 8) startColResize(event, key)
@@ -4590,7 +4590,7 @@ function normalizeChoices(list) {
                 for (const name of names) await onDelete?.(name)
               })()
             },
-          }, menu.names.length > 1 ? `删除这 ${menu.names.length} 个变量` : '删除变量'))
+          }, menu.names.length > 1 ? tr('删除这 {0} 个变量', menu.names.length) : '删除变量'))
           : null)
     }
 
@@ -4614,7 +4614,7 @@ function normalizeChoices(list) {
       const [footnote, setFootnote] = useState(edits?.footnote ?? '')
       const setAt = (list, index, value) => list.map((entry, position) => (position === index ? value : entry))
       return h(Modal, {
-        title: `编辑表格 — ${item?.title ?? '表格'}`,
+        title: tr('编辑表格 — {0}', item?.title ?? tr('表格')),
         wide: true,
         okText: '保存',
         onCancel: onClose,
@@ -4632,7 +4632,7 @@ function normalizeChoices(list) {
         key: index,
         className: 'ap-edit-row',
       },
-      h('span', { className: 'ap-edit-index' }, `第 ${index + 1} 列`),
+      h('span', { className: 'ap-edit-index' }, tr('第 {0} 列', index + 1)),
       h('input', {
         type: 'text',
         className: 'ap-grow',
@@ -4742,7 +4742,7 @@ function normalizeChoices(list) {
       return h('div', { className: `ap-output${showReportBar ? ' ap-output-grid' : ''}` },
         showReportBar
           ? h('div', { className: 'ap-report-bar' },
-            h('span', { className: 'ap-hint' }, `报告卡：已选 ${picks.size} 个结果`),
+            h('span', { className: 'ap-hint' }, tr('报告卡：已选 {0} 个结果', picks.size)),
             h('span', { className: 'ap-grow' }),
             h('button', { className: 'ap-tool', onClick: onReportExport, title: '按勾选顺序重放这些分析，导出成文档' }, '导出报告卡…'),
             h('button', { className: 'ap-tool', onClick: () => onTogglePick?.('__clear__') }, '清空选择'))
@@ -4816,7 +4816,7 @@ function normalizeChoices(list) {
                 ? tr('新建数据集{0} · {1} 例 · {2} 变量', name ? tr('（{0}，未保存）', name) : tr('（未保存）'), from.caseCount, from.varCount)
                 : name
                   ? `${name} · ${from.caseCount} 例 · ${from.varCount} 变量`
-                  : `未命名数据 · ${from.caseCount} 例 · ${from.varCount} 变量`
+                  : tr('未命名数据 · {0} 例 · {1} 变量', from.caseCount, from.varCount)
               const size = typeof from.sourceSize === 'number'
                 ? (from.sourceSize < 1024 ? `${from.sourceSize} B` : `${(from.sourceSize / 1024).toFixed(1)} KB`)
                 : null
@@ -4826,11 +4826,11 @@ function normalizeChoices(list) {
                   ? '这份数据没有对应的磁盘文件（在面板里新建的）'
                   : dropped
                     ? '这份数据是浏览器拖进来的副本，不是磁盘上的那份'
-                    : name ? `数据文件：${name}` : '这份数据没有对应的磁盘文件',
-                from.sourcePath ? `来源路径：${from.sourcePath}` : null,
-                from.sourcePath && size ? `读入时文件 ${size}${modified ? `，磁盘修改时间 ${modified}` : ''}` : null,
+                    : name ? tr('数据文件：{0}', name) : '这份数据没有对应的磁盘文件',
+                from.sourcePath ? tr('来源路径：{0}', from.sourcePath) : null,
+                from.sourcePath && size ? tr('读入时文件 {0}{1}', size, modified ? tr('，磁盘修改时间 {0}', modified) : '') : null,
                 tr('计算时 {0} 个个案、{1} 个变量', from.caseCount, from.varCount),
-                opened ? `打开于 ${opened}` : null,
+                opened ? tr('打开于 {0}', opened) : null,
                 tr('会话：{0}', from.sessionId),
               ].filter(Boolean).join('\n')
               return h('span', { className: 'ap-prov', title: detail }, label)
@@ -4879,7 +4879,7 @@ function normalizeChoices(list) {
                   h('button', {
                     className: 'ap-tool',
                     title: '复制为 CSV',
-                    onClick: () => copyText(csv()).then(() => copyHint('表格已复制为 CSV')).catch((error) => copyHint(`复制失败：${error.message}`)),
+                    onClick: () => copyText(csv()).then(() => copyHint('表格已复制为 CSV')).catch((error) => copyHint(tr('复制失败：{0}', error.message))),
                   }, '复制 CSV'),
                   h('button', {
                     className: 'ap-tool',
@@ -5239,7 +5239,7 @@ let ITEM_CSV_PENDING = null
     // if it were the user's own file. An opened file shows its full path.
     function describeSource(dataset) {
       if (!dataset) return ''
-      if (dataset.temporary === true) return `${dataset.name ?? basenameOf(dataset.sourcePath)}（拖入副本 · 路径未知）`
+      if (dataset.temporary === true) return tr('{0}（拖入副本 · 路径未知）', dataset.name ?? basenameOf(dataset.sourcePath))
       return dataset.sourcePath ? String(dataset.sourcePath) : '未命名数据集'
     }
 
@@ -5707,7 +5707,7 @@ let ITEM_CSV_PENDING = null
         }
         if (action === 'sortAsc' || action === 'sortDesc') {
           if (!variable) { notify('这个格子还没有变量，无法排序'); return }
-          return run3(action === 'sortAsc' ? `已按 ${variable} 升序排序` : `已按 ${variable} 降序排序`, async () => {
+          return run3(action === 'sortAsc' ? tr('已按 {0} 升序排序', variable) : tr('已按 {0} 降序排序', variable), async () => {
             const value = await api('api/sort', { sessionId, keys: [{ name: variable, order: action === 'sortAsc' ? 'a' : 'd' }] })
             setSt(stateOf(value))
             const page = await loadRows(0, 500)
@@ -5852,8 +5852,8 @@ let ITEM_CSV_PENDING = null
           // command; the hint is the part a student can act on.
           const detail = first ? `${first.message}${first.hint ? ` —— ${first.hint}` : ''}` : ''
           notify(errors.length
-            ? `${title ?? '运行'}完成，但有 ${errors.length} 个错误：${detail}`
-            : `${title ?? '运行'}完成：${items.filter((item) => item.kind === 'table').length} 个表、${items.filter((item) => item.kind === 'image').length} 个图`)
+            ? tr('{0}完成，但有 {1} 个错误：{2}', tr(title ?? '运行'), errors.length, detail)
+            : tr('{0}完成：{1} 个表、{2} 个图', tr(title ?? '运行'), items.filter((item) => item.kind === 'table').length, items.filter((item) => item.kind === 'image').length))
           setDialog(null)
         } catch (error) {
           notify(error.message)
@@ -5876,8 +5876,8 @@ let ITEM_CSV_PENDING = null
           setTotal(page.total)
           setSelected(null)
           setView('data')
-          const extra = result.duplicates ? `，重复的「标识+索引」保留了第一个，共 ${result.duplicates} 处` : ''
-          notify(tr('{0}完成：{1} 个个案、{2} 个变量{3}{4}', title ?? tr('重构'), result.cases ?? 0, result.variables ?? 0, result.created ? tr('（新增 {0} 列）', result.created) : '', extra))
+          const extra = result.duplicates ? tr('，重复的「标识+索引」保留了第一个，共 {0} 处', result.duplicates) : ''
+          notify(tr('{0}完成：{1} 个个案、{2} 个变量{3}{4}', tr(title ?? '重构'), result.cases ?? 0, result.variables ?? 0, result.created ? tr('（新增 {0} 列）', result.created) : '', extra))
           setDialog(null)
         } catch (error) {
           notify(error.message)
@@ -5899,7 +5899,7 @@ let ITEM_CSV_PENDING = null
             setRows(page.rows)
             setTotal(page.total)
           }
-          notify(tr('{0}：{1} 组重复、共 {2} 个个案{3}', title ?? tr('标识重复个案'), result.groups ?? 0, result.duplicates ?? 0, (result.created ?? []).length ? tr('；已新增 {0}', result.created.join('、')) : ''))
+          notify(tr('{0}：{1} 组重复、共 {2} 个个案{3}', tr(title ?? '标识重复个案'), result.groups ?? 0, result.duplicates ?? 0, (result.created ?? []).length ? tr('；已新增 {0}', result.created.join('、')) : ''))
           setDialog(null)
         } catch (error) {
           notify(error.message)
@@ -5920,7 +5920,7 @@ let ITEM_CSV_PENDING = null
             setTotal(page.total)
           }
           const band = `${result.lowPercent ?? 5}%–${result.highPercent ?? 95}%`
-          notify(tr('{0}：按 {1} 界值查出 {2} 处越界、落在 {3} 个个案上{4}', title ?? tr('标识异常个案'), band, result.hits ?? 0, result.flagged ?? 0, (result.created ?? []).length ? tr('；已新增 {0}', result.created.join('、')) : ''))
+          notify(tr('{0}：按 {1} 界值查出 {2} 处越界、落在 {3} 个个案上{4}', tr(title ?? '标识异常个案'), band, result.hits ?? 0, result.flagged ?? 0, (result.created ?? []).length ? tr('；已新增 {0}', result.created.join('、')) : ''))
           setDialog(null)
         } catch (error) {
           notify(error.message)
@@ -5943,10 +5943,10 @@ let ITEM_CSV_PENDING = null
             setView('data')
             const names = (result.variables ?? []).join('、')
             notify(result.filled > 0
-              ? `${title ?? '替换缺失值'}完成：在 ${names} 上补了 ${result.filled} 个格子（${result.method === 'mean' ? '序列平均值' : result.method === 'linear' ? '线性趋势' : '临近点'}），一次撤销可以整批退回`
-              : `${names} 没有缺失值，什么也没改`)
+              ? tr('{0}完成：在 {1} 上补了 {2} 个格子（{3}），一次撤销可以整批退回', tr(title ?? '替换缺失值'), names, result.filled, result.method === 'mean' ? tr('序列平均值') : result.method === 'linear' ? tr('线性趋势') : tr('临近点'))
+              : tr('{0} 没有缺失值，什么也没改', names))
           } else {
-            notify(tr('{0}完成：{1} 张表，基于 {2} 个个案', title ?? tr('缺失值分析'), result.tables ?? 0, result.cases ?? 0))
+            notify(tr('{0}完成：{1} 张表，基于 {2} 个个案', tr(title ?? '缺失值分析'), result.tables ?? 0, result.cases ?? 0))
           }
           setDialog(null)
         } catch (error) {
@@ -6275,7 +6275,7 @@ let ITEM_CSV_PENDING = null
             const value = await api('api/open', { sessionId, path })
             const kind = applyOpenResult(value)
             setBrowser(null)
-            notify(kind === 'syntax' ? `已载入语法：${displayPath(path)}` : `已打开 ${displayPath(path)}`)
+            notify(kind === 'syntax' ? tr('已载入语法：{0}', displayPath(path)) : tr('已打开 {0}', displayPath(path)))
           } catch (error) {
             notify(error.message)
           } finally {
@@ -6688,12 +6688,12 @@ let ITEM_CSV_PENDING = null
         {
           label: '编辑', items: [
             {
-              label: history.undo > 0 ? `撤销 ${history.undoLabel ?? ''}（Ctrl+Z）` : '撤销（Ctrl+Z）',
+              label: history.undo > 0 ? tr('撤销 {0}（Ctrl+Z）', tr(history.undoLabel ?? '')) : '撤销（Ctrl+Z）',
               disabled: history.undo === 0,
               action: () => applyHistory('undo'),
             },
             {
-              label: history.redo > 0 ? `重做 ${history.redoLabel ?? ''}（Ctrl+Y）` : '重做（Ctrl+Y）',
+              label: history.redo > 0 ? tr('重做 {0}（Ctrl+Y）', tr(history.redoLabel ?? '')) : '重做（Ctrl+Y）',
               disabled: history.redo === 0,
               action: () => applyHistory('redo'),
             },
@@ -7011,14 +7011,14 @@ let ITEM_CSV_PENDING = null
           : null,
         st?.weightBy
           ? {
-            label: `加权：${st.weightBy}`,
+            label: tr('加权：{0}', st.weightBy),
             title: 'WEIGHT BY 正在生效：频数/分析按该变量加权',
             onClear: () => clearSession('WEIGHT OFF.'),
           }
           : null,
         st?.filterBy
           ? {
-            label: `筛选：${st.filterBy}`,
+            label: tr('筛选：{0}', st.filterBy),
             title: 'FILTER BY 正在生效：该变量为 0 或缺失的个案被临时排除',
             onClear: () => clearSession('FILTER OFF.'),
           }
@@ -7201,7 +7201,9 @@ let ITEM_CSV_PENDING = null
               className: 'ap-doctab-title',
               title: doc.id === sessionId
                 ? status
-                : `${doc.title || doc.id}${doc.sessionId === 'default' ? '（面板默认文档，可能来自上一轮）' : doc.sessionId ? `（会话 ${doc.sessionId.slice(-6)}）` : ''}`,
+                : doc.sessionId === 'default'
+                  ? tr('{0}（面板默认文档，可能来自上一轮）', doc.title || doc.id)
+                  : doc.sessionId ? tr('{0}（会话 {1}）', doc.title || doc.id, doc.sessionId.slice(-6)) : (doc.title || doc.id),
               onClick: () => switchDoc(doc.id),
             }, doc.title || (doc.id === sessionId ? st?.dataset?.name : '') || '数据集'),
             h('button', {
@@ -7234,8 +7236,8 @@ let ITEM_CSV_PENDING = null
                     const value = await api('api/paste', { sessionId, cells, extend: options?.extend === true })
                     setSt(stateOf(value))
                     const added = []
-                    if (value.result?.addedCases) added.push(`新增 ${value.result.addedCases} 个个案`)
-                    if (value.result?.addedVariables) added.push(`新增 ${value.result.addedVariables} 个变量`)
+                    if (value.result?.addedCases) added.push(tr('新增 {0} 个个案', value.result.addedCases))
+                    if (value.result?.addedVariables) added.push(tr('新增 {0} 个变量', value.result.addedVariables))
                     // The host answers with state only, which carries the shape
                     // but not the cells: patch the rows we already show, and
                     // reload the window when the paste changed the shape.
@@ -7253,7 +7255,7 @@ let ITEM_CSV_PENDING = null
                         return next
                       })
                     }
-                    setToast(`已粘贴 ${cells.length} 个单元格${added.length ? `（${added.join('、')}）` : ''}`)
+                    setToast(tr('已粘贴 {0} 个单元格{1}', cells.length, added.length ? tr('（{0}）', added.join('、')) : ''))
                     window.setTimeout(() => setToast(null), 2500)
                   } catch (error) {
                     notify(error.message)
@@ -7417,7 +7419,7 @@ let ITEM_CSV_PENDING = null
                   : null)))
             : null,
           outputQuery
-            ? h('span', { className: 'ap-hint' }, `输出筛选「${outputQuery}」：${items.length}/${allItems.length}`,
+            ? h('span', { className: 'ap-hint' }, tr('输出筛选「{0}」：{1}/{2}', outputQuery, items.length, allItems.length),
               h('button', { className: 'ap-tool', style: { marginLeft: 6 }, onClick: () => setOutputQuery('') }, '清除'))
             : null,
           h('span', { className: 'ap-grow' }),
@@ -7427,7 +7429,7 @@ let ITEM_CSV_PENDING = null
               : null,
             h('span', { title: st?.lastError?.raw ?? '' },
               st?.lastError
-                ? `最近错误：${st.lastError.message}${st.lastError.hint ? ` — ${st.lastError.hint}` : ''}`
+                ? `${tr('最近错误：{0}', st.lastError.message)}${st.lastError.hint ? ` — ${st.lastError.hint}` : ''}`
                 : '就绪'),
             // A toast is gone in four seconds; the list of renamed columns is
             // what the user goes looking for later, when a column is not where
@@ -7466,7 +7468,7 @@ let ITEM_CSV_PENDING = null
               ? '另一个窗口在你编辑期间改过这份数据，所以这次修改被拒绝了。磁盘上现在是对方的那一版。'
               : '对话里的分析在你编辑期间改过这份数据，所以这次修改被拒绝了。磁盘上现在是分析结果那一版。'),
             h('p', { className: 'ap-hint' },
-              `你的版本：第 ${conflict.conflict.expected ?? '?'} 次改动 · 磁盘上的版本：第 ${conflict.conflict.actual ?? '?'} 次改动`),
+              tr('你的版本：第 {0} 次改动 · 磁盘上的版本：第 {1} 次改动', conflict.conflict.expected ?? '?', conflict.conflict.actual ?? '?')),
             h('div', { className: 'ap-conflict-actions' }, [
               h('button', {
                 className: 'ap-btn ap-danger',
@@ -7557,7 +7559,7 @@ let ITEM_CSV_PENDING = null
               setDialog(null)
             },
             onRun: async (built, spec) => {
-              if (built?.error) { notify(built.error); return }
+              if (built?.error) { notify(tr(built.error)); return }
               if (built?.restructure) {
                 await runRestructure(built.restructure, spec?.title)
                 return
@@ -7671,8 +7673,8 @@ let ITEM_CSV_PENDING = null
                 }
                 const count = Object.keys(labels).length
                 notify(targets.length > 1
-                  ? `已给 ${targets.length} 个变量各写入 ${count} 条值标签`
-                  : `已给 ${name} 写入 ${count} 条值标签`)
+                  ? tr('已给 {0} 个变量各写入 {1} 条值标签', targets.length, count)
+                  : tr('已给 {0} 写入 {1} 条值标签', name, count))
               } catch (error) { notify(error.message) }
             },
           })
@@ -7723,7 +7725,7 @@ let ITEM_CSV_PENDING = null
                 setRows(page.rows)
                 setTotal(page.total)
                 setDialog(null)
-                notify(value.result.replaced > 0 ? `已替换 ${value.result.replaced} 处` : '没有可替换的内容')
+                notify(value.result.replaced > 0 ? tr('已替换 {0} 处', value.result.replaced) : '没有可替换的内容')
               } catch (error) {
                 notify(error.message)
               }
@@ -7778,7 +7780,7 @@ let ITEM_CSV_PENDING = null
           : null,
         labelsDialog
           ? h(Modal, {
-            title: `值标签 — ${labelsDialog.name}`,
+            title: tr('值标签 — {0}', labelsDialog.name),
             onCancel: () => setLabelsDialog(null),
             onOk: async () => {
               const entries = labelsDialog.text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
@@ -7812,7 +7814,7 @@ let ITEM_CSV_PENDING = null
         dialog?.kind === 'close'
           ? h(ConfirmDialog, {
             title: '关闭数据集',
-            message: `${st?.dataset?.name ?? '当前数据'} 有未保存的改动。关闭后这些改动只剩下工作文件里的一份副本，面板里没有入口再打开它。要先保存吗？`,
+            message: tr('{0} 有未保存的改动。关闭后这些改动只剩下工作文件里的一份副本，面板里没有入口再打开它。要先保存吗？', st?.dataset?.name ?? tr('当前数据')),
             okText: '仍然关闭',
             onOk: () => {
               const target = pendingClose ?? { id: sessionId, current: true }
@@ -7897,7 +7899,7 @@ let ITEM_CSV_PENDING = null
                 Array.isArray(browser.only) && browser.only.length > 0
                   ? h('div', { className: 'ap-row', style: { alignItems: 'center', gap: 8 } },
                     h('span', { className: 'ap-hint' }, '导出范围'),
-                    h('strong', null, `只导出「${browser.title ?? '这一张表'}」`))
+                    h('strong', null, tr('只导出「{0}」', browser.title ?? tr('这一张表'))))
                   : null,
                 h('div', { className: 'ap-row', style: { alignItems: 'center', gap: 8, display: Array.isArray(browser.only) && browser.only.length > 0 ? 'none' : 'flex' } },
                   h('span', { className: 'ap-hint' }, '导出范围'),
@@ -8291,7 +8293,7 @@ let ITEM_CSV_PENDING = null
       }, [ctx, store, scope, path])
       return h('div', { className: 'ap-root' },
         h('div', { className: 'ap-empty' },
-          h('div', null, `已交给「统计分析」打开 ${title ?? basenameOf(path)}。`),
+          h('div', null, tr('已交给「统计分析」打开 {0}。', title ?? basenameOf(path))),
           h('div', { className: 'ap-hint' }, '这个中转标签应该会自动关闭；没关掉就点下面的按钮。'),
           h('div', null, h('button', { className: 'ap-tool', onClick: () => closeRef.current?.() }, '关闭这个标签页'))))
     }
@@ -8489,7 +8491,7 @@ let ITEM_CSV_PENDING = null
         return () => { saveRef.current = null }
       }, [save, saveRef])
 
-      if (error && !data) return h('div', { className: 'ap-settings' }, h('p', { className: 'ap-error' }, `设置读不出来：${error}`))
+      if (error && !data) return h('div', { className: 'ap-settings' }, h('p', { className: 'ap-error' }, tr('设置读不出来：{0}', error)))
 
       if (!data || !form) return h('div', { className: 'ap-settings' }, h('p', { className: 'ap-hint' }, '正在读取设置…'))
 

@@ -1318,6 +1318,18 @@ check('a comment after the inline block does not swallow the commands after it',
   assert.equal(stats.filtersData, true)
 })
 
+check('a data value that starts with END DATA does not end the block', () => {
+  // The merge loop used an unanchored /END\s+DATA\b/ while the block-end search
+  // required the words to be alone on the line. `END DATA now` is a data value:
+  // the two disagreed and the block ended one line early.
+  const script = 'DATA LIST FREE /v (A20).\nBEGIN DATA\n1\nEND DATA now\n2\nEND DATA.\nDESCRIPTIVES v.'
+  const parts = splitStatements(script)
+  assert.equal(parts.length, 3, JSON.stringify(parts))
+  assert.match(parts[1], /END DATA now/, JSON.stringify(parts[1]))
+  assert.match(parts[1], /\n2\n/, JSON.stringify(parts[1]))
+  assert.equal(classifyScript(script).asksForResults, true)
+})
+
 check('sampling everything away is not called a filter', () => {
   const stats = classifyScript('SAMPLE .01.\nDESCRIPTIVES score.')
   assert.equal(stats.samplesData, true)
@@ -1341,6 +1353,20 @@ check('a table that says N = 0 while the panel holds cases explains itself', () 
   const already = table()
   already[0].notes.push('加权后有效个案是 0：…')
   assert.equal(annotateZeroCases(already, dataset), 0)
+  // `DESCRIPTIVES` puts `Missing N (listwise) = 0` in the same column on ordinary
+  // data; counting that zero made the note appear on healthy tables.
+  const withMissing = [{ kind: 'table', title: 'Descriptive Statistics', notes: [], table: {
+    caption: 'Descriptive Statistics',
+    matrix: [['', 'N', 'Mean'], ['score', '12', '2.4'], ['Valid N (listwise)', '12', ''], ['Missing N (listwise)', '0', '']],
+  } }]
+  assert.equal(annotateZeroCases(withMissing, dataset), 0)
+  // Two variables, one of them entirely missing: every row that names a variable
+  // is zero, so the weight story is the right one to tell.
+  const allMissing = [{ kind: 'table', title: 'Descriptive Statistics', notes: [], table: {
+    caption: 'Descriptive Statistics',
+    matrix: [['', 'N', 'Mean'], ['a', '0', '.'], ['b', '0', '.'], ['Valid N (listwise)', '0', '']],
+  } }]
+  assert.equal(annotateZeroCases(allMissing, dataset), 1)
 })
 
 check('END DATA sharing a line with a command is explained before the engine sees it', () => {
