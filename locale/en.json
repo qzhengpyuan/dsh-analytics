@@ -608,7 +608,6 @@
     "模型只有一个预测变量，容忍度恒为 1、VIF 恒为 1；PSPP 自己在这种情况下会打印 +Infinit 或 NaN": "The model has a single predictor, so tolerance is 1 and VIF is 1; PSPP itself prints +Infinit or NaN here",
     "模型摘要（R 方）": "Model summary (R²)",
     "橙": "Orange",
-    "正在显示全部": "Showing all ",
     "正在读取设置…": "Reading settings…",
     "正在运行分析或载入数据，现在不能改：等这次运行结束再编辑（输出视图里能看到进度）": "An analysis or a data load is running, so nothing can be edited now: wait for it to finish (the output view shows progress)",
     "正在运行分析或载入数据，现在不能清除输出：等这次运行结束再清（输出视图里能看到进度）": "An analysis or a data load is running, so the output cannot be cleared now: wait for it to finish (the output view shows progress)",
@@ -773,7 +772,6 @@
     "行（复制 CSV 与导出仍是全部）": " rows (copy CSV and export still use all of it)",
     "行（数值变量）": " rows (numeric variables)",
     "行（还没有变量）": " rows (no variables yet)",
-    "行，面板先画前": " rows; the panel draws the first ",
     "表": "Table",
     "表 1 至少需要一个分析变量": "Table 1 needs at least one analysis variable",
     "表 1 需要一个分组变量（group）": "Table 1 needs a grouping variable (group)",
@@ -862,7 +860,6 @@
     "这份数据来自拖入的文件副本，还没有对应的磁盘文件：请用「另存为…」选择保存位置": "This data is a copy of a dropped file and has no file on disk yet: use Save As… to pick a location",
     "这份数据没有对应的磁盘文件": "This data has no file on disk",
     "这份数据没有对应的磁盘文件（在面板里新建的）": "This data has no file on disk (created in the panel)",
-    "这张表共": "This table has ",
     "这是拖入文件的副本，请选择保存位置": "This is a copy of a dropped file; pick where to save it",
     "这条命令需要先有数据集：先打开一个数据文件，或新建数据集并定义变量": "This command needs a dataset: open a data file, or create a dataset and define variables",
     "这次输出里没有表格也没有图：先运行一个会出结果的分析，再导出 PDF/ODT": "This output has no tables and no charts: run an analysis that produces results, then export PDF/ODT",
@@ -1295,6 +1292,8 @@
     "（没有表格输出）": "(no table output)",
     "来源：{0}": "Source: {0}",
     "新建数据集（{0}）": "New dataset ({0})",
-    "（图表见上方）": "(charts above)"
+    "（图表见上方）": "(charts above)",
+    "这张表共 {0} 行，面板先画前 {1} 行（复制 CSV 与导出仍是全部）": "This table has {0} rows; the panel draws the first {1} rows (copy CSV and export still get all of them)",
+    "正在显示全部 {0} 行": "Showing all {0} rows"
   }
 }

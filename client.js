@@ -4964,7 +4964,7 @@ function normalizeChoices(list) {
                       }),
                     hidden > 0
                       ? h('div', { key: 'more', className: 'ap-table-more' }, [
-                        h('span', { key: 'note' }, `这张表共 ${drawn.total} 行，面板先画前 ${drawn.shown} 行（复制 CSV 与导出仍是全部）`),
+                        h('span', { key: 'note' }, tr('这张表共 {0} 行，面板先画前 {1} 行（复制 CSV 与导出仍是全部）', drawn.total, drawn.shown)),
                         h('button', {
                           key: 'toggle',
                           className: 'ap-tool',
@@ -4973,13 +4973,13 @@ function normalizeChoices(list) {
                       ])
                       : full && drawn.total > PREVIEW_ROWS
                         ? h('div', { key: 'less', className: 'ap-table-more' }, [
-                          h('span', { key: 'note' }, `正在显示全部 ${drawn.total} 行`),
+                          h('span', { key: 'note' }, tr('正在显示全部 {0} 行', drawn.total)),
                           h('button', { key: 'toggle', className: 'ap-tool', onClick: () => toggleTableRows(item.id) }, '只显示前 200 行'),
                         ])
                         : null,
                     noteLines.length > 0
                       ? h('ul', { key: 'notes', className: 'ap-notes' },
-                        noteLines.map((text, index) => h('li', { key: index, className: 'ap-note' }, tr('注：{0}', text))))
+                        noteLines.map((text, index) => h('li', { key: index, className: 'ap-note', translate: false }, tr('注：{0}', text))))
                       : null,
                   ])
                 })())

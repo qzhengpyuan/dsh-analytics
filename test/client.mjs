@@ -2041,7 +2041,23 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
         table: { caption: 'Descriptive Statistics', matrix: [['', 'N', 'Mean'], ['score', '12', '50.25']] },
         // The prefix is produced by the panel, not by the note: it used to be
         // written as 注： directly, so an English panel showed a Chinese prefix.
-        notes: ['Levene p = 0.003'],
+        // The second note carries a full-width colon on purpose: the panel used
+        // to run the whole line through the translator again, and the generic
+        // "{0}：{1}" template turned that colon into a half-width one.
+        notes: ['Levene p = 0.003', 'Levene test：variances differ'],
+      },
+      {
+        // A 250-row table, so the truncation bar is on screen while the panel
+        // claims to be English. It was the one place with a bare template.
+        id: 'run-2-0',
+        kind: 'table',
+        title: 'Frequency',
+        runId: 2,
+        table: {
+          caption: 'Frequency',
+          matrix: [['', 'N', 'Percent'], ...Array.from({ length: 250 }, (_, index) => [String(index), '1', '0.4'])]
+        },
+        notes: [],
       },
     ],
     importNotes: [],
@@ -2098,6 +2114,12 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     const note = fullHost.querySelector('.ap-note')
     assert.ok(note, 'the table note is drawn in the english panel')
     assert.match(note.textContent, /^Note: Levene p = 0\.003$/, `the note prefix follows the language: ${note.textContent}`)
+    const notes = [...fullHost.querySelectorAll('.ap-note')].map((node) => node.textContent)
+    assert.ok(notes.includes('Note: Levene test：variances differ'),
+      `the note body keeps its own punctuation: ${notes.join(' | ')}`)
+    const truncation = fullHost.querySelector('.ap-table-more')
+    assert.ok(truncation, 'the truncation bar is drawn for the 250-row table')
+    assert.match(truncation.textContent, /This table has 250 rows/, `the truncation bar follows the language: ${truncation.textContent}`)
   }
   const leftovers = [...new Set((fullHost.textContent.match(/[\u4e00-\u9fff]+/g) ?? []))]
   assert.deepEqual(leftovers, [], `translated panel still shows Chinese: ${leftovers.join(' / ')}`)
