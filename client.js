@@ -1361,7 +1361,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       h('div', { className: 'ap-row' },
         h('span', null, '目标变量'),
         h('select', { value: target, onChange: (event) => setTarget(event.target.value), style: { flex: 1 } },
-          variables.map((variable) => h('option', { key: variable.name, value: variable.name },
+          variables.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false },
             variable.label ? `${variable.name}（${variable.label}）` : variable.name)))),
       h('div', { className: 'ap-hint' }, '每行「值,标签」（或「标签,值」），也可以直接粘贴 VALUE LABELS 语句。'),
       h('textarea', {
@@ -1466,7 +1466,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
               className: `ap-dlg-var ${picked.has(variable.name) ? 'ap-chosen' : ''}`,
               onClick: () => toggle(variable.name),
             },
-            h('span', { style: { flex: 1 } }, variable.label ? `${variable.name}（${variable.label}）` : variable.name)))),
+            h('span', { style: { flex: 1 }, translate: false }, variable.label ? `${variable.name}（${variable.label}）` : variable.name)))),
         h('div', { style: { width: 200, display: 'flex', flexDirection: 'column', gap: 4 } },
           h('div', { className: 'ap-hint' }, `已选 ${picked.size} 个变量`),
           h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 4 } },
@@ -1522,7 +1522,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
                   h('span', null, '交叉表：按'),
                   h('select', { value: groupBy, onChange: (event) => setGroupBy(event.target.value), style: { flex: 1 } },
                     h('option', { value: '' }, '（不分）'),
-                    grouped.map((variable) => h('option', { key: variable.name, value: variable.name },
+                    grouped.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false },
                       variable.label ? `${variable.name}（${variable.label}）` : variable.name))),
                   h('button', {
                     className: 'ap-tool',
@@ -1576,8 +1576,8 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
               checked: selected.includes(variable.name),
               onChange: () => toggle(variable.name),
             }),
-            h('span', null, variable.name),
-            variable.label ? h('span', { className: 'ap-hint' }, ` ${variable.label}`) : null))))
+            h('span', { translate: false }, variable.name),
+            variable.label ? h('span', { className: 'ap-hint', translate: false }, ` ${variable.label}`) : null))))
     }
 
     function Field({ label, children, hint }) {
@@ -1604,6 +1604,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         key: name,
         className: `ap-chip${active ? ' ap-chip-on' : ''}`,
         onClick: () => onPick(name),
+        translate: false,
       }, name)
       return h(Modal, {
         title: kind === 'baseline' ? '表 1：基线特征' : '表 2：组间比较',
@@ -1623,7 +1624,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
               onChange: (event) => setGroup(event.target.value || null),
             },
             h('option', { value: '' }, '（选一个分组变量）'),
-            variables.map((variable) => h('option', { key: variable.name, value: variable.name }, variable.name)))),
+            variables.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
           group && chosen.includes(group)
             ? h('div', { className: 'ap-hint' }, '分组变量不会同时作为分析变量（已自动略过）。')
             : null,
@@ -1672,6 +1673,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
               className: `ap-chip${chosen.includes(variable.name) ? ' ap-chip-on' : ''}`,
               title: variable.label ?? '',
               onClick: () => toggle(variable.name),
+              translate: false,
             }, variable.name)))),
         h('div', { className: 'ap-dlg-right' },
           h('div', { className: 'ap-dlg-box' },
@@ -1681,7 +1683,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
               onChange: (event) => setGroup(event.target.value || null),
             },
             h('option', { value: '' }, '（选一个分组变量）'),
-            variables.map((variable) => h('option', { key: variable.name, value: variable.name }, variable.name)))),
+            variables.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
           h('div', { className: 'ap-dlg-box' },
             h('div', { className: 'ap-dlg-caption' }, '多重比较校正'),
             h('select', { value: adjust, onChange: (event) => setAdjust(event.target.value) },
@@ -1724,6 +1726,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
               className: `ap-chip${chosen.includes(variable.name) ? ' ap-chip-on' : ''}`,
               title: variable.label ?? '',
               onClick: () => toggle(chosen, setChosen)(variable.name),
+              translate: false,
             }, variable.name)))),
         h('div', { className: 'ap-dlg-right' },
           h('div', { className: 'ap-dlg-box' },
@@ -1737,6 +1740,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
                   className: `ap-chip${controls.includes(variable.name) ? ' ap-chip-on' : ''}`,
                   title: variable.label ?? '',
                   onClick: () => toggle(controls, setControls)(variable.name),
+                  translate: false,
                 }, variable.name)))),
           h('div', { className: 'ap-dlg-box' },
             h('div', { className: 'ap-dlg-caption' }, '表格形式'),
@@ -3073,7 +3077,7 @@ function normalizeChoices(list) {
         h(Field, { label: '限定变量', hint: '留空表示在所有变量里查找' },
           h('select', { value: column, onChange: (event) => setColumn(event.target.value), style: { width: '100%' } },
             h('option', { value: '' }, '（全部变量）'),
-            variables.map((variable) => h('option', { key: variable.name, value: variable.name }, variable.name)))),
+            variables.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
         h('label', { className: 'ap-check' },
           h('input', { type: 'checkbox', checked: matchCase, onChange: (event) => setMatchCase(event.target.checked) }), '区分大小写'),
         h('label', { className: 'ap-check' },
