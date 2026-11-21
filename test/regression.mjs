@@ -1680,6 +1680,14 @@ check('a star value in the middle of inline data stays data', () => {
   assert.ok(/\* 7/.test(block), `a star value in the middle of the data stays data: ${JSON.stringify(block)}`)
 })
 
+check('a data group inside matrix algebra is not split into statements', () => {
+  // The block there is closed by `END MATRIX`, not `END DATA`: without the
+  // fallback the periods inside the numbers split the algebra and its data
+  // rows were handed on as if they were commands.
+  const parts = splitStatements('MATRIX.\nBEGIN DATA\n1.5 2.25\n3.5 4.25\nEND MATRIX.\nCOMPUTE x = 1.\nDESCRIPTIVES v.')
+  assert.deepEqual(parts, ['COMPUTE x = 1.', 'DESCRIPTIVES v.'], JSON.stringify(parts))
+})
+
 check('a data value that reads END MATRIX does not close the inline block', () => {
   // Only `END DATA` closes inline data. A value that happens to be `END MATRIX.`
   // on its own line is data for PSPP, and treating it as the block end stripped
