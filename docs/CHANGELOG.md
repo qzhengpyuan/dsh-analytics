@@ -2,6 +2,17 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.55.0
+
+自查（起因是给 0.54.97 的 `requestedRegression` 补针对性用例时发现的解析缺陷）：
+
+- **`/METHOD=STEPWISE PIN(0.05) POUT(0.10) a b.` 把子选项当预测变量**：token 化只按空白切、再剥非字母数字，于是 `PIN(0.05)` 变成 `PIN0.05`、`POUT(0.10)` 变成 `POUT0.10`，被当成两个预测变量多算进去 —— 样本量注文因此会说「20 例对 4 个预测变量偏少」。改成先删掉括号组（`replace(/\([^)]*\)/g, ' ')`）再切词，并把 `PIN|POUT|CRITERIA|SINGLE` 加进子选项关键词表。
+- **`/METHOD=TEST(a) /ENTER=a.` 一个预测变量都取不到**：`TEST(...)` 的括号被删后 `/METHOD=` 那一段只剩子选项，真正的名字在独立的 `/ENTER=` 子命令里。新增 `/ENTER\s*=\s*…` 分支，与 `/METHOD=`、`/VARIABLES=` 一起收集。
+- 附带的清理：删掉 `locale/en.json` 里四条**已经没有任何代码引用**的碎片词条（`" 之间的整数，收到 "`、`" 必须是字符串"`、`" 行，文档里只放了前"`、`" 行；完整数据请用「导出为 CSV」。"`），词典 1292 → **1288**。它们是早期把长句拆成碎片拼接时留下的，后来长句改成整句模板后就成了死键。
+- 用例：`test/regression.mjs` 的 `requestedRegression` 那条 check 里加两条断言（子选项不进预测变量、独立 `/ENTER=` 也认）。变异：把括号剥离那一行删掉 → `rc=1`、红在 `a hand-written regression hands over its predictors`。
+
+计数：34 套件 / **569** 条 ok（Linux、无 poppler；装 poppler 570）—— 新增的两条断言在既有 check 内，条数不变。
+
 ## 0.54.99
 
 Win10 0.54.98 报告的 P2×2 + P3×3，全是文档数字与措辞（无代码改动）：

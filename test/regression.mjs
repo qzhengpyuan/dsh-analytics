@@ -1801,6 +1801,17 @@ check('a hand-written regression hands over its predictors', () => {
   const twice = requestedRegression('REGRESSION /DEPENDENT=y /METHOD=ENTER a b c.\nREGRESSION /DEPENDENT=y /METHOD=ENTER a.')
   assert.deepEqual(twice, { dependent: 'y', independents: ['a'] }, JSON.stringify(twice))
   assert.equal(requestedRegression('REGRESSION /DEPENDENT=y /METHOD=ENTER y.'), null, 'a model with no predictor is not a regression to warn about')
+  // STEPWISE and TEST carry suboptions and parenthesised names in the same slot.
+  assert.deepEqual(
+    requestedRegression('REGRESSION /DEPENDENT=y /METHOD=STEPWISE PIN(0.05) POUT(0.10) a b.'),
+    { dependent: 'y', independents: ['a', 'b'] },
+    'suboption keywords are not predictors',
+  )
+  assert.deepEqual(
+    requestedRegression('REGRESSION /DEPENDENT=y /METHOD=TEST(a) /ENTER=a.'),
+    { dependent: 'y', independents: ['a'] },
+    'a separate /ENTER= subcommand still names its predictors',
+  )
 })
 
 console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)
