@@ -2830,6 +2830,11 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.match(runs.textContent, /CROSSTABS/, 'and keeps the syntax that ran')
   await clickIn(runs, '插入语法')
   assert.match(workHost.querySelector('.ap-code-input').value, /^CROSSTABS/, 'inserting a run replaces the editor with that run')
+  // The history survives a reload: it is the only copy of a script the user did
+  // not save, so it has to be on disk-ish storage rather than in React state.
+  const stored = globalThis.window.localStorage.getItem('ap.runHistory') ?? ''
+  assert.match(stored, /CROSSTABS/, `the history is persisted: ${stored.slice(0, 120)}`)
+  assert.match(stored, /"persist":false|"persist": true|persist/, 'and it records whether the run changed data')
 
   // 文件 → 导出报告（成册）: the tick selection is the binding order, and the
   // extension picks the format before anything is written.

@@ -2,6 +2,17 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.57.1
+
+0.57.0 的自检补强，以及用户要求的那份滚动计划。
+
+- **新增 [PLAN.md](PLAN.md)**：lead 与 Win10 共同维护的滚动计划 —— 0.24–0.57.0 压成一行一批的回顾表、六批详细排期（0.57.1 复验收尾 / 0.58.0 图表工作台 / 0.59.0 导入向导 / 0.60.0 分析补齐第二轮 / 0.61.0 数据编辑器增强 / 0.62.0 可发现性与分发）、每批写清「做什么 / 为什么 / 怎么算做完 / 落点」。`docs/ROADMAP.md` 顶部指向它，里程碑状态仍留在 ROADMAP。
+- **21 条语法模板逐条过真引擎**（探针，不进套件）：把占位符换成真实变量名后，`DESCRIPTIVES`/`FREQUENCIES`/`CROSSTABS`/`MEANS`/四种 `T-TEST`/`ONEWAY`/`CORRELATIONS`/`REGRESSION`/`RELIABILITY`/`FACTOR`/`QUICK CLUSTER`/三种 `NPAR TESTS`/四个数据整理模板全部出表或成功改数据；唯一"失败"的 `LOGISTIC REGRESSION` 是**数据问题**（因变量 12 个取值、不是二分），引擎原话 `Dependent variable's values are not dichotomous.` 清楚可用。
+- **两条手写模板进 `test/smoke.mjs` 真引擎用例**：`AGGREGATE /OUTFILE=* MODE=ADDVARIABLES /BREAK=… /…=MEAN(…)` 必须只加一列且名字对、`RECODE (LO THRU 30=1) (31 THRU HI=2) INTO …` 必须造出目标变量且取值恰为 1/2 —— 这两条没有对话框覆盖，模板是它们唯一的入口。
+- **运行历史持久化断言**（`test/client.mjs`）：跑完一次后 `localStorage['ap.runHistory']` 里必须有那次语法与 `persist` 标记 —— 历史是用户没存的脚本的唯一副本，掉进组件状态等于白记。
+
+计数不变：**35** 套件 / **587** 条 ok（装了 poppler 588）；新增的两条真引擎断言打的是 `real engine: …` 行，不进 `^ok`。
+
 ## 0.57.0
 
 这一版加的是功能，不是修 bug。语法工作台与报告成册各占一半，两者都不依赖新统计过程，只把已经算出来的东西变得可复用、可交付。

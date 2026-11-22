@@ -1095,6 +1095,23 @@ if (process.platform !== 'win32') {
   console.log('real engine: an unimplemented process points at the substitute')
 }
 
+// The syntax templates are the one place where the plugin spells a procedure out
+// on its own instead of letting a dialog build it, so at least the two that no
+// dialog covers are run for real: AGGREGATE (adds a summary column) and RECODE.
+{
+  const before = workspace.dataset.variables.length
+  await workspace.runSyntax('AGGREGATE /OUTFILE=* MODE=ADDVARIABLES /BREAK=gender /age_mean=MEAN(age).', { persist: true })
+  const added = workspace.dataset.variables.at(-1)
+  assert.equal(added?.name, 'age_mean', 'the aggregate template appends the summary column')
+  assert.equal(workspace.dataset.variables.length, before + 1, 'and only one column')
+  await workspace.runSyntax('RECODE age (LO THRU 30=1) (31 THRU HI=2) INTO age_band.\nEXECUTE.', { persist: true })
+  const band = workspace.dataset.variables.find((variable) => variable.name === 'age_band')
+  assert.ok(band, 'the recode template creates its target variable')
+  const values = workspace.dataset.rows.map((row) => row[workspace.dataset.variables.indexOf(band)])
+  assert.deepEqual([...new Set(values)].sort(), [1, 2], `the recoded values are the two groups: ${JSON.stringify([...new Set(values)])}`)
+  console.log('real engine: the two hand-written templates (aggregate, recode) run')
+}
+
 // Teardown must not be able to fail the run on its own: on Windows a workspace
 // file can still be held for a moment, and an EBUSY here used to exit(1) with
 // every assertion already passed — the report showed rc=1 and no failing line.
