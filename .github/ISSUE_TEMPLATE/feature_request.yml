@@ -1,0 +1,30 @@
+name: Feature request / 功能建议
+description: 想要一个 SPSS 里有、这里没有的功能 / something SPSS does that this cannot
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先说清楚**你要解决的问题**，再说功能本身：很多 SPSS 功能可以用另一条路径达到（例如 PSPP 没有 Welch ANOVA，但 GLM 对比能给出同样的比较）。
+  - type: input
+    id: where
+    attributes:
+      label: 在 SPSS 里的位置
+      description: 菜单路径，例如「分析 → 描述统计 → 交叉表 → 统计量 → 序次」
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你要解决什么问题
+      description: 你想得到哪个数字或哪张表，用它来回答什么。
+    validations:
+      required: true
+  - type: textarea
+    id: now
+    attributes:
+      label: 现在怎么绕过去
+      description: 你现在用的是哪条替代路径，哪里不够（多一步、少一个区间、结果不可导出…）。
+  - type: textarea
+    id: engine
+    attributes:
+      label: 已知的引擎限制（可选）
+      description: PSPP 2.1.3 不支持的过程见 docs/FEATURES.md 的「受引擎限制的功能」一节；如果你的需求在那里，请说明为什么仍然需要。

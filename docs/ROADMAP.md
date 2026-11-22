@@ -38,8 +38,9 @@
 
 - [x] 全部套件的失败行统一成 `FAIL  <用例名>`（0.56.2）
 - [x] 死词条常设断言（`test/i18n.mjs`，词条 1285 条，白名单记出处）
-- [ ] `localize()` 对 `${}` 拼装句子的漏翻族：改用模板键（本轮先修「不可估」这一处，其余按同一模式扫）
-- [ ] `requestedRegression` 之类别名解析：已钉住 PSPP 只认 `METHOD=ENTER`，把这条限制写进 FEATURES
+- [x] `localize()` 对 `${}` 拼装句子的漏翻族：模板键 + 捕获位白名单（0.56.0/0.56.2/0.56.4 三处收口）
+- [ ] 宿主侧 93 条 `${}` 拼接的报错文案的英文覆盖（已计入 FEATURES 的「已知缺口」，按需补，不阻塞）
+- [x] `requestedRegression` 的限制写进 FEATURES（0.56.0 起：`REGRESSION` 只认 `/METHOD=ENTER`）
 - [ ] 面板大表虚拟化的实机观感（滚动条、spacer 高度、底色）
 - [x] 引擎崩溃文案（`You have discovered a bug`）在多语言下的一致性（0.56.4）
 
@@ -51,7 +52,8 @@
 
 ## M11 文档与可发现性 —— 待办
 
-- README 补三张实机截图（面板、对话框、输出）与一段 30 秒上手
+- README 补三张实机截图（面板、对话框、输出）—— 需要有认证的浏览器会话，暂缺
+- [x] issue 模板（bug / feature / 安装指引，`.github/ISSUE_TEMPLATE/`，0.56.5）
 - issue 模板（bug / feature）
 - 插件列表里三个同名入口的文案区分
 

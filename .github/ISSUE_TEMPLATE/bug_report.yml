@@ -1,0 +1,52 @@
+name: Bug report / 问题反馈
+description: Something looked wrong, crashed, or disagreed with SPSS / 结果不对、崩溃、或与 SPSS 不一致
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先跑一次 `node scripts/doctor.mjs` 或 `npm test`，把失败的套件名贴上来 —— 大部分问题在这一步就能定位。
+        面板左下角的状态栏能复制版本与引擎信息，请一并贴出。
+  - type: input
+    id: version
+    attributes:
+      label: 插件版本
+      description: 面板「帮助 → 关于」或 `GET /analytics/api/version` 里的 version
+      placeholder: 0.56.4
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 平台
+      options:
+        - Linux x64
+        - Windows x64
+        - macOS (arm64)
+        - macOS (x64)
+        - 其它 / other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么
+      description: 你点的是什么、期望什么、实际看到什么。有截图更好。
+    validations:
+      required: true
+  - type: textarea
+    id: syntax
+    attributes:
+      label: 触发它的语法或操作路径
+      description: 面板「语法」视图里的内容，或「分析 → … → 帮助」给出的那一段。没有就写操作路径。
+      render: text
+  - type: textarea
+    id: data
+    attributes:
+      label: 数据长什么样
+      description: 变量类型与大致个案数即可，不必贴真实数据。涉及缺失值、权重、分组变量时请说明。
+  - type: textarea
+    id: reference
+    attributes:
+      label: SPSS 那边给的是什么（如果是在和 SPSS 对比）
+      description: 同一份数据在 SPSS 里的输出数值或截图；只有你确认不一致时才需要。
