@@ -2,6 +2,16 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.55.2
+
+钉住 `/ENTER=` 这条死路（0.55.0 给它加了分支，但没验过引擎到底认不认）：
+
+- 用真引擎实测 PSPP 2.1.3 的 `REGRESSION` 子命令：`/METHOD=ENTER a b.` 正常给出 `Coefficients`（`(Constant)`、`a`、`b`）；`/ENTER=a c.`、`/METHOD=ENTER a b /ENTER=c.`、`/METHOD=ENTER /ENTER=a c.`、`/METHOD=TEST(a) /METHOD=ENTER a c.` 全部报 `Syntax error expecting VARIABLES, DEPENDENT, … METHOD …` 或 `expecting ENTER`/`expecting variable name`。结论：PSPP 2.1.3 **没有** `/ENTER=`、`/TEST=` 这两个子命令，只认 `/METHOD=ENTER` 后面直接跟变量名 —— SPSS 那种写法在这里是语法错。
+- `test/smoke.mjs` 加一条真引擎断言：`REGRESSION /DEPENDENT=y /ENTER=x.` 必须抛错且文案是中文的那句「语法错误：这里的写法不被接受…」，防止以后升级 PSPP 时这条悄悄变成「接受」而没人知道。
+- `requestedRegression` 里 `/ENTER=` 分支保留：引擎在它之前就报错、不会产出表，所以那段解析不会影响任何注文；留着是为了语法高亮与「帮助 → 预览语法」不把它当未知子命令。
+
+计数：34 套件 / **571** 条 ok（Linux、无 poppler；装 poppler 572）。
+
 ## 0.55.1
 
 把「死词条」变成常设断言（上一条里手工删了四条，这次让积累不起来）：

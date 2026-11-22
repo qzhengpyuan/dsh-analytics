@@ -156,6 +156,19 @@ console.log('value labels ok:', JSON.stringify(genderVar.valueLabels))
   const typedNotes = (typedSummary?.notes ?? []).join(' ')
   assert.match(typedNotes, /样本量 4 对 1 个预测变量偏少/, `a typed regression reads its own predictors: ${typedNotes}`)
   console.log('ok  a typed regression is warned about without a predictor list')
+
+  // PSPP 2.1.3 has no /ENTER= or /TEST= subcommand: the only form it accepts is
+  // /METHOD=ENTER with the predictors. SPSS scripts that use the other spelling must
+  // fail loudly rather than be quietly guessed at, so this pins the engine's wording.
+  let rejected = null
+  try {
+    await fewCases.runSyntax('REGRESSION /DEPENDENT=y /ENTER=x.')
+  } catch (error) {
+    rejected = String(error.message)
+  }
+  assert.ok(rejected, 'a /ENTER= subcommand is rejected by the engine, not silently accepted')
+  assert.match(rejected, /不被接受|Syntax error/, `the rejection is explained in Chinese: ${rejected}`)
+  console.log('ok  /ENTER= is refused by the engine while /METHOD=ENTER works')
 }
 
 // The pairwise-comparison note has to survive a real ONEWAY: the caption it hangs
