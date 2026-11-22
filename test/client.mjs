@@ -1069,6 +1069,48 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
 }
 
 
+// Help → 检查更新. Three outcomes have to be visible, and the one that matters is
+// "the check itself failed": silence there reads as "you are up to date".
+{
+  const updateHost = window.document.createElement('div')
+  window.document.body.appendChild(updateHost)
+  const updateRoot = createRoot(updateHost)
+  let answer = { ok: true, current: '0.56.3', latest: '0.57.0', newer: true, url: 'https://example/release' }
+  window.fetch = async (url) => {
+    const text = String(url).includes('api/update')
+      ? JSON.stringify(globalThis.__updateAnswer ?? answer)
+      : JSON.stringify({ ok: true, state: { id: 'session-u', version: '0.56.3', engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true }, dataset: null, items: [], log: [], history: { undo: 0, redo: 0 } } })
+    return { ok: true, status: 200, text: async () => text }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    updateRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const askHelp = async () => {
+    const help = [...updateHost.querySelectorAll('.ap-menu-button')].find((node) => node.textContent.trim() === '帮助')
+    assert.ok(help, 'the menu bar has a 帮助 menu')
+    await act(async () => { help.click(); await new Promise((resolve) => setTimeout(resolve, 20)) })
+    const item = [...updateHost.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.trim() === '检查更新…')
+    assert.ok(item, 'the help menu offers 检查更新…')
+    await act(async () => { item.click(); await new Promise((resolve) => setTimeout(resolve, 60)) })
+    const toast = updateHost.querySelector('.ap-toast')
+    return toast ? toast.textContent : ''
+  }
+  const newer = await askHelp()
+  assert.match(newer, /0\.57\.0/, `a newer release is named: ${newer}`)
+  assert.match(newer, /https:\/\/example\/release/, 'the release page is offered')
+  globalThis.__updateAnswer = { ok: true, current: '0.56.3', latest: '0.56.3', newer: false }
+  const same = await askHelp()
+  assert.match(same, /已是最新版本/, `being current says so: ${same}`)
+  globalThis.__updateAnswer = { ok: true, current: '0.56.3', latest: null, newer: false, error: 'GitHub 返回 403' }
+  const failed = await askHelp()
+  assert.match(failed, /检查更新失败/, `a failed check is not silence: ${failed}`)
+  assert.match(failed, /403/, 'the reason is carried through')
+  await act(async () => { updateRoot.unmount() })
+  delete globalThis.__updateAnswer
+}
+
 // Provenance chip and the import-rename list: the panel has to say which data a
 // table came from, and keep the rename notes after the toast is gone.
 {

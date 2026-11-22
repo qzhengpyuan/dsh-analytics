@@ -5590,6 +5590,21 @@ let ITEM_CSV_PENDING = null
         toastTimer.current = window.setTimeout(() => { toastTimer.current = 0; setToast(null) }, 5000)
       }
 
+      // Three outcomes and no fourth: a newer release, this is the newest, or the
+      // check itself failed. Silence after a click reads as "nothing happened".
+      const checkForUpdate = async () => {
+        notify(tr('正在检查更新…'))
+        try {
+          const answer = await api('api/update')
+          const current = answer.current ?? state?.version ?? '?'
+          if (answer.error) notify(tr('检查更新失败：{0}', answer.error))
+          else if (answer.newer) notify(tr('有新版本 {0}（当前 {1}）：{2}', answer.latest, current, answer.url))
+          else notify(tr('已是最新版本（{0}）', current))
+        } catch (error) {
+          notify(tr('检查更新失败：{0}', error.message))
+        }
+      }
+
       // Another window may be editing the same workspace: each panel keeps its
       // own rows and undo stack, so the one that did not write would otherwise
       // keep showing (and keep editing) data the host no longer has.
@@ -6955,6 +6970,7 @@ let ITEM_CSV_PENDING = null
         },
         {
           label: '帮助', items: [
+            { label: '检查更新…', action: () => { void checkForUpdate() } },
             { label: '关于 PSPP 分析', action: () => notify('内置 PSPP 引擎 + SPSS 风格工作台；统计过程由 PSPP 执行。') },
           ],
         },

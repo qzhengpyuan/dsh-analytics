@@ -28,6 +28,35 @@ class Res {
   get text() { return this.body.toString('utf8') }
 }
 
+// The panel's Help menu asks this one; without a check wired in it must say so
+// instead of pretending everything is current.
+{
+  const blind = createHandler({
+    registry,
+    connection: { requestRejection: () => undefined },
+    config: {},
+    settings: settingsStore,
+  })
+  const answer = new Res()
+  await blind({ method: 'GET', url: '/analytics/api/update', headers: { host: '127.0.0.1:3080' } }, answer)
+  if (answer.code !== 503) throw new Error(`an unwired update check must answer 503, got ${answer.code}`)
+  if (!/没有接上/.test(answer.text)) throw new Error(`the reason must be stated: ${answer.text}`)
+
+  const wired = createHandler({
+    registry,
+    connection: { requestRejection: () => undefined },
+    config: {},
+    settings: settingsStore,
+    updateCheck: async (current) => ({ current, latest: '0.99.0', newer: true, url: 'https://example/rel' }),
+  })
+  const fresh = new Res()
+  await wired({ method: 'GET', url: '/analytics/api/update', headers: { host: '127.0.0.1:3080' } }, fresh)
+  if (fresh.code !== 200) throw new Error(`a wired update check must answer 200, got ${fresh.code}`)
+  const payload = JSON.parse(fresh.text)
+  if (payload.latest !== '0.99.0' || payload.newer !== true) throw new Error(`the answer is not forwarded: ${fresh.text}`)
+  if (!payload.current) throw new Error('the answer names the version it compared against')
+}
+
 // The web server can come up before the connection service. A handler that
 // captured the empty slot at mount time answers 401 to every request for the
 // rest of the process, which is exactly what a panel sees as "cannot reach the

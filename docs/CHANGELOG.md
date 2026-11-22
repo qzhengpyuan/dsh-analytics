@@ -2,6 +2,14 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.56.3
+
+- **新增「帮助 → 检查更新…」**：`GET api/update` 读公开仓库的 `releases/latest`，返回 `{current, latest, newer, url, publishedAt, notes}`。三种结局都可见：有新版本（报版本号与 Release 链接）、已是最新、**检查失败**（带原因）—— 失败被缓存成「已是最新」是最容易骗人的实现，这里刻意不缓存失败、下次点击重试。GitHub 未认证额度 60 次/小时，因此答案缓存十分钟，并发请求合并成一次。新增 `lib/update.js`（`createUpdateCheck`、`compare`）与套件 `test/update.mjs`（6 条：逐段比版本、新版带链接、同版不算新、缓存与失败不缓存、非 200 报错、并发合并）。
+- **方差齐性注文说清用的是哪个 Levene 变体**：SPSS 自己的帮助让读「Based on Mean」，而 PSPP 在组内个案很少时会把那一行留空、只填「Based on Median / Trimmed Mean」。现在注文按实际取数的行写「方差齐性检验（基于中位数）的 p = 0.031」，默认的均值行不加修饰词。`test/regression.mjs` 新增一条（100 条）。
+- `docs/ROADMAP.md` 的 M10「检查更新」勾掉。
+
+计数：**35** 套件 / **583** 条 ok（Linux、无 poppler；装 poppler 584）—— regression 99 → 100、新增 update 6。
+
 ## 0.56.2
 
 外部复验 0560 报告的 **P1（新回归）+ P2 + P3×3** 全部处理：

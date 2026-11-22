@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { resolveEngine } from './lib/engine.js'
 import { pluginInfo } from './lib/version.js'
 import { createHandler } from './lib/routes.js'
+import { createUpdateCheck } from './lib/update.js'
 import { SettingsStore } from './lib/settings.js'
 import { createTools } from './lib/tools.js'
 import { WorkspaceRegistry } from './lib/workspace.js'
@@ -108,6 +109,8 @@ export function apply(ctx, config = {}) {
       // only user preferences.
       config: { ...settings, pluginVersion: pluginInfo().version },
       settings: settingsStore,
+      // Asked for by the panel's Help menu; the answer is cached for ten minutes.
+      updateCheck: createUpdateCheck(),
     })
     console.log(`[dsh-analytics] ${pluginInfo().version} routes ready (registerTools=${settings.registerTools === true})`)
     // Register the current prefix plus the pre-rename one.

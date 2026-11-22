@@ -1288,6 +1288,11 @@
     "正在显示全部 {0} 行": "Showing all {0} rows",
     "{0}（{1}）": "{0} ({1})",
     "{0}：不可估（{1}）": "{0}: not estimable ({1})",
-    "该对比在数据里没有对应的自由度，通常是某一格没有观测": "the data leaves this contrast with no degrees of freedom, usually because a cell has no observations"
+    "该对比在数据里没有对应的自由度，通常是某一格没有观测": "the data leaves this contrast with no degrees of freedom, usually because a cell has no observations",
+    "检查更新…": "Check for updates…",
+    "正在检查更新…": "Checking for updates…",
+    "检查更新失败：{0}": "Could not check for updates: {0}",
+    "有新版本 {0}（当前 {1}）：{2}": "Version {0} is available (you have {1}): {2}",
+    "已是最新版本（{0}）": "This is the newest version ({0})"
   }
 }

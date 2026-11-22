@@ -426,6 +426,34 @@ check('a homogeneity test that fails is stated next to the table', () => {
   assert.equal(items[1].notes, undefined, 'a variance-homogeneous run gets no note')
 })
 
+check('when only a non-default Levene variant has a number, the note names it', () => {
+  // SPSS prints Based on Mean / Median / Trimmed Mean and its help says to read
+  // the mean row. PSPP can leave that row blank (it does when a group is tiny), so
+  // the note has to say which variant the quoted p came from.
+  const items = [{
+    kind: 'table',
+    id: 'levene-median',
+    title: 'Test of Homogeneity of Variances',
+    table: {
+      caption: 'Test of Homogeneity of Variances',
+      matrix: [
+        ['', 'Levene Statistic', 'df1', 'df2', 'Sig.'],
+        ['Based on Mean', '', '', '', ''],
+        ['Based on Median', '5.204', '2', '9', '.031'],
+      ],
+    },
+  }]
+  annotateAssumptions(items)
+  assert.match(items[0].notes[0], /方差齐性检验（基于中位数）的 p = 0\.031/, `the variant is named: ${items[0].notes[0]}`)
+  const mean = [{
+    kind: 'table',
+    id: 'levene-mean',
+    table: { caption: 'Test of Homogeneity of Variances', matrix: [['', 'Levene Statistic', 'df1', 'df2', 'Sig.'], ['Based on Mean', '4.8', '2', '9', '.021']] },
+  }]
+  annotateAssumptions(mean)
+  assert.match(mean[0].notes[0], /^方差齐性检验的 p = 0\.021/, 'the default variant needs no qualifier')
+})
+
 check('a blank normality row is not a deviation at p < 0.001', () => {
   const items = [{
     kind: 'table',
