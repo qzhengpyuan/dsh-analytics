@@ -2,18 +2,32 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.54.99
+
+Win10 0.54.98 报告的 P2×2 + P3×3，全是文档数字与措辞（无代码改动）：
+
+- **P2-①** `docs/FEATURES.md:720` 还写 568 / 装 poppler 569 —— 0.54.98 把 office 拆出独立 check（54 → 55）后实测是 569 / 570，改到位。
+- **P2-②** 0.54.98 段写「`smoke` 只贡献 3 条 `^ok`」，Win10 的 TAP 实测是 4 条（那三版新增的三条 + `a real ONEWAY says how many pairwise comparisons it made`）。改；结论本身（core-dump 那条不打 `ok` 行）不变。
+- **P3-①** 0.54.96 段的「Windows 少 1 / Windows 567」原样挂着，既没删也没加更正标记。按 `docs/CHANGELOG.md` 头部的「历史小节保留当时文本」约定，在句后补一句「该判断已被 0.54.98 段 P2-① 推翻」。
+- **P3-②** 0.54.98 段的计数行「569（Linux，装了 poppler 一例…）」读起来像 569 已含 poppler 那一条。改成「（Linux、无 poppler；装 poppler 为 570；拆出独立 check 后 office 54→55）」。
+- **P3-③** 失败文案三种并存（`FAIL`、`not ok  `、`not ok - `），`messages`/`stage` 另有自定义 summary。这一版先在 `docs/FEATURES.md` 的「退出码纪律」一段写清楚，不做批量改写 —— 改 34 个套件的输出格式会动到 Win10 每轮的 TAP 解析口径，收益不抵风险。
+
+这一版把 Win10 的两轮普查结论也写进了 `docs/FEATURES.md`：34 个套件注入 `throw` 后全部 `rc=1`（没有第二个静默失败），但 `client`/`smoke`/`routes`/`exact`/`pdf-notes` 是崩溃型（失败时不打 `ok` 行），所以版本对照要看 `rc` 不看 `^ok` 基数；`pdf-notes` 在无 `pdftotext` 的机器上永远 skip，是唯一本机不可证伪的断言。
+
+计数：34 套件 / **569** 条 ok（Linux、无 poppler；装 poppler 570）。
+
 ## 0.54.98
 
 Win10 0.54.97 报告的 P1×1 + P2×1 + P3×3：
 
 - **P1-① `test/regression.mjs` 的退出码判定落在第 56 条断言之前**（长期存在）：`process.exitCode = 1` 写在文件中间（`test/regression.mjs:863`），那之后的 1000 多行里任何失败都只打印 `FAIL`、退出码仍是 0。把赋值挪进 `check()` 的 catch（与 `build`/`office`/`tables` 等 27 个套件同形），并在文件末尾再补一次。Win10 用 `mut/` 里的 TAP 证明了盲区；我现在用「把断言改错」实测 `rc=1`、`regression: 97 checks passed (with 2 failures)`。这条直接削弱了之前所有「regression 红了」的证据，属于地基问题。
-- **P2-① 计数口径的根因判错**：「Windows 少 1 因为 smoke 的 core-dump 用例被平台跳过」不成立 —— Win10 逐套件表显示 `smoke` 只贡献 3 条 `^ok`，那一条本来就不打 `ok` 行（它在 `Promise` 里打印正文）。改成「Windows 与 Linux 相同」，头部注释与 0.54.97 段一并改正。
+- **P2-① 计数口径的根因判错**：「Windows 少 1 因为 smoke 的 core-dump 用例被平台跳过」不成立 —— Win10 逐套件表显示 `smoke` 只贡献 4 条 `^ok`，那一条本来就不打 `ok` 行（它在 `Promise` 里打印正文）。改成「Windows 与 Linux 相同」，头部注释与 0.54.97 段一并改正。
 - **P2-② 「原先那条断言等于没有断言」结论不成立**：`buildDocx()` 返回 Buffer，`assert.match(Buffer, …)` 会抛 `ERR_ASSERTION`，所以真有那么一条断言时它**必然红**，不可能长期绿着。我上一版那句「顺带修了一处假断言」撤掉；实际发生的是「无名分支此前没有断言，我新增时第一版写错了对象」。
 - **P3-① `## 0.54.97` 段没有计数行**：补 `34 套件 / 568 条 ok`。
 - **P3-② `test/regression.mjs` 的 `check()` 与其它套件不同形**：已按 P1-① 统一（catch 里设退出码 + 末尾兜底）。
 - **P3-③ 无名断言嵌在「英文外壳」大 check 里**：拆成独立的 `check('an unnamed built dataset keeps its template in English')`，失败时能点名。变异：词典改回 `New dataset (unsaved)` 实测 `rc=1`、红在 `FAIL an unnamed built dataset keeps its template in English`。
 
-计数口径：34 套件 / **569** 条 ok（Linux，装了 poppler 一例；拆出独立 check 后 office 54→55）。
+计数口径：34 套件 / **569** 条 ok（Linux、无 poppler；装 poppler 为 570；拆出独立 check 后 office 54→55）。
 
 ## 0.54.97
 
@@ -37,7 +51,7 @@ Win10 0.54.94 报告的 P2×2 + P3×1（另一条 P3 是它自己撤回的扫描
 
 变异验证：`SUMMARY_ONLY` 加回 `report|summary` 实测 `rc=1`（红在 `an all-missing means table explains itself`）；`options.regression ?? requestedRegression(script)` 去掉后半段实测 `rc=1`（红在 `a typed regression reads its own predictors`）。
 
-计数口径（这轮定为最终口径）：文档里的 `^ok` 写 **Linux 无 poppler** 的数，并在括号里给出 Windows 数（Windows 少 1，因为 smoke 的 core-dump 用例被 `process.platform !== 'win32'` 跳过；装了 poppler 则多 1 条 pdf-notes）。0.54.92 及以前 563、0.54.93/0.54.94 为 564、0.54.95 为 565、本版 **568**（Windows 567、Linux 装 poppler 569）。
+计数口径（这轮定为最终口径）：文档里的 `^ok` 写 **Linux 无 poppler** 的数，并在括号里给出 Windows 数（Windows 少 1，因为 smoke 的 core-dump 用例被 `process.platform !== 'win32'` 跳过；装了 poppler 则多 1 条 pdf-notes）。0.54.92 及以前 563、0.54.93/0.54.94 为 564、0.54.95 为 565、本版 **568**（Linux 装 poppler 569）。（更正：本段原先还说「Windows 少 1、Windows 567」，该判断已被 0.54.98 段 P2-① 推翻 —— Windows 与 Linux 相同。）
 
 ## 0.54.95
 
