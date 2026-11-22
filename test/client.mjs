@@ -2873,27 +2873,34 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.ok(Array.isArray(body?.items) && body.items.length === 1, 'only the ticked output travels')
   assert.equal(body.items[0], 'item-1', 'by id, in tick order')
 
-  // The toolbar tip: the first icon waits, the next one does not. 700 ms is the
-  // declared pause, so the assertions sit well on either side of it.
+  // The toolbar tip answers immediately — a tooltip that waits is one the user
+  // reads after guessing the icon — and it must be readable: the colour pair is
+  // fixed, because the skin's tokens can be translucent and the old colour-mix
+  // tip ended up printed in the background colour.
   const toolbar = workHost.querySelector('.ap-toolbar')
   const icons = [...toolbar.querySelectorAll('.ap-icon-btn')]
   assert.ok(icons.length >= 5, 'the toolbar has its icons')
-  const hover = async (node) => {
+  const hover = async (node, wait = 30) => {
     await act(async () => {
       node.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }))
-      await new Promise((resolve) => setTimeout(resolve, 30))
+      await new Promise((resolve) => setTimeout(resolve, wait))
     })
   }
   await hover(icons[0])
-  assert.equal(workHost.querySelector('.ap-tip'), null, 'the first tip waits: no tooltip at 30 ms')
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 800)) })
   const firstTip = workHost.querySelector('.ap-tip')
-  assert.ok(firstTip, 'the first tip appears once the pause is over')
+  assert.ok(firstTip, 'the tip appears at once, with no pause')
   assert.equal(firstTip.textContent, icons[0].getAttribute('aria-label'), 'the tip names the icon under the pointer')
   assert.equal(icons[0].hasAttribute('title'), false, 'the native tooltip is taken away while the bar owns the tip')
+  // The stylesheet, not the inline style: `--ap-panel` can be translucent, and
+  // the colour-mix tip then printed its text in the background colour.
+  const tipRule = /(\.ap-tip\s*\{[^}]*\})/.exec(readFileSync(join(root, 'client.js'), 'utf8'))?.[0] ?? ''
+  assert.ok(tipRule.length > 0, 'the tip has its own rule')
+  assert.doesNotMatch(tipRule, /color-mix/, 'the tip colours are fixed, not mixed from tokens')
+  assert.match(tipRule, /background:#232323/i, 'dark chip')
+  assert.match(tipRule, /color:#f7f7f7/i, 'light text')
   await hover(icons[1])
   const secondTip = workHost.querySelector('.ap-tip')
-  assert.ok(secondTip, 'moving to the next icon shows its name at once')
+  assert.ok(secondTip, 'moving to the next icon switches at once')
   assert.equal(secondTip.textContent, icons[1].getAttribute('aria-label'), 'and it is the new icon name, not the old one')
   await act(async () => {
     toolbar.dispatchEvent(new window.MouseEvent('mouseout', { bubbles: true, relatedTarget: window.document.body }))

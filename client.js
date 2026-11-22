@@ -581,10 +581,12 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-outline .ap-ol-run:hover .ap-run-tool { display:inline-block; }
 .ap-outline .ap-run-tool:hover { background:var(--ap-hover); color:var(--ap-accent); }
 /* 工具栏提示：SPSS 那种第一个延迟、接着立即切换的提示（原生 title 做不到定时） */
+/* 固定的深底浅字：皮肤里的 --ap-panel 可能是半透明的，用 color-mix 算出来的
+   文字色会跟着变透明，于是提示与背景同色、什么都看不见。 */
 .ap-tip { position:fixed; transform:translateX(-50%); z-index:60; pointer-events:none;
-  background:color-mix(in srgb, var(--ap-text) 88%, var(--ap-panel)); color:var(--ap-panel);
-  border:1px solid var(--ap-line-3); border-radius:3px; padding:2px 7px; font-size:11px;
-  white-space:nowrap; box-shadow:1px 2px 3px color-mix(in srgb, var(--ap-text) 25%, transparent); }
+  background:#232323; color:#f7f7f7; text-shadow:none;
+  border:1px solid #555; border-radius:3px; padding:2px 7px; font-size:11px;
+  white-space:nowrap; box-shadow:1px 2px 4px rgba(0,0,0,.35); }
 /* 语法模板库 */
 .ap-tmpl { display:flex; flex-direction:column; gap:10px; max-height:52vh; overflow:auto; padding:2px; }
 .ap-tmpl-head { font-size:11px; font-weight:600; letter-spacing:.04em; color:var(--ap-text-3); padding:2px 0 3px; }
@@ -5669,14 +5671,12 @@ let ITEM_CSV_PENDING = null
         toastTimer.current = window.setTimeout(() => { toastTimer.current = 0; setToast(null) }, 5000)
       }
 
-      // SPSS's toolbar shows the first tip after a pause and then flips through
-      // the rest instantly while the pointer stays in the bar. The native title
-      // attribute cannot do that (the delay is the OS's, and it is the same every
-      // time), so the bar drives its own tip and takes `title` away while the
-      // pointer is inside it — otherwise two tooltips appear, one over the other.
+      // The bar shows a tip the moment the pointer lands on an icon. The native
+      // title attribute cannot be timed (the delay is the OS's), so the bar drives
+      // its own tip and takes `title` away while the pointer is inside it —
+      // otherwise two tooltips appear, one over the other.
       const [toolTip, setToolTip] = useState(null)
       const tipState = useRef({ timer: 0, visible: false, anchor: null, stripped: new Map() })
-      const TIP_DELAY_MS = 700
       // Every button visited loses its `title` while the bar owns the tip, so
       // every one of them has to get it back — restoring only the last button
       // left a trail of icons whose native tooltip was gone for good.
@@ -5711,9 +5711,9 @@ let ITEM_CSV_PENDING = null
         }
         tipState.current.anchor = button
         window.clearTimeout(tipState.current.timer)
-        // Already showing a tip for a neighbour: switch at once, no second wait.
-        if (tipState.current.visible) placeToolTip(button, text)
-        else tipState.current.timer = window.setTimeout(() => placeToolTip(button, text), TIP_DELAY_MS)
+        // Straight away: a tooltip that waits is a tooltip the user reads after
+        // guessing the icon. Switching between neighbours is the same code path.
+        placeToolTip(button, text)
       }
       const onToolbarOut = (event) => {
         const button = event.target?.closest?.('.ap-tool')
