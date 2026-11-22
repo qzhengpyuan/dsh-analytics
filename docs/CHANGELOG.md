@@ -1,6 +1,16 @@
-<!-- 计数口径：从 0.54.58 起，各段写的「全量 N 条 ok」一律按**没装 pdftotext 的机器**计 —— 即全量 `grep -cE '^ok\b'` 的结果里不含 `pdf-notes` 套件那一条（只有装了 poppler 的机器才会跑它，会多 1）。本机与 CI 都装了 poppler，所以同一棵树上本机数字比这里写的大 1。0.54.57 及更早小节保留当时的旧口径（含 skip），不再改。 -->
+<!-- 计数口径（0.54.97 起为最终版）：各段写的「全量 N 条 ok」= **Linux 上、没装 pdftotext** 的 `grep -cE '^ok\b'`。两个已知偏差：装了 poppler 会多跑 `pdf-notes` 1 条；Windows 上 smoke 的 core-dump 用例被 `process.platform !== 'win32'` 跳过，少 1 条。0.54.96 及更早小节写的是当时的口径（多数只按 poppler 判）。 -->
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
+
+## 0.54.97
+
+Win10 0.54.96 报告的 P2×2 + P3×2（外加计数口径的最终裁定）：
+
+- **P2-① `requestedRegression()` 会读进注释与别的命令**：原实现扫整段文本，`* REGRESSION … a b c.` 这种注释里的名字被算成预测变量（20 例 3 个预测变量，误报「约 6.7」），`TITLE '…'`、`FREQUENCIES /VARIABLES=` 也能撞进来。改成先 `splitStatements(syntax)`（它已经处理注释行、引号、内联数据），再按 `/^\s*REGRESSION/i` 过滤，取**最后**一条 —— 引擎最后跑的那条才是屏幕上这些表的主人。
+- **P2-② 手写 `REGRESSION` 少了插件自算的两张表**：`pspp_run` 出 3 张、`pspp_analyze` 出 5 张，差额是 `Durbin-Watson（插件计算）` 与 `共线性诊断（插件计算）`，因为 `runSyntax` 里那段的条件只看 `options.regression`。改成同一个 `requestedModel`（显式列表优先，否则从语法解析）既喂 `annotateSampleSize` 也喂 `collinearityTable`/`durbinWatsonTable`。
+- **P3-① 无名新建数据集没有测试守护**：`test/office.mjs` 之前只断言带名字的 `Source: New dataset(d.sav)`，无名分支改回带空格四个套件全绿。补一条 `sources: [{ origin: 'new', name: null, sourcePath: null, … }]` 的断言；把词典改回 `New dataset (unsaved)` 实测 `rc=1`。
+- **P3-② 返回形状不一致**：`requestedRegression` 早已返回 `{ dependent, independents }`（与 `analysisExtras('regression', …)` 同形），报告里那句 `dependents` 数组是 0.54.96 之前的旧形状，此处只补一条注释把约定写死。
+- 计数口径：Win10 连续三版判我「多写 1」，根因不是 poppler 而是 **Windows 跳过一条 smoke 用例**。文档从此写「Linux 无 poppler N（Windows N−1）」，0.54.93/0.54.94/0.54.95/0.54.96 四段一并改正。
 
 ## 0.54.96
 
@@ -13,7 +23,7 @@ Win10 0.54.94 报告的 P2×2 + P3×1（另一条 P3 是它自己撤回的扫描
 
 变异验证：`SUMMARY_ONLY` 加回 `report|summary` 实测 `rc=1`（红在 `an all-missing means table explains itself`）；`options.regression ?? requestedRegression(script)` 去掉后半段实测 `rc=1`（红在 `a typed regression reads its own predictors`）。
 
-计数口径（0.54.72 起的老毛病，这轮一次改到位）：文档里的 `^ok` 一律按**没装 pdftotext** 的机器写。0.54.92 及以前 563、0.54.93/0.54.94 为 564、0.54.95 为 565、本版 **568**（装了 poppler 569）。
+计数口径（这轮定为最终口径）：文档里的 `^ok` 写 **Linux 无 poppler** 的数，并在括号里给出 Windows 数（Windows 少 1，因为 smoke 的 core-dump 用例被 `process.platform !== 'win32'` 跳过；装了 poppler 则多 1 条 pdf-notes）。0.54.92 及以前 563、0.54.93/0.54.94 为 564、0.54.95 为 565、本版 **568**（Windows 567、Linux 装 poppler 569）。
 
 ## 0.54.95
 

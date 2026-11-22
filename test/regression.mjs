@@ -1788,10 +1788,19 @@ check('matrix algebra is dropped whole, with its data group', () => {
 // silently never fires on that path.
 check('a hand-written regression hands over its predictors', () => {
   const derived = requestedRegression('REGRESSION /DEPENDENT=y /METHOD=ENTER a b.')
-  assert.deepEqual(derived, { dependents: ['y'], independents: ['a', 'b'] })
+  assert.deepEqual(derived, { dependent: 'y', independents: ['a', 'b'] })
   const variables = requestedRegression('REGRESSION /VARIABLES=y a b /DEPENDENT=y /METHOD=ENTER.')
   assert.deepEqual(variables?.independents, ['a', 'b'], 'the VARIABLES list drops the dependent')
   assert.equal(requestedRegression('DESCRIPTIVES x.'), null)
+  // A commented-out old model is text, not a model.
+  const commented = requestedRegression('* REGRESSION /DEPENDENT=y /METHOD=ENTER a b c.\nREGRESSION /DEPENDENT=y /METHOD=ENTER a.')
+  assert.deepEqual(commented, { dependent: 'y', independents: ['a'] }, JSON.stringify(commented))
+  // /VARIABLES= belongs to whichever command carried it.
+  const neighbour = requestedRegression('FREQUENCIES /VARIABLES=a b c.\nREGRESSION /DEPENDENT=y /METHOD=ENTER a.')
+  assert.deepEqual(neighbour, { dependent: 'y', independents: ['a'] }, JSON.stringify(neighbour))
+  // Two real regressions: the tables on screen are the last one's.
+  const twice = requestedRegression('REGRESSION /DEPENDENT=y /METHOD=ENTER a b c.\nREGRESSION /DEPENDENT=y /METHOD=ENTER a.')
+  assert.deepEqual(twice, { dependent: 'y', independents: ['a'] }, JSON.stringify(twice))
   assert.equal(requestedRegression('REGRESSION /DEPENDENT=y /METHOD=ENTER y.'), null, 'a model with no predictor is not a regression to warn about')
 })
 

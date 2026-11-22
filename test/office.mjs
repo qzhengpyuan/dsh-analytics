@@ -884,6 +884,13 @@ check('an English export writes English shell text and keeps data values', () =>
   const body = docx['word/document.xml'].toString('utf8')
   assert.match(body, /Note: /, 'the note prefix is translated')
   assert.match(body, /Source: New dataset\(d\.sav\)/, `source stamp: ${body.slice(0, 400)}`)
+  // The unnamed branch is its own template; it drifted by one space once already.
+  const unsaved = unzip(buildDocx({
+    items: [{ kind: 'table', title: 'Frequencies', table: { caption: 'Frequencies', matrix: [['a', 'N'], ['1', '2']], notes: [] } }],
+    sources: [{ origin: 'new', name: null, sourcePath: null, caseCount: 2, varCount: 1 }],
+    lang: 'en',
+  }))['word/document.xml'].toString('utf8')
+  assert.match(unsaved, /New dataset\(unsaved\)/, `unsaved source stamp: ${/New dataset\([a-z]*\)/.exec(unsaved)?.[0] ?? unsaved.slice(0, 300)}`)
   assert.match(body, /Run #3/, 'the run number is translated')
   assert.match(body, /Data fingerprint ab12cd34/, 'the fingerprint label is translated')
   assert.match(body, /甲|乙/, 'data values stay as entered')
