@@ -14,7 +14,7 @@ const check = (name, fn) => {
     process.stdout.write(`ok  ${name}\n`)
   } catch (error) {
     failed += 1
-    process.stdout.write(`not ok  ${name}\n${String(error?.stack ?? error).split('\n').map((line) => `    ${line}`).join('\n')}\n`)
+    process.stdout.write(`FAIL  ${name}\n${String(error?.stack ?? error).split('\n').map((line) => `    ${line}`).join('\n')}\n`)
   }
 }
 

@@ -15,7 +15,7 @@ const check = (name, fn) => {
     fn()
     checks += 1
   } catch (error) {
-    console.error(`not ok - ${name}: ${error.message}`)
+    console.error(`FAIL  ${name}: ${error.message}`)
     process.exitCode = 1
   }
 }

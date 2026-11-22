@@ -2617,6 +2617,23 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.ok(host.textContent.includes('sixty.sav'), 'the adopted dataset is the one on screen')
   await act(async () => { root.unmount() })
   host.remove()
+  // A note can be built around a value: `${head}：不可估（${reason}）`. The wrapper
+  // is a template key and the reason is its own key, so the capture has to be
+  // translated too - without that the English panel shows a half-Chinese note.
+  {
+    // The English panel gets its dictionary from api/locale; here the real file is
+    // loaded instead of the two-string stub some fixtures use.
+    const dictionary = JSON.parse(readFileSync(join(here, '..', 'locale/en.json'), 'utf8')).strings
+    hooks.setDictionary(dictionary)
+    const note = 'A − B：不可估（该对比在数据里没有对应的自由度，通常是某一格没有观测）'
+    const english = hooks.tr(note)
+    assert.match(english, /^A − B: not estimable \(/, `a composed note translates whole: ${english}`)
+    assert.doesNotMatch(english, /[\u4e00-\u9fff]/, `no Chinese is left in the composed note: ${english}`)
+    assert.equal(hooks.tr(note), english, 'the note translates the same way twice')
+    hooks.setDictionary(null)
+    console.log('ok  a note composed around a value translates both halves')
+  }
+
   console.log('ok  the left panel adopts the dataset that is already open')
 }
 

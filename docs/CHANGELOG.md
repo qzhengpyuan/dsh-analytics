@@ -2,6 +2,20 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.56.0
+
+一批收尾（外部复验 0.55.0 报告的 P1/P2 + 之前欠的三件工程事）：
+
+- **P1-① `${}` 拼装句子的漏翻**：`translateText()`（宿主）与 `translateOne()`（面板）在命中 `{n}` 模板后，对**捕获到的片段再做一次翻译**（深度上限 3，片段严格更短所以必然收敛）。这一族此前栽过三次（`Source:` 行、chip tooltip、`不可估` 注文），根因就是「外层模板匹配成功、内层句子原样放回」。同时补三条词条：`{0}：不可估（{1}）` → `{0}: not estimable ({1})`、原因句 `该对比在数据里没有对应的自由度，通常是某一格没有观测` → `the data leaves this contrast with no degrees of freedom, usually because a cell has no observations`，以及整句形态一条兜底。英文面板现在整句都是英文。
+- **P2-① 死键清零**：删掉最后一条碎片键 `" 必须是 "`（碎片拼接时代的残留），`strings` 1286 → **1285**；`test/i18n.mjs` 的死键断言保持常设，白名单里新增两条并注明「由 `${head}：不可估（${reason}）` 套住」。
+- **P2-② 失败文案统一**：`messages`/`order`/`raster`/`stage` 四个套件的 `not ok  …` / `not ok - …` 统一成 `FAIL  <用例名>`（外部复验确认不破坏它的 TAP 解析）。文档同步：FEATURES 里那句「三种并存」改成「已统一」。
+- **P3-①** `docs/FEATURES.md` 的「受引擎限制的功能」补一条语法层限制：`REGRESSION` 只认 `/METHOD=ENTER`，`STEPWISE`/`BACKWARD`/`FORWARD`/`REMOVE`/`TEST`/`PIN`/`POUT`/`CRITERIA`/`SINGLE` 与 SPSS 的独立 `/ENTER=` 全部被 PSPP 2.1.3 拒（0.55.2 的真引擎断言在守）。
+- 新增 `docs/ROADMAP.md`：里程碑 M1–M11 的状态、M8/M9/M10/M11 的剩余清单、以及「按里程碑成批交付、送验按里程碑算」的节奏说明。
+
+用例：`test/client.mjs` 加「a note composed around a value translates both halves」（载真词典后断言 `A − B：不可估（…）` → `A − B: not estimable (` 开头且无汉字，连译两次结果相同）。
+
+计数：34 套件 / **572** 条 ok（Linux、无 poppler；装 poppler 573）—— client 30 → 31。
+
 ## 0.55.2
 
 钉住 `/ENTER=` 这条死路（0.55.0 给它加了分支，但没验过引擎到底认不认）：

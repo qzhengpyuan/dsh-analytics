@@ -18,7 +18,7 @@ const check = (name, fn) => {
       console.log(`ok  ${name}`)
     } catch (error) {
       failed += 1
-      console.log(`not ok  ${name}\n    ${error.message}`)
+      console.log(`FAIL  ${name}\n    ${error.message}`)
     }
   })()
   pending.push(run)

@@ -21,7 +21,7 @@ const check = async (name, fn) => {
     results.push(true)
   } catch (error) {
     results.push(false)
-    console.error(`not ok - ${name}: ${error.message}`)
+    console.error(`FAIL  ${name}: ${error.message}`)
     process.exitCode = 1
   }
 }

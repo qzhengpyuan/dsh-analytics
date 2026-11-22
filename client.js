@@ -66,18 +66,20 @@ window.__ModuleLoader__.load({
       return out.replace(/\{(\d+)\}/g, (whole, index) => (args[Number(index)] === undefined ? whole : String(args[Number(index)])))
     }
 
-    function translateOne(text) {
+    function translateOne(text, depth = 0) {
       const exact = DICT[text]
       if (typeof exact === 'string') return exact
       if (!/[\u4e00-\u9fff]/.test(text) || text.length > 600) return text
       // Both the checked marker and the collapsed marker ride in front of an
       // otherwise translatable label; peel them off instead of failing the match.
       const marked = /^([✓▸▾]\s*)(.*)$/.exec(text)
-      if (marked) return `${marked[1]}${translateOne(marked[2])}`
+      if (marked) return `${marked[1]}${translateOne(marked[2], depth)}`
       for (const { pattern, value } of DICT_TEMPLATES) {
         const match = pattern.exec(text)
         if (!match) continue
-        return value.replace(/\{(\d+)\}/g, (whole, index) => match[Number(index) + 1] ?? whole)
+        // A captured piece may itself be a sentence ("A − B：不可估（该对比…）").
+        const pieces = match.slice(1).map((piece) => (depth < 3 ? translateOne(piece, depth + 1) : piece))
+        return value.replace(/\{(\d+)\}/g, (whole, index) => pieces[Number(index)] ?? whole)
       }
       return text
     }

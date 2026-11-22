@@ -133,6 +133,8 @@ check('every dictionary entry is still referenced by shipped code', () => {
     '工具挂载（registerTools）：关', // client.js 的 tr(`工具挂载（registerTools）：${…}`)
     '工具挂载（registerTools）：开',
     '{0} 的构成（环形）', // lib/charts.js 的 `${name} 的构成${donut ? '（环形）' : ''}`
+    '{0}：不可估（{1}）', // lib/contrasts.js 的 `${head}：不可估（${reason}）`，套住下面这条
+    '不可估（该对比在数据里没有对应的自由度，通常是某一格没有观测）', // 同上，`${head}` 是变量名、不在源码里字面出现
   ])
   const dead = Object.keys(strings).filter((key) => {
     if (assembled.has(key)) return false
