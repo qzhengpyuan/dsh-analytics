@@ -1,7 +1,7 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
 import { collinearityTable, durbinWatsonTable, influenceTable } from '../lib/regression.js'
-import { classifyScript, inlineCommandProblem, inlineDataRanges, nearestVariableName, splitStatements, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, annotateWeightedEmpty, annotateZeroCases, inlineDataTailProblem, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
+import { requestedRegression, classifyScript, inlineCommandProblem, inlineDataRanges, nearestVariableName, splitStatements, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, annotateWeightedEmpty, annotateZeroCases, inlineDataTailProblem, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
 const failures = []
@@ -1782,6 +1782,17 @@ check('matrix algebra is dropped whole, with its data group', () => {
   assert.deepEqual(parts, ['DESCRIPTIVES x.'], JSON.stringify(parts))
   const algebra = splitStatements('MATRIX.\nCOMPUTE x = 1.\nEND MATRIX.\nDESCRIPTIVES x.')
   assert.deepEqual(algebra, ['DESCRIPTIVES x.'], JSON.stringify(algebra))
+})
+
+// The syntax editor only has the command text; without this the sample-size note
+// silently never fires on that path.
+check('a hand-written regression hands over its predictors', () => {
+  const derived = requestedRegression('REGRESSION /DEPENDENT=y /METHOD=ENTER a b.')
+  assert.deepEqual(derived, { dependents: ['y'], independents: ['a', 'b'] })
+  const variables = requestedRegression('REGRESSION /VARIABLES=y a b /DEPENDENT=y /METHOD=ENTER.')
+  assert.deepEqual(variables?.independents, ['a', 'b'], 'the VARIABLES list drops the dependent')
+  assert.equal(requestedRegression('DESCRIPTIVES x.'), null)
+  assert.equal(requestedRegression('REGRESSION /DEPENDENT=y /METHOD=ENTER y.'), null, 'a model with no predictor is not a regression to warn about')
 })
 
 console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)

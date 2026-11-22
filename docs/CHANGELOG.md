@@ -2,6 +2,19 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.54.96
+
+Win10 0.54.94 报告的 P2×2 + P3×1（另一条 P3 是它自己撤回的扫描口径问题）：
+
+- **P2-① 手写 `REGRESSION` 拿不到样本量注文**：`annotateSampleSize` 只吃 `options.regression`，而它只由 `pspp_analyze` 的 `analysisExtras()` 与面板 `api/run` 的 `body.regression` 填；语法编辑器里手打 `REGRESSION …` 与 `pspp_run` 都不带 ⇒ 那条主路径永远没有注文。新增 `export function requestedRegression(syntax)`（从 `/DEPENDENT=` 与 `/METHOD=ENTER …` 或 `/VARIABLES=` 解析预测变量、剔除因变量、词尾句点剥掉），`runSyntax` 改 `options.regression ?? requestedRegression(script)`。这是与既有 `requestedCrosstabStatistics` 同族的做法。
+- **P2-② `MEANS … BY` 全缺失时印 `NaN` 却零注文**：`NaN` 是 PSPP 自己打的，不假；但 `annotateZeroCases` 的 `SUMMARY_ONLY` 正则把 `report`/`summary` 一起跳过了，而这两张正是「没有可算个案」时会出现的表。正则收窄成 `/^(case processing summary|model summary)/i`。
+- **P3-①** `locale/en.json` 的 `新建数据集（未保存）` → `New dataset(unsaved)`（无名的新建数据集在 Word/Excel 里还差一个空格）。
+- **P3-②** 0.54.94 段自称的 `grep -c "点两个菜单"` = 2 改成实测 3（重复 bullet 确实删了，只是自述没把自己那句算进去）。
+
+变异验证：`SUMMARY_ONLY` 加回 `report|summary` 实测 `rc=1`（红在 `an all-missing means table explains itself`）；`options.regression ?? requestedRegression(script)` 去掉后半段实测 `rc=1`（红在 `a typed regression reads its own predictors`）。
+
+计数口径（0.54.72 起的老毛病，这轮一次改到位）：文档里的 `^ok` 一律按**没装 pdftotext** 的机器写。0.54.92 及以前 563、0.54.93/0.54.94 为 564、0.54.95 为 565、本版 **568**（装了 poppler 569）。
+
 ## 0.54.95
 
 `annotateSampleSize` 之前只有纯函数用例（自造 `Model Summary` 表、自造 `regression` 参数），真引擎那条路从来没走过。补一条：4 例、1 个预测变量的 `REGRESSION`，断言 `Model Summary (y)` 上出现「样本量 4 对 1 个预测变量偏少」。顺带钉住一个接口约定 —— 提示要靠调用方传 `{ regression: { independents: ['x'] } }`，引擎的表里没有这个信息，光传 `regression: true` 什么都不会发生。

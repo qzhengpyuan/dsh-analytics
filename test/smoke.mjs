@@ -107,6 +107,26 @@ console.log('value labels ok:', JSON.stringify(genderVar.valueLabels))
 // answer pasted into a cell). The save path goes through CSV, and PSPP's TXT
 // reader cannot carry an embedded newline: three cases came back as four, with
 // the value split across rows.
+// MEANS prints `NaN` in a column with nothing to compute from. That is the engine's
+// own text, but a reader still needs to be told the column is empty.
+{
+  const empty = new Workspace({ id: 'smoke-emptymean', engine, root: join(root, 'emptymean'), config: { timeoutMs: 60000 } })
+  await empty.init()
+  await empty.createDataset({
+    variables: [
+      { name: 'y', type: 'numeric', width: 2, decimals: 0 },
+      { name: 'x', type: 'numeric', width: 4, decimals: 1 },
+    ],
+  })
+  for (const y of [1, 2, 1, 2]) empty.appendCase({ y, x: null })
+  const emptyRun = await empty.runSyntax('MEANS TABLES=x BY y.')
+  const report = emptyRun.items.find((item) => /^Report/i.test(item.table?.caption ?? ''))
+  assert.ok(report, 'the engine draws the means report')
+  const explained = (report.notes ?? []).join(' ')
+  assert.match(explained, /有效个案是 0/, `an all-missing means table explains itself: ${explained}`)
+  console.log('ok  a means table with nothing to average says why')
+}
+
 // The sample-size warning hangs on the Model Summary of a real regression, and it
 // needs the caller to say which variables were predictors -- the engine's tables
 // never spell that out.
@@ -128,6 +148,14 @@ console.log('value labels ok:', JSON.stringify(genderVar.valueLabels))
   const warned = (summary.notes ?? []).join(' ')
   assert.match(warned, /样本量 4 对 1 个预测变量偏少/, `the small-sample warning reaches the panel: ${warned}`)
   console.log('ok  a real regression warns when four cases are asked about one predictor')
+
+  // A script typed into the syntax editor carries no predictor list, so the
+  // workspace has to read it off the command.
+  const typedRun = await fewCases.runSyntax('REGRESSION /DEPENDENT=y /METHOD=ENTER x.')
+  const typedSummary = typedRun.items.find((item) => /Model Summary/i.test(item.table?.caption ?? ''))
+  const typedNotes = (typedSummary?.notes ?? []).join(' ')
+  assert.match(typedNotes, /样本量 4 对 1 个预测变量偏少/, `a typed regression reads its own predictors: ${typedNotes}`)
+  console.log('ok  a typed regression is warned about without a predictor list')
 }
 
 // The pairwise-comparison note has to survive a real ONEWAY: the caption it hangs
