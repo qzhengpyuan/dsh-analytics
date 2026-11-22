@@ -1086,6 +1086,13 @@ if (process.platform !== 'win32') {
     assert.doesNotMatch(failure.message, /筛选/, `\`${syntax}\` does not blame a filter`)
   }
   console.log('real engine: a silently-skipped command names the missing subcommand')
+
+  // PSPP knows CLUSTER and refuses it on purpose; the English "not yet
+  // implemented" used to reach the user without a Chinese explanation.
+  const unimplemented = await notes.runSyntax('CLUSTER a.').then(() => null, (error) => error)
+  assert.ok(unimplemented, 'CLUSTER is refused by the engine')
+  assert.match(unimplemented.message, /快速聚类/, `CLUSTER points at the panel path: ${unimplemented.message.slice(0, 160)}`)
+  console.log('real engine: an unimplemented process points at the substitute')
 }
 
 // Teardown must not be able to fail the run on its own: on Windows a workspace

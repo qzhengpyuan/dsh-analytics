@@ -96,4 +96,18 @@ check('an SPSS command PSPP does not have names the replacement', () => {
   assert.match(explainMessage("error: Unknown command `FREQUENCIS'."), /拼写/)
 })
 
+check('a command the engine knows but has not implemented names a substitute', () => {
+  // PSPP answers these with "… is not yet implemented." — English, and shaped
+  // like a syntax complaint, so the generic advice sent people to look for a
+  // typo. The substitutes must be menu paths that actually exist in the panel.
+  assert.match(explainMessage('error: CLUSTER: CLUSTER is not yet implemented.'), /降维 → 快速聚类/)
+  assert.match(explainMessage('error: PARTIAL CORR: PARTIAL CORR is not yet implemented.'), /相关 → 偏相关/)
+  assert.match(explainMessage('error: DISCRIMINANT: DISCRIMINANT is not yet implemented.'), /二元 Logistic/)
+  assert.match(explainMessage('error: MVA: MVA is not yet implemented.'), /替换缺失值/)
+  // A process without its own entry keeps the family answer, not the typo one.
+  const family = explainMessage('error: MANOVA: MANOVA is not yet implemented.')
+  assert.match(family, /还没有实现/)
+  assert.doesNotMatch(family, /拼写/)
+})
+
 console.log(`messages: ${checks} checks passed`)
