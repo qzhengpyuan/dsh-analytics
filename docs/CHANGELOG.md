@@ -2,6 +2,14 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.54.95
+
+`annotateSampleSize` 之前只有纯函数用例（自造 `Model Summary` 表、自造 `regression` 参数），真引擎那条路从来没走过。补一条：4 例、1 个预测变量的 `REGRESSION`，断言 `Model Summary (y)` 上出现「样本量 4 对 1 个预测变量偏少」。顺带钉住一个接口约定 —— 提示要靠调用方传 `{ regression: { independents: ['x'] } }`，引擎的表里没有这个信息，光传 `regression: true` 什么都不会发生。
+
+变异验证：把 `runSyntax` 里的 `annotateSampleSize(items, this.dataset, options.regression)` 换成 `void options.regression` 实测 `rc=1`，红在 `the small-sample warning reaches the panel`。
+
+测试数：34 套件 / **566** 条 ok（装了 poppler 的机器 567）。
+
 ## 0.54.94
 
 Win10 0.54.92 报告的 P3×4，逐条落实：

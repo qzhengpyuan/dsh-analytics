@@ -107,6 +107,29 @@ console.log('value labels ok:', JSON.stringify(genderVar.valueLabels))
 // answer pasted into a cell). The save path goes through CSV, and PSPP's TXT
 // reader cannot carry an embedded newline: three cases came back as four, with
 // the value split across rows.
+// The sample-size warning hangs on the Model Summary of a real regression, and it
+// needs the caller to say which variables were predictors -- the engine's tables
+// never spell that out.
+{
+  const fewCases = new Workspace({ id: 'smoke-fewcases', engine, root: join(root, 'fewcases'), config: { timeoutMs: 60000 } })
+  await fewCases.init()
+  await fewCases.createDataset({
+    variables: [
+      { name: 'y', type: 'numeric', width: 2, decimals: 0 },
+      { name: 'x', type: 'numeric', width: 2, decimals: 0 },
+    ],
+  })
+  for (const [y, x] of [[1, 2], [2, 3], [3, 5], [4, 6]]) fewCases.appendCase({ y, x })
+  const fewRun = await fewCases.runSyntax('REGRESSION /DEPENDENT=y /METHOD=ENTER x.', {
+    regression: { independents: ['x'] },
+  })
+  const summary = fewRun.items.find((item) => /Model Summary/i.test(item.table?.caption ?? ''))
+  assert.ok(summary, 'the engine draws the model summary')
+  const warned = (summary.notes ?? []).join(' ')
+  assert.match(warned, /样本量 4 对 1 个预测变量偏少/, `the small-sample warning reaches the panel: ${warned}`)
+  console.log('ok  a real regression warns when four cases are asked about one predictor')
+}
+
 // The pairwise-comparison note has to survive a real ONEWAY: the caption it hangs
 // on is "Multiple Comparisons (score)", not the bare words the fixture used.
 {
