@@ -20,7 +20,7 @@ const check = async (name, fn) => {
     console.log(`ok   ${name}`)
   } catch (error) {
     failed += 1
-    console.log(`FAIL ${name}`)
+    console.log(`FAIL  ${name}`)
     console.log(`     ${error?.message ?? error}`)
   }
 }

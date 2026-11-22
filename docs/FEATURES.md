@@ -1,6 +1,6 @@
 # dsh-analytics 功能说明
 
-> 版本 0.56.1 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 版本 0.56.2 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
 > 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
 > **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 23 个 agent 工具，让模型能在对话里直接分析、转换、画图。这些工具不再是「装了插件就有」，而是挂在插件自带的「统计分析」Agent 预设里（见 §9）。
 
@@ -97,7 +97,7 @@
 设置 → 统计分析 → **界面语言**（中文 / English，默认中文）。改完立即生效，不用重开面板（保存时面板当场换，不等 3 秒心跳；0.32.2 起）。
 
 - 翻译发生在元素工厂：`h()` 会翻译字符串子元素与 `title`/`placeholder`/`aria-label`/`alt`，所以界面文案整体换语言，调用点没有各自的 `t()`。
-- 词典 `locale/en.json` 共 1292 条，key 是中文原文；带插值的文案走 `{0}` 模板（`tr('来源：{0} · {1} 例', …)`），匹配时按**去掉占位符后的字面长度**降序，通用模板不会吃掉更具体的那条（0.54.54）。不再做「把短键挨个塞进长句」的替换——那会把长句切碎成半汉半英（0.54.27）。
+- 词典 `locale/en.json` 共 1285 条，key 是中文原文；带插值的文案走 `{0}` 模板（`tr('来源：{0} · {1} 例', …)`），匹配时按**去掉占位符后的字面长度**降序，通用模板不会吃掉更具体的那条（0.54.54）。不再做「把短键挨个塞进长句」的替换——那会把长句切碎成半汉半英（0.54.27）。
 - 宿主返回的错误、宿主校验文案（`lib/routes.js` 的 `sendJson` 在英文模式下翻译 `error`）、`GET api/locale?lang=en` 都走同一份词典。
 - 面板表注的前缀（`Note: `）与 Word/Excel/HTML 导出外壳（表注前缀、来源戳、`Run #N`、`Data fingerprint`、工作表名、兜底标题）都跟语言走；**表注正文**与长段错误解释仍是中文（它们由具体数字与变量名拼出来，整句翻译会失真）。
 - 不翻：工具描述（始终英文）、PSPP 表头与统计量名、变量名与数据值（网格单元格、表头里的变量名、变量选择/值标签 chip 都标了 `translate: false`）。
@@ -717,7 +717,7 @@ npm run bundle-engine   # 从系统 PSPP 重新打包 engine/<本机平台>/
 node scripts/bundle-engine.mjs --from-prefix out --platform linux-x64   # 从容器里编好的 prefix 导入
 ```
 
-- 测试：`npm test` 依次跑 34 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/flow/poll、设置存储、路径白名单、预设挂载、缺失值、重复个案、异常个案、精确检验与风险差、分层卡方、多因子对比、引擎崩溃文案），全绿时共 572 条 ok 断言（Linux 与 Windows 相同；装了 poppler 会多跑 1 条 pdf-notes，共 573） —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`tools` 覆盖 23 个工具的 `execute()` 与输出渲染，`smoke` 里的 ONEWAY 用例覆盖「真引擎那张 `Multiple Comparisons (score)` 表上的两两比较注文」，`weight` 覆盖「上一轮 WEIGHT BY 被重放时注文怎么说」（真引擎跑通打开、分析、变换、图表、三种汇总表与五个导出工具），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」，`crash` 覆盖引擎缺陷 banner 的中文文案（Linux 139 与 Windows 3 同一条分支、不泄露 build_system、普通语法错误不被误判）。**退出码纪律（0.54.98 起）**：每个套件的失败必须让 `node test/x.mjs` 以非零退出码结束 —— `check()` 的 catch 里设 `process.exitCode = 1`，末尾再兜一次；`test/regression.mjs` 曾把这一句写在文件中部，导致其后一千多行的失败只打印不生效，Win10 用逐条 TAP 抓到。仓库级抽查法：对每个套件在最后一个 `check(` 块里插一条 `assert.ok(false)`，脚本 `rc` 必须非零（`test/zip.mjs` 是辅助模块、不打 `ok` 行，属预期例外）。全仓普查（0.54.99）结论：34 个套件注入 `throw` 后全部 `rc=1`，没有第二个 `regression` 那样的静默失败；但 `client`/`smoke`/`routes`/`exact`/`pdf-notes` 五个是**崩溃型**（失败时一条 `ok` 都不打，只吐堆栈），按「逐套件 `^ok` 表」比对版本时会把「断言红了」误读成「套件没跑」，做版本对照要按 `rc` 而不是 `^ok` 基数判断。失败文案已统一成 `FAIL <用例名>`（0.56.0，四个套件改完；`not ok` 只作 TAP 兼容词保留在文档里）；`pdf-notes` 在没装 `pdftotext` 的机器上永远 `exit 0` + 一行 skip，是唯一「本机不可证伪」的断言，只由 CI 的 `pdf-notes` job 覆盖。
+- 测试：`npm test` 依次跑 34 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/flow/poll、设置存储、路径白名单、预设挂载、缺失值、重复个案、异常个案、精确检验与风险差、分层卡方、多因子对比、引擎崩溃文案），全绿时共 576 条 ok 断言（Linux 与 Windows 相同；装了 poppler 会多跑 1 条 pdf-notes，共 577） —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`tools` 覆盖 23 个工具的 `execute()` 与输出渲染，`smoke` 里的 ONEWAY 用例覆盖「真引擎那张 `Multiple Comparisons (score)` 表上的两两比较注文」，`weight` 覆盖「上一轮 WEIGHT BY 被重放时注文怎么说」（真引擎跑通打开、分析、变换、图表、三种汇总表与五个导出工具），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」，`crash` 覆盖引擎缺陷 banner 的中文文案（Linux 139 与 Windows 3 同一条分支、不泄露 build_system、普通语法错误不被误判）。**退出码纪律（0.54.98 起）**：每个套件的失败必须让 `node test/x.mjs` 以非零退出码结束 —— `check()` 的 catch 里设 `process.exitCode = 1`，末尾再兜一次；`test/regression.mjs` 曾把这一句写在文件中部，导致其后一千多行的失败只打印不生效，Win10 用逐条 TAP 抓到。仓库级抽查法：对每个套件在最后一个 `check(` 块里插一条 `assert.ok(false)`，脚本 `rc` 必须非零（`test/zip.mjs` 是辅助模块、不打 `ok` 行，属预期例外）。全仓普查（0.54.99）结论：34 个套件注入 `throw` 后全部 `rc=1`，没有第二个 `regression` 那样的静默失败；但 `client`/`smoke`/`routes`/`exact`/`pdf-notes` 五个是**崩溃型**（失败时一条 `ok` 都不打，只吐堆栈），按「逐套件 `^ok` 表」比对版本时会把「断言红了」误读成「套件没跑」，做版本对照要按 `rc` 而不是 `^ok` 基数判断。失败行统一以 `FAIL ` 开头、后接用例名（0.56.2 起全部 29 个打失败行的套件同形：`FAIL  <用例名>` 或 `FAIL  <用例名>: <异常文案>`）；`pdf-notes` 在没装 `pdftotext` 的机器上永远 `exit 0` + 一行 skip，是唯一「本机不可证伪」的断言，只由 CI 的 `pdf-notes` job 覆盖。
 - smoke：真实引擎跑一遍打开 → 分析 → 保存。
 - routes：43 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收、`api/heartbeat`、新增的 `api/settings`）。
 

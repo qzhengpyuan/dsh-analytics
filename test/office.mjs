@@ -287,6 +287,42 @@ await check('xlsx writes notes under the matrix with an italic style', () => {
   assert.match(sheet, /mergeCell ref="A4:B4"/, 'the note spans the table width')
 })
 
+await check('an exported note keeps its body, only the prefix is translated', () => {
+  const note = '分层变量：甲（共 3 层：0.013）'
+  const document = unzip(buildDocx({
+    items: [{ kind: 'table', title: 'T', table: { caption: 'T', matrix: [['a'], ['1']], notes: [] }, notes: [note] }],
+    sources: [],
+    lang: 'en',
+  }))['word/document.xml'].toString('utf8')
+  assert.ok(document.includes('Note: 分层变量：甲（共 3 层：0.013）'), 'the body survives verbatim after the English prefix')
+  assert.ok(!document.includes('(共 3 层: 0.013)'), 'full-width punctuation in the body is not normalised')
+  const sheet = unzip(buildXlsx({
+    items: [{ kind: 'table', table: { caption: 'T', matrix: [['a', 'b'], ['1', '2']] }, notes: [note] }],
+    lang: 'en',
+  }))['xl/worksheets/sheet1.xml'].toString('utf8')
+  assert.ok(sheet.includes('Note: 分层变量：甲（共 3 层：0.013）'), 'the xlsx note body is untouched too')
+})
+
+
+await check('a long xlsx note grows its row instead of hiding lines', () => {
+  const long = '这一条注文很长，用来确认行高会跟着内容涨。'.repeat(8)
+  const xlsx = buildXlsx({
+    items: [{
+      kind: 'table',
+      table: { caption: 'Coefficients', matrix: [['变量', 'B'], ['age', '.13']] },
+      notes: [long],
+    }],
+  })
+  const sheet = unzip(xlsx)['xl/worksheets/sheet1.xml'].toString('utf8')
+  const tall = /<row r="\d+" ht="([\d.]+)" customHeight="1">/.exec(sheet)
+  assert.ok(tall, 'a long note gets an explicit row height')
+  assert.ok(Number(tall[1]) > 30, `the note row is tall enough for its text: ${tall[1]}`)
+  const shortSheet = unzip(buildXlsx({
+    items: [{ kind: 'table', table: { caption: 'T', matrix: [['a', 'b'], ['1', '2']] }, notes: ['短'] }],
+  }))['xl/worksheets/sheet1.xml'].toString('utf8')
+  assert.doesNotMatch(shortSheet, /<row r="\d+" ht=/, 'a one-line note keeps the default height')
+})
+
 await check('xlsx anchors a chart to the first cell of its table and reserves rows', () => {
   const xlsx = buildXlsx({
     items: [

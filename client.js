@@ -24,6 +24,9 @@ window.__ModuleLoader__.load({
     let DICT_TEMPLATES = []
     let LANG = 'zh'
     const TR_CACHE = new Map()
+    // Templates whose capture is one of our own sentences, not user data: a
+    // variable called 保存 must not turn into "Save" in the English panel.
+    const RECURSIVE_TEMPLATES = new Set(['{0}：不可估（{1}）'])
     const TRANSLATED_PROPS = ['title', 'placeholder', 'aria-label', 'alt']
 
     function setDictionary(strings) {
@@ -34,7 +37,7 @@ window.__ModuleLoader__.load({
           .map(([key, value]) => {
             const parts = key.split(/\{\d+\}/).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
             const literal = key.replace(/\{\d+\}/g, '').length
-            return { pattern: new RegExp(`^${parts.join('(.+?)')}$`), value, literal }
+            return { key, pattern: new RegExp(`^${parts.join('(.+?)')}$`), value, literal }
           })
           // Sort by how much literal text the key carries, not by the length of
           // the generated regex: `{0}：{1}` is long as a pattern but says nothing,
@@ -74,11 +77,12 @@ window.__ModuleLoader__.load({
       // otherwise translatable label; peel them off instead of failing the match.
       const marked = /^([✓▸▾]\s*)(.*)$/.exec(text)
       if (marked) return `${marked[1]}${translateOne(marked[2], depth)}`
-      for (const { pattern, value } of DICT_TEMPLATES) {
+      for (const { key, pattern, value } of DICT_TEMPLATES) {
         const match = pattern.exec(text)
         if (!match) continue
-        // A captured piece may itself be a sentence ("A − B：不可估（该对比…）").
-        const pieces = match.slice(1).map((piece) => (depth < 3 ? translateOne(piece, depth + 1) : piece))
+        // Only templates whose capture is one of our own sentences recurse; a
+        // capture is usually user data (a variable called 保存 became "Save").
+        const pieces = match.slice(1).map((piece) => (RECURSIVE_TEMPLATES.has(key) && depth < 3 ? translateOne(piece, depth + 1) : piece))
         return value.replace(/\{(\d+)\}/g, (whole, index) => pieces[Number(index)] ?? whole)
       }
       return text

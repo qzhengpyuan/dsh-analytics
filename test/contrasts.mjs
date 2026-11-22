@@ -22,7 +22,7 @@ function check(name, body) {
       }, (error) => {
         checks += 1
         process.exitCode = 1
-        console.log(`FAIL ${checks} - ${name}: ${error.message}`)
+        console.log(`FAIL  ${name}: ${error.message}`)
       }))
       return
     }
@@ -31,7 +31,7 @@ function check(name, body) {
   } catch (error) {
     checks += 1
     process.exitCode = 1
-    console.log(`FAIL ${checks} - ${name}: ${error.message}`)
+    console.log(`FAIL  ${name}: ${error.message}`)
   }
 }
 

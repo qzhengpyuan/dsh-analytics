@@ -2625,6 +2625,11 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     // loaded instead of the two-string stub some fixtures use.
     const dictionary = JSON.parse(readFileSync(join(here, '..', 'locale/en.json'), 'utf8')).strings
     hooks.setDictionary(dictionary)
+    // A capture is user data: 保存/总计 are dictionary keys, and recursing into
+    // them renamed a variable called 保存 to "Save" in the English panel.
+    assert.equal(hooks.tr('保存 的直方图'), 'Histogram of 保存', 'a variable name is not translated')
+    assert.equal(hooks.tr('总计 · 5 例 · 1 变量'), '总计 · 5 cases · 1 variables', 'a dataset name is not translated')
+    assert.equal(hooks.tr('注：分层变量：甲（共 3 层：0.013）'), 'Note: 分层变量：甲（共 3 层：0.013）', 'a note body stays as written')
     const note = 'A − B：不可估（该对比在数据里没有对应的自由度，通常是某一格没有观测）'
     const english = hooks.tr(note)
     assert.match(english, /^A − B: not estimable \(/, `a composed note translates whole: ${english}`)

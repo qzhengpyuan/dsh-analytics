@@ -17,7 +17,7 @@ function check(name, run) {
     console.log('ok  ', name)
   } catch (failure) {
     process.exitCode = 1
-    console.log('FAIL', name)
+    console.log('FAIL ', name)
     console.log(failure.message)
   }
 }
@@ -85,6 +85,25 @@ check('chart titles are templates, so the variable name survives the switch', ()
   assert.equal(localize('已删除第 2 行', 'en'), 'Deleted row 2')
 })
 
+check('a capture that is user data keeps its name', () => {
+  // 0.56.0 recursed into every capture, and the dictionary has short keys such as
+  // 保存/总计: a variable called 保存 came out as "Save" and the same dataset name
+  // was translated in one place of a docx and not in another. Only the templates
+  // listed as sentence-carrying may recurse.
+  assert.equal(localize('保存 的直方图', 'en'), 'Histogram of 保存')
+  assert.equal(localize('名称 的构成', 'en'), 'Composition of 名称')
+  assert.equal(localize('总计 · 5 例 · 1 变量', 'en'), '总计 · 5 cases · 1 variables')
+  assert.equal(localize('新建数据集（总计，未保存）', 'en'), 'New dataset(总计, unsaved)')
+  assert.equal(localize('数据文件：总计', 'en'), 'Data file: 总计')
+  // A note body is a sentence with numbers and names in it, so it stays as it is.
+  assert.equal(localize('注：分层变量：甲（共 3 层：0.013）', 'en'), 'Note: 分层变量：甲（共 3 层：0.013）')
+  // The one template that does carry a sentence still translates inside out.
+  assert.equal(
+    localize('A − B：不可估（该对比在数据里没有对应的自由度，通常是某一格没有观测）', 'en'),
+    'A − B: not estimable (the data leaves this contrast with no degrees of freedom, usually because a cell has no observations)',
+  )
+})
+
 check('a specific template beats a generic one of the same shape', () => {
   // `{0}：{1}` is long as a pattern but carries one character of text; it used to
   // win over `拆分：{0}`, leaving "拆分: grp" — half translated.
@@ -133,9 +152,14 @@ check('every dictionary entry is still referenced by shipped code', () => {
     '工具挂载（registerTools）：关', // client.js 的 tr(`工具挂载（registerTools）：${…}`)
     '工具挂载（registerTools）：开',
     '{0} 的构成（环形）', // lib/charts.js 的 `${name} 的构成${donut ? '（环形）' : ''}`
-    '{0}：不可估（{1}）', // lib/contrasts.js 的 `${head}：不可估（${reason}）`，套住下面这条
-    '不可估（该对比在数据里没有对应的自由度，通常是某一格没有观测）', // 同上，`${head}` 是变量名、不在源码里字面出现
+    '{0}：不可估（{1}）', // lib/contrasts.js 的 `${head}：不可估（${reason}）`，套住上面那条
   ])
+  // Criterion: one piece found is enough. A stricter rule ("two pieces, or a piece
+  // of six characters") was measured and rejected: it flags 21 entries that are
+  // genuine fragments of longer sentences (`· 打开于`, `右轴`, `，超时`), so its
+  // allowlist would be longer than the drift it prevents. What this check does
+  // catch is the case that actually happens — a message rewritten into one
+  // sentence, leaving its old tail in the dictionary.
   const dead = Object.keys(strings).filter((key) => {
     if (assembled.has(key)) return false
     const pieces = key.split(/\{\d+\}/).map((piece) => piece.trim()).filter((piece) => piece.length >= 2)
