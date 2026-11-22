@@ -2,6 +2,14 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.56.1
+
+- **P1 级：ICC 一直算不出来**。`annotateReliabilityIcc()` 用 `DATA_CHANGING` 判断「这段语法会不会改数据」，但它拿到的是**插件自己拼好的脚本**——每次运行都以 `GET FILE='…/work.sav'.` 开头，正则里的 `GET\s+(?:FILE|DATA)` 必然命中，于是只要数据集存在就永远走「这段语法里有会改数据或换数据的命令」那条分支，ICC 表一行都出不来。改成传用户原文 `requested`；跨轮重放的 `WEIGHT BY`/`FILTER BY` 由函数内部「引擎有效个案 vs 插件重算个案」的比较兜住，那条文案比「没算」有用。真引擎验证：12 例两评分者的 `RELIABILITY /VARIABLES=a b.` 现在末尾多出「组内相关系数 ICC（插件计算）」，ICC(2,1) 0.918（95% CI 0.554–0.979）、ICC(2,2) 0.957，四段注文齐全。
+- 四条注文补真引擎覆盖（此前只有纯函数用例，靠手写的表结构与真引擎的 caption 对不上）：`EXAMINE … /PLOT=NPPLOT` 的正态性注文、2×2 的连续性校正注文、常数预测变量的「系数里有 NaN」注文、`RELIABILITY` 的 ICC 块。`test/smoke.mjs` 各加一段，跑真引擎。
+- `docs/ROADMAP.md` 的 M8 勾掉这四项。
+
+计数：34 套件 / **572** 条 ok（Linux、无 poppler；装 poppler 573）不变，`smoke` 的断言 4 → 8 条 —— `smoke` 打的是自己的 `real engine: …` 行，不进 `^ok` 计数，所以总数不变。
+
 ## 0.56.0
 
 一批收尾（外部复验 0.55.0 报告的 P1/P2 + 之前欠的三件工程事）：

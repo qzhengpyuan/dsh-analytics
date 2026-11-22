@@ -30,7 +30,7 @@
 
 - [x] 期望频数 < 5、方差齐性、正态性、多重比较未校正、样本量偏少、加权后零个案、零个案归因、部分语法被拒横幅
 - [x] 真引擎覆盖：`annotateComparisons`、`annotateSampleSize`、`annotateZeroCases`、`annotateWeightedEmpty`
-- [ ] 真引擎覆盖剩余注文：`annotateNormality`、`applyContinuityNote`、`annotateNonFiniteCoefficients`、`annotateReliabilityIcc`
+- [x] 真引擎覆盖剩余注文：`annotateNormality`、`applyContinuityNote`、`annotateNonFiniteCoefficients`、`annotateReliabilityIcc`（0.56.1）
 - [ ] 注文的「适用条件」与 SPSS 逐条对齐（例如 SPSS 用 Levene 的哪一列、Welch 何时替代）
 - [ ] 注文在导出（Word/Excel/HTML）里的排版统一（当前靠段落，长注文会挤）
 

@@ -1002,6 +1002,62 @@ if (process.platform !== 'win32') {
   console.log('engine children run without core dumps, argv unchanged')
 }
 
+// The four notes below only exist because the plugin reads the engine's tables
+// after the fact. A pure-function test can build those tables by hand, but only
+// the engine decides what the captions actually look like - `Tests of Normality`,
+// `Multiple Comparisons (score)`, `Reliability Statistics` - so each of these
+// runs the real thing and then looks for the note.
+{
+  const notes = await new Workspace({ id: 'smoke-notes', engine, root: join(root, 'notes'), config: { timeoutMs: 60000 } })
+  await notes.init()
+  await notes.createDataset({
+    variables: [
+      { name: 'g', type: 'numeric' },
+      { name: 'w', type: 'numeric' },
+      { name: 'skewed', type: 'numeric' },
+      { name: 'flat', type: 'numeric' },
+      { name: 'rater1', type: 'numeric' },
+      { name: 'rater2', type: 'numeric' },
+    ],
+  })
+  const skewed = [1, 1, 1, 1, 1, 1, 1, 1, 1, 40]
+  for (let index = 0; index < skewed.length; index += 1) {
+    await notes.appendCase({
+      g: index % 2,
+      w: index < 5 ? 1 : 0,
+      skewed: skewed[index],
+      flat: 7,
+      rater1: skewed[index],
+      rater2: skewed[index] + (index % 3),
+    })
+  }
+
+  const normality = await notes.runSyntax('EXAMINE VARIABLES=skewed /PLOT=NPPLOT.')
+  const normalityNotes = normality.items.flatMap((item) => item.notes ?? []).join('\n')
+  assert.match(normalityNotes, /正态性检验：/, `a skewed variable gets a normality note: ${normalityNotes.slice(0, 200)}`)
+  console.log('real engine: the normality note lands on the engine caption')
+
+  const crosstab = await notes.runSyntax('CROSSTABS /TABLES=g BY w /STATISTICS=CHISQ.')
+  const crosstabNotes = crosstab.items.flatMap((item) => item.notes ?? []).join('\n')
+  assert.match(crosstabNotes, /连续性校正/, `a 2x2 table mentions the continuity correction: ${crosstabNotes.slice(0, 200)}`)
+  console.log('real engine: the continuity note lands on the chi-square table')
+
+  const regression = await notes.runSyntax('REGRESSION /DEPENDENT=skewed /METHOD=ENTER flat.', {
+    regression: { dependent: 'skewed', independents: ['flat'] },
+  })
+  const coefficientNotes = regression.items.flatMap((item) => item.notes ?? []).join('\n')
+  assert.match(coefficientNotes, /系数里有 NaN/, `a constant predictor is reported: ${coefficientNotes.slice(0, 200)}`)
+  console.log('real engine: the non-finite coefficient note lands on Coefficients')
+
+  const reliability = await notes.runSyntax('RELIABILITY /VARIABLES=rater1 rater2.')
+  const icc = reliability.items.find((item) => /组内相关系数/.test(String(item.title ?? '')))
+  assert.ok(icc, 'a reliability run appends the ICC block')
+  const iccNotes = (icc.notes ?? []).join('\n')
+  assert.match(iccNotes, /ICC\(2,1\)/, `the ICC block explains its convention: ${iccNotes.slice(0, 200)}`)
+  assert.ok(icc.table.matrix.some((row) => /ICC\(2,1\)/.test(String(row[0]))), 'the ICC table carries the ICC(2,1) row')
+  console.log('real engine: reliability gets an ICC block (the GET FILE header no longer blocks it)')
+}
+
 // Teardown must not be able to fail the run on its own: on Windows a workspace
 // file can still be held for a moment, and an EBUSY here used to exit(1) with
 // every assertion already passed — the report showed rc=1 and no failing line.
