@@ -2,6 +2,9 @@
 // matter are about the rule: whole-key hits, interpolated text, and the promise
 // that paths, numbers and data values come back untouched.
 import assert from 'node:assert/strict'
+import { readdirSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { dictionaryFor, localize, normalizeLang, translateText } from '../lib/i18n.js'
 import { normalizeSetting } from '../lib/settings.js'
@@ -93,6 +96,51 @@ check('a specific template beats a generic one of the same shape', () => {
   assert.equal(localize('画 score 的直方图', 'en'), 'Histogram of score')
   assert.equal(localize('第 3 行（还没有变量）', 'en'), 'Row 3 (no variable yet)')
   assert.equal(localize('在第 2 行前插入个案', 'en'), 'Insert a case before row 2')
+})
+
+// Every entry has to be reachable: a fragment left over from a message that was
+// later rewritten into one sentence is dead weight nobody notices, and the dead
+// ones drift out of sync with the live text. Split a key at its placeholders and
+// require at least one piece to appear in the code that ships (not in tests, where
+// Chinese also shows up as expected values).
+check('every dictionary entry is still referenced by shipped code', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const root = join(here, '..')
+  // Everything that ships: the panel bundle, the host half, and lib/. Tests are
+  // excluded on purpose - Chinese there is an expected value, not a message.
+  const files = ['client.js', 'index.js', 'tools-entry.js']
+  for (const name of readdirSync(join(root, 'lib'))) {
+    if (name.endsWith('.js')) files.push(join('lib', name))
+  }
+  // Wrapped template literals put newlines and indentation inside a sentence, and
+  // an apostrophe inside a single-quoted literal is written `\'`, so both sides are
+  // unescaped and flattened before comparing.
+  const flat = (text) => text
+    .replace(/\\n/g, '\n')
+    .replace(/\\'/g, "'")
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const source = flat(files.map((name) => readFileSync(join(root, name), 'utf8')).join('\n'))
+  const strings = dictionaryFor('en')
+  // A few entries never appear as a literal because the code assembles the sentence
+  // around a value (`${head}：不可估（${reason}）`, `工具挂载（registerTools）：开`).
+  // They still hit at runtime - the assembled string is the key - so they are listed
+  // here with the place that builds them rather than deleted.
+  const assembled = new Set([
+    '不可估（该对比在数据里没有对应的自由度，通常是某一格没有观测）', // lib/contrasts.js 与 lib/workspace.js 拼在 `${head}：不可估（…）` 里
+    '工具挂载（registerTools）：关', // client.js 的 tr(`工具挂载（registerTools）：${…}`)
+    '工具挂载（registerTools）：开',
+    '{0} 的构成（环形）', // lib/charts.js 的 `${name} 的构成${donut ? '（环形）' : ''}`
+  ])
+  const dead = Object.keys(strings).filter((key) => {
+    if (assembled.has(key)) return false
+    const pieces = key.split(/\{\d+\}/).map((piece) => piece.trim()).filter((piece) => piece.length >= 2)
+    if (pieces.length === 0) return false
+    return !pieces.some((piece) => source.includes(flat(piece)))
+  })
+  assert.deepEqual(dead, [], `entries nothing references: ${dead.slice(0, 5).join(' | ')}`)
 })
 
 console.log()
