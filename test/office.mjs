@@ -4,7 +4,7 @@ import { inflateRawSync } from 'node:zlib'
 import assert from 'node:assert'
 
 import { buildZip, xmlEscape } from '../lib/zip.js'
-import { buildDocx, buildXlsx, cellRuns, clipMatrix, describeSources, escapeSheetName, formulaMap, imageExtent, pairCharts, pngSize, readableTime, sheetName, sheetXml, tableXml } from '../lib/office.js'
+import { buildDocx, buildReportDocx, buildReportHtml, buildXlsx, cellRuns, clipMatrix, describeSources, escapeSheetName, formulaMap, imageExtent, pairCharts, pngSize, readableTime, sheetName, sheetXml, tableXml } from '../lib/office.js'
 
 let checks = 0
 const failures = []
@@ -975,6 +975,61 @@ check('sheet names, chart placeholders and the title fallback are translated too
     lang: 'en',
   }))['docProps/core.xml'].toString('utf8')
   assert.match(titled, /Statistical output/, `the fallback title is translated: ${titled.slice(0, 200)}`)
+})
+
+await check('a bound report has a cover, a contents list and numbered tables', () => {
+  const items = [
+    { kind: 'table', id: 'a', title: '性别', table: { caption: '性别', matrix: [['', '频数'], ['男', '3']] } },
+    { kind: 'table', id: 'b', title: '年龄', table: { caption: '年龄', matrix: [['', '均数'], ['—', '31.5']] } },
+  ]
+  const docx = buildReportDocx({
+    title: '毕业论文结果',
+    subtitle: '第 4 章',
+    items,
+    sources: [{ name: 'demo.sav', caseCount: 6, varCount: 2, origin: 'file', sourcePath: '/tmp/demo.sav' }],
+    meta: { dataset: '数据集：demo.sav', generatedAt: '生成于 2026-11-22 19:00', engine: 'GNU PSPP 2.1.3' },
+  })
+  const xml = unzip(docx)['word/document.xml'].toString('utf8')
+  assert.match(xml, /毕业论文结果/, 'the cover carries the title')
+  assert.match(xml, /第 4 章/, 'and the subtitle')
+  assert.match(xml, /目录/, 'the contents heading is there')
+  // Each table appears twice: once in the contents, once as its own heading.
+  assert.equal((xml.match(/表 1　性别/g) ?? []).length, 2, 'the first table is in the contents and above the table')
+  assert.equal((xml.match(/表 2　年龄/g) ?? []).length, 2, 'the second table keeps its number and caption')
+  assert.match(xml, /<w:br w:type="page"\/>/, 'sections start on a new page')
+  assert.match(xml, /数据来源/, 'the closing note names the data')
+  assert.match(xml, /demo\.sav/, 'with the file name')
+})
+
+await check('a bound report numbers figures separately from tables', () => {
+  const items = [
+    { kind: 'table', id: 't', title: 'T', table: { caption: 'T', matrix: [['', 'x'], ['a', '1']] } },
+    { kind: 'image', id: 'i', title: '直方图', url: '/analytics/api/artifact/demo/chart.png' },
+  ]
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c6300010000050001', 'hex')
+  const docx = buildReportDocx({
+    title: 'R',
+    items,
+    images: [{ url: '/analytics/api/artifact/demo/chart.png', bytes: png, width: 1, height: 1 }],
+  })
+  const xml = unzip(docx)['word/document.xml'].toString('utf8')
+  assert.match(xml, /表 1　T/, 'the table keeps number 1')
+  assert.match(xml, /图 1　直方图/, 'the figure is numbered in its own series')
+  assert.match(xml, /word\/media\/chart1\.png|rIdImg1/, 'the chart is embedded')
+})
+
+await check('the HTML report is self-contained and prints as one document', () => {
+  const html = buildReportHtml({
+    title: '结果',
+    items: [{ kind: 'table', id: 'a', title: '性别', table: { caption: '性别', matrix: [['', '频数'], ['男', '3']] } }],
+    meta: { dataset: 'demo.sav' },
+  })
+  assert.match(html, /^<!doctype html>/i, 'it is a whole document, not a fragment')
+  assert.match(html, /目录/, 'with a contents list')
+  assert.match(html, /表 1　性别/, 'the table is numbered')
+  assert.match(html, /<th>频数<\/th>/, 'the header cells are header cells')
+  assert.doesNotMatch(html, /src="https?:/, 'nothing loads from the network')
+  assert.doesNotMatch(html, /<script/i, 'and no script runs in it')
 })
 
 if (failures.length > 0) {

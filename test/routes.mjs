@@ -706,6 +706,25 @@ console.log('export report', r.code, r.json().result?.format === 'pdf' && r.json
 r = await call('POST', `${base}/api/exportReport`, { sessionId: sid, path: join(home, 'card.pdf'), format: 'pdf', script: '   ' })
 console.log('export report refuses an empty card', r.code, /勾选/.test(String(r.json().error)))
 
+// The bound report assembles the tables that already exist; nothing is replayed.
+const bookItem = (replay.json().result?.items ?? [])[0]
+r = await call('POST', `${base}/api/reportBook`, {
+  sessionId: sid, path: join(home, 'book.docx'), items: [bookItem.id], title: '结果', subtitle: '第 4 章',
+})
+const book = r.json().result ?? {}
+console.log('report book docx', r.code, book.tables, book.figures, book.bytes > 4000)
+const bookBuffer = await readFile(join(home, 'book.docx'))
+console.log('report book is a docx package', bookBuffer.length > 4000, bookBuffer.slice(0, 2).toString('latin1') === 'PK')
+r = await call('POST', `${base}/api/reportBook`, { sessionId: sid, path: join(home, 'book.html'), items: [bookItem.id] })
+const bookHtml = await readFile(join(home, 'book.html'), 'utf8')
+console.log('report book html', r.code, /目录/.test(bookHtml) && /表 1/.test(bookHtml))
+r = await call('POST', `${base}/api/reportBook`, { sessionId: sid, path: join(home, 'book.pdf'), items: [bookItem.id] })
+console.log('report book refuses pdf', r.code, /docx|html/.test(String(r.json().error)))
+r = await call('POST', `${base}/api/reportBook`, { sessionId: sid, path: join(home, 'book.docx'), items: ['nope'] })
+console.log('report book refuses a stale id', r.code, /不在输出树|刷新面板/.test(String(r.json().error)))
+r = await call('POST', `${base}/api/reportBook`, { sessionId: sid, path: join(home, 'book.docx'), items: [] })
+console.log('report book refuses an empty selection', r.code, /勾选/.test(String(r.json().error)))
+
 // syntax files come back byte for byte
 const spsOut = join(home, 'saved', 'work.sps')
 r = await call('POST', `${base}/api/saveSyntax`, { sessionId: sid, path: spsOut, text: 'FREQUENCIES /VARIABLES=score.' })

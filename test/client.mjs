@@ -2704,3 +2704,187 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.equal(notice({ revision: 4 }, { revision: 5 }, self), '数据已被对话里的分析改写：已载入最新内容', 'a host without lastWriter is treated the same way')
   console.log('ok  a write from another window is announced, a self-write and the first state are not')
 }
+
+// The syntax workbench and the bound report are the two features of 0.57.0.
+// Both live behind the 文件 menu, and the toolbar tip is the one place where the
+// delay is a behaviour rather than a style, so it is asserted with timers.
+{
+  const workHost = window.document.createElement('div')
+  window.document.body.appendChild(workHost)
+  const workRoot = createRoot(workHost)
+  const calls = []
+  const workState = {
+    id: 'session-work',
+    version: '0.57.0',
+    engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+    dataset: {
+      sourcePath: '/tmp/work.sav', name: 'work.sav', caseCount: 30, varCount: 2, dirty: false, origin: 'file',
+      variables: [
+        { name: 'score', label: '成绩', type: 'numeric', measure: 'scale' },
+        { name: 'gender', label: '性别', type: 'numeric', measure: 'nominal' },
+      ],
+    },
+    locale: 'zh',
+    variables: [
+      { name: 'score', label: '成绩', type: 'numeric', measure: 'scale' },
+      { name: 'gender', label: '性别', type: 'numeric', measure: 'nominal' },
+    ],
+    items: [{
+      kind: 'table', id: 'item-1', runId: 1, title: '频率',
+      script: 'FREQUENCIES /VARIABLES=score.',
+      table: { caption: 'score', matrix: [['', 'N'], ['score', '30']] },
+      notes: [],
+    }],
+    tables: [], charts: [],
+    splitBy: [], weightBy: null, filterBy: null, selectIf: null,
+    settings: { tableStyle: 'three-line', maxRows: 200000 },
+    tableStyle: 'three-line',
+    runs: [{ runId: 1, title: '频率', at: Date.now() }],
+    task: null,
+  }
+  window.fetch = async (url, options) => {
+    calls.push(String(url))
+    const body = options?.body ? JSON.parse(String(options.body)) : null
+    if (String(url).includes('api/reportBook')) {
+      globalThis.__lastBookBody = body
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { path: body?.path, format: 'docx', bytes: 4096, tables: 1, figures: 0 } }) }
+    }
+    if (String(url).includes('api/dir')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, path: decodeURIComponent(String(url).split('path=')[1] ?? ''), entries: [], pick: null }) }
+    }
+    if (String(url).includes('api/heartbeat')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, signal: workState.signal }) }
+    }
+    if (String(url).includes('api/run')) {
+      globalThis.__workRunBody = body
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ ok: true, result: { runId: 7, items: [] }, state: workState }),
+      }
+    }
+    return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state: workState }) }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    workRoot.render(React.createElement(registered.tabs[0].component, {
+      ...props, scope: { sessionId: 'session-work', cwd: '/tmp' }, tab: null,
+    }))
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  })
+
+  const openMenu = async (label) => {
+    const button = [...workHost.querySelectorAll('.ap-menu-button')].find((node) => node.textContent === label)
+    assert.ok(button, `the ${label} menu exists`)
+    await act(async () => {
+      button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 40))
+    })
+    return workHost.querySelector('.ap-menu-pop')
+  }
+  const clickIn = async (root, text) => {
+    // A template button carries its label and the first line of its syntax, so
+    // the match is on the leading text rather than the whole button.
+    const target = [...root.querySelectorAll('button')]
+      .find((node) => node.textContent === text || node.textContent.startsWith(text))
+    assert.ok(target, `a button labelled ${text} is there: ${root.textContent.slice(0, 200)}`)
+    await act(async () => {
+      target.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 60))
+    })
+    return target
+  }
+
+  // 文件 → 语法模板库: clicking a template appends it to the syntax tab.
+  let pop = await openMenu('文件')
+  const labels = [...pop.querySelectorAll('button')].map((node) => node.textContent)
+  assert.ok(labels.includes('语法模板库…'), `the file menu offers the template library: ${labels.join(' / ')}`)
+  assert.ok(labels.includes('运行历史…'), 'and the run history')
+  assert.ok(labels.includes('导出报告（成册，勾选的表）…'), 'and the bound report')
+  await clickIn(pop, '语法模板库…')
+  const tmpl = workHost.querySelector('.ap-modal')
+  assert.match(tmpl.textContent, /描述/, 'the library is grouped like an analysis menu')
+  await clickIn(tmpl, '交叉表 + 卡方')
+  const editor = workHost.querySelector('.ap-code-input')
+  assert.ok(editor, 'the syntax tab has its editor')
+  assert.match(editor.value, /CROSSTABS[\s\S]*CHISQ/, `the template landed in the editor: ${editor.value}`)
+  // Appending, not replacing: a second click keeps the first program.
+  pop = await openMenu('文件')
+  await clickIn(pop, '语法模板库…')
+  await clickIn(workHost.querySelector('.ap-modal'), '频率与集中趋势')
+  assert.match(workHost.querySelector('.ap-code-input').value, /CROSSTABS/, 'the first template survives the second one')
+  assert.match(workHost.querySelector('.ap-code-input').value, /FREQUENCIES/, 'and the second one is appended after it')
+
+  // 文件 → 运行历史: a run made in the panel can be pasted back or replayed.
+  const runButton = [...workHost.querySelectorAll('.ap-icon-btn')].find((node) => node.getAttribute('title') === '运行语法' || node.getAttribute('aria-label') === '运行语法')
+  assert.ok(runButton, 'the toolbar has a run button')
+  await act(async () => {
+    runButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 120))
+  })
+  assert.match(String(globalThis.__workRunBody?.syntax ?? ''), /CROSSTABS/, 'the editor content is what ran')
+  pop = await openMenu('文件')
+  await clickIn(pop, '运行历史…')
+  const runs = workHost.querySelector('.ap-modal')
+  assert.match(runs.textContent, /运行 7/, 'the history lists the run by its id')
+  assert.match(runs.textContent, /CROSSTABS/, 'and keeps the syntax that ran')
+  await clickIn(runs, '插入语法')
+  assert.match(workHost.querySelector('.ap-code-input').value, /^CROSSTABS/, 'inserting a run replaces the editor with that run')
+
+  // 文件 → 导出报告（成册）: the tick selection is the binding order, and the
+  // extension picks the format before anything is written.
+  await act(async () => {
+    const outputTab = [...workHost.querySelectorAll('.ap-view-tab')].find((node) => /输出/.test(node.textContent))
+    outputTab.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 80))
+  })
+  const tick = workHost.querySelector('.ap-item input[type=checkbox]')
+  assert.ok(tick, 'an output with a script can be ticked for the report')
+  await act(async () => {
+    tick.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  pop = await openMenu('文件')
+  await clickIn(pop, '导出报告（成册，勾选的表）…')
+  const book = workHost.querySelector('.ap-modal')
+  assert.ok(book, 'the report dialog opened')
+  assert.match(book.textContent, /\.html/, 'it says the extension picks the format')
+  assert.match(book.textContent, /当前 1 项|1 项/, 'it counts what will be bound')
+  const pathInput = book.querySelector('input[type=text]')
+  assert.match(pathInput.value, /\.docx$/, `the path is prefilled with a docx name: ${pathInput.value}`)
+  await clickIn(book, '选择路径')
+  const body = globalThis.__lastBookBody
+  assert.ok(Array.isArray(body?.items) && body.items.length === 1, 'only the ticked output travels')
+  assert.equal(body.items[0], 'item-1', 'by id, in tick order')
+
+  // The toolbar tip: the first icon waits, the next one does not. 700 ms is the
+  // declared pause, so the assertions sit well on either side of it.
+  const toolbar = workHost.querySelector('.ap-toolbar')
+  const icons = [...toolbar.querySelectorAll('.ap-icon-btn')]
+  assert.ok(icons.length >= 5, 'the toolbar has its icons')
+  const hover = async (node) => {
+    await act(async () => {
+      node.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
+  }
+  await hover(icons[0])
+  assert.equal(workHost.querySelector('.ap-tip'), null, 'the first tip waits: no tooltip at 30 ms')
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 800)) })
+  const firstTip = workHost.querySelector('.ap-tip')
+  assert.ok(firstTip, 'the first tip appears once the pause is over')
+  assert.equal(firstTip.textContent, icons[0].getAttribute('aria-label'), 'the tip names the icon under the pointer')
+  assert.equal(icons[0].hasAttribute('title'), false, 'the native tooltip is taken away while the bar owns the tip')
+  await hover(icons[1])
+  const secondTip = workHost.querySelector('.ap-tip')
+  assert.ok(secondTip, 'moving to the next icon shows its name at once')
+  assert.equal(secondTip.textContent, icons[1].getAttribute('aria-label'), 'and it is the new icon name, not the old one')
+  await act(async () => {
+    toolbar.dispatchEvent(new window.MouseEvent('mouseout', { bubbles: true, relatedTarget: window.document.body }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  assert.equal(workHost.querySelector('.ap-tip'), null, 'leaving the bar hides the tip')
+  assert.equal(icons[1].hasAttribute('title'), true, 'and gives the native title back')
+  await act(async () => { workRoot.unmount() })
+  console.log('ok  syntax templates, run history, bound report and the SPSS-style toolbar tip')
+}

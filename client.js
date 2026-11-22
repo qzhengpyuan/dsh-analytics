@@ -573,6 +573,36 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-outline .ap-ol-run { padding:5px 8px 1px; font-size:11px; font-weight:600; letter-spacing:.04em;
   color:var(--ap-text-3); text-transform:none; border-top:1px solid var(--ap-line-3); }
 .ap-outline > .ap-ol-run:first-child { border-top:0; }
+/* 运行分组：标题一行，右侧两个小动作（插语法 / 重跑）。动作只在悬停该行时出现。 */
+.ap-outline .ap-ol-run { display:flex; align-items:center; gap:4px; }
+.ap-outline .ap-run-label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.ap-outline .ap-run-tool { border:0; background:none; font:inherit; font-size:10px; color:var(--ap-text-3);
+  padding:0 3px; margin-left:0; width:auto; display:none; cursor:default; border-radius:3px; }
+.ap-outline .ap-ol-run:hover .ap-run-tool { display:inline-block; }
+.ap-outline .ap-run-tool:hover { background:var(--ap-hover); color:var(--ap-accent); }
+/* 工具栏提示：SPSS 那种第一个延迟、接着立即切换的提示（原生 title 做不到定时） */
+.ap-tip { position:fixed; transform:translateX(-50%); z-index:60; pointer-events:none;
+  background:color-mix(in srgb, var(--ap-text) 88%, var(--ap-panel)); color:var(--ap-panel);
+  border:1px solid var(--ap-line-3); border-radius:3px; padding:2px 7px; font-size:11px;
+  white-space:nowrap; box-shadow:1px 2px 3px color-mix(in srgb, var(--ap-text) 25%, transparent); }
+/* 语法模板库 */
+.ap-tmpl { display:flex; flex-direction:column; gap:10px; max-height:52vh; overflow:auto; padding:2px; }
+.ap-tmpl-head { font-size:11px; font-weight:600; letter-spacing:.04em; color:var(--ap-text-3); padding:2px 0 3px; }
+.ap-tmpl-group { display:flex; flex-direction:column; gap:2px; }
+.ap-tmpl-item { display:flex; flex-direction:column; gap:1px; text-align:left; padding:4px 8px;
+  border:1px solid transparent; border-radius:4px; background:var(--ap-surface-2); font:inherit; color:var(--ap-text); cursor:default; }
+.ap-tmpl-item:hover { border-color:var(--ap-line-2); background:var(--ap-hover); }
+.ap-tmpl-label { font-size:12px; }
+.ap-tmpl-code { font-family:ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size:10.5px;
+  color:var(--ap-text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* 运行历史 */
+.ap-runs { display:flex; flex-direction:column; gap:2px; max-height:52vh; overflow:auto; }
+.ap-run-row { display:flex; align-items:center; gap:6px; padding:3px 6px; border-radius:4px; }
+.ap-run-row:hover { background:var(--ap-hover); }
+.ap-run-when { font-size:11px; color:var(--ap-text-3); min-width:52px; font-variant-numeric:tabular-nums; }
+.ap-run-title { font-size:12px; max-width:96px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ap-run-syntax { font-family:ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size:10.5px;
+  color:var(--ap-text-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px; }
 .ap-outline .ap-ol-facts { display:block; margin-top:1px; font-size:11px; color:var(--ap-text-3); font-variant-numeric:tabular-nums;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ap-doc { flex:1; overflow:auto; padding:10px 12px 32px; background:var(--ap-panel); }
@@ -4696,6 +4726,7 @@ function normalizeChoices(list) {
     function OutputDoc({
       items, state, onRemove, onEditChart, onExportChart = () => {}, tableStyle = 'default',
       picks = null, onTogglePick = null, onReportExport = null,
+      onReplayRun = null, onInsertRunSyntax = null,
       tableEdits = {}, onEditTable = () => {}, onPairwise = () => {}, onRoc = () => {},
       onExportItem = () => {},
     }) {
@@ -4795,7 +4826,25 @@ function normalizeChoices(list) {
               const runKey = item.runId ?? null
               if (runKey !== null && runKey !== lastRun) {
                 lastRun = runKey
-                nodes.push(h('div', { key: `run-${runKey}`, className: 'ap-ol-run' }, `运行 ${runKey}`))
+                // Two small actions per run: paste the syntax back into the
+                // editor, or run it again as it was. SPSS's viewer has neither,
+                // but a script the user cannot get back is a script they retype.
+                nodes.push(h('div', { key: `run-${runKey}`, className: 'ap-ol-run' },
+                  h('span', { className: 'ap-run-label' }, tr('运行 {0}', String(runKey))),
+                  onInsertRunSyntax
+                    ? h('button', {
+                      className: 'ap-run-tool',
+                      title: '把这一批的语法插到语法页',
+                      onClick: (event) => { event.stopPropagation(); onInsertRunSyntax(runKey) },
+                    }, '语法')
+                    : null,
+                  onReplayRun
+                    ? h('button', {
+                      className: 'ap-run-tool',
+                      title: '按原样再跑一次',
+                      onClick: (event) => { event.stopPropagation(); onReplayRun(runKey) },
+                    }, '重跑')
+                    : null))
               }
               const summary = item.kind === 'table' ? summarizeTable(item.table) : ''
               nodes.push(h('button', {
@@ -5462,6 +5511,33 @@ let ITEM_CSV_PENDING = null
       // Report card: which output items the document should contain. The
       // export replays their syntax, so the selection is by item id.
       const [reportPick, setReportPick] = useState(() => new Set())
+      // Every successful run is remembered with the syntax that produced it, so
+      // a run in the output tree can be repeated or pasted back into the editor.
+      // Kept in localStorage because the browser refresh the panel is reloaded
+      // with must not lose the last hour of work; the syntax itself lives in
+      // `syntaxByDoc`, this is only the run -> text map.
+      const [runHistory, setRunHistory] = useState(() => {
+        try {
+          const parsed = JSON.parse(localStorage.getItem('ap.runHistory') ?? '[]')
+          return Array.isArray(parsed) ? parsed.filter((entry) => entry && typeof entry.text === 'string') : []
+        } catch { return [] }
+      })
+      const rememberRun = useCallback((runId, text, title, persist) => {
+        if (runId === null || runId === undefined) return
+        // `persist` travels with the entry: replaying a data step as an analysis
+        // (or the other way round) silently skips the SAVE OUTFILE and the run
+        // looks like it did nothing.
+        const entry = { runId, text: String(text ?? ''), title: title ?? '', persist: persist === true, at: Date.now() }
+        setRunHistory((current) => {
+          const next = [entry, ...current.filter((item) => String(item.runId) !== String(runId))].slice(0, 40)
+          try { localStorage.setItem('ap.runHistory', JSON.stringify(next)) } catch { /* quota */ }
+          return next
+        })
+      }, [])
+      const syntaxForRun = useCallback((runId) => {
+        const hit = runHistory.find((entry) => String(entry.runId) === String(runId))
+        return hit ? hit.text : ''
+      }, [runHistory])
       const toggleReportPick = useCallback((id) => {
         setReportPick((current) => {
           const next = new Set(current)
@@ -5589,6 +5665,74 @@ let ITEM_CSV_PENDING = null
         if (toastTimer.current) window.clearTimeout(toastTimer.current)
         toastTimer.current = window.setTimeout(() => { toastTimer.current = 0; setToast(null) }, 5000)
       }
+
+      // SPSS's toolbar shows the first tip after a pause and then flips through
+      // the rest instantly while the pointer stays in the bar. The native title
+      // attribute cannot do that (the delay is the OS's, and it is the same every
+      // time), so the bar drives its own tip and takes `title` away while the
+      // pointer is inside it — otherwise two tooltips appear, one over the other.
+      const [toolTip, setToolTip] = useState(null)
+      const tipState = useRef({ timer: 0, visible: false, anchor: null })
+      const TIP_DELAY_MS = 700
+      const hideToolTip = () => {
+        window.clearTimeout(tipState.current.timer)
+        tipState.current.timer = 0
+        const anchor = tipState.current.anchor
+        if (anchor?.dataset?.tip) {
+          anchor.setAttribute('title', anchor.dataset.tip)
+          delete anchor.dataset.tip
+        }
+        if (tipState.current.visible) {
+          tipState.current.visible = false
+          setToolTip(null)
+        }
+      }
+      const placeToolTip = (button, text) => {
+        const rect = button.getBoundingClientRect()
+        tipState.current.visible = true
+        setToolTip({ text, x: rect.left + rect.width / 2, y: rect.bottom + 6 })
+      }
+      const onToolbarOver = (event) => {
+        const button = event.target?.closest?.('.ap-tool')
+        if (!button || button === tipState.current.anchor) return
+        const text = button.getAttribute('title') || button.getAttribute('aria-label') || ''
+        if (!text) return
+        if (button.hasAttribute('title')) {
+          button.dataset.tip = text
+          button.removeAttribute('title')
+        }
+        tipState.current.anchor = button
+        window.clearTimeout(tipState.current.timer)
+        // Already showing a tip for a neighbour: switch at once, no second wait.
+        if (tipState.current.visible) placeToolTip(button, text)
+        else tipState.current.timer = window.setTimeout(() => placeToolTip(button, text), TIP_DELAY_MS)
+      }
+      const onToolbarOut = (event) => {
+        const button = event.target?.closest?.('.ap-tool')
+        if (!button) return
+        // Moving to another button in the bar keeps the tip warm; only leaving
+        // the bar resets the delay.
+        if (event.relatedTarget?.closest?.('.ap-tool')) { tipState.current.anchor = null; return }
+        hideToolTip()
+        tipState.current.anchor = null
+      }
+      const onToolbarLeave = () => {
+        hideToolTip()
+        tipState.current.anchor = null
+      }
+
+      // Templates append instead of replacing: a user who is halfway through a
+      // script wants the new program after it, and a blank one is unaffected.
+      const insertSyntax = useCallback((text, { replace = false } = {}) => {
+        const block = String(text ?? '')
+        if (!block.trim()) return
+        setSyntax((current) => (replace || !String(current ?? '').trim()
+          ? block
+          : `${String(current).replace(/\s+$/, '')}\n\n${block}`))
+        setView('syntax')
+        setDialog(null)
+        notify(tr('已插入语法（{0} 行）', block.split('\n').length))
+      }, [setSyntax])
 
       // Three outcomes and no fourth: a newer release, this is the newest, or the
       // check itself failed. Silence after a click reads as "nothing happened".
@@ -5886,6 +6030,7 @@ let ITEM_CSV_PENDING = null
         try {
           const value = await api('api/run', { sessionId, syntax: text, persist, pairwise, regression, roc, exact: exact === true, exactChi: exactChi === true, contrasts: contrasts ?? null })
           setSt(stateOf(value))
+          rememberRun(value.result?.runId ?? null, text, title, persist)
           const items = value.result.items ?? []
           // A data transform (sort/filter/compute) produces no tables: stay in
           // the data editor and refresh the rows the host just rewrote.
@@ -5911,7 +6056,7 @@ let ITEM_CSV_PENDING = null
         } finally {
           setBusy(false)
         }
-      }, [sessionId, loadRows])
+      }, [sessionId, loadRows, rememberRun])
 
       // Restructuring replaces the matrix on the host instead of running a
       // program, so it cannot go through run(): the reply carries counts, not
@@ -6737,6 +6882,10 @@ let ITEM_CSV_PENDING = null
             { label: '导出输出为 SPSS 输出（.spv）…', action: () => setBrowser({ mode: 'exportdoc', format: 'spv' }) },
             { label: '导出输出为 Word（.docx）…', action: () => setBrowser({ mode: 'office', format: 'docx', scope: 'session' }) },
             { label: '导出输出为 Excel（.xlsx）…', action: () => setBrowser({ mode: 'office', format: 'xlsx', scope: 'session' }) },
+            { label: '导出报告（成册，勾选的表）…', action: () => setBrowser({ mode: 'reportBook', format: 'docx', reportTitle: '', reportSubtitle: '' }) },
+            { sep: true },
+            { label: '语法模板库…', action: () => setDialog({ kind: 'templates' }) },
+            { label: '运行历史…', action: () => setDialog({ kind: 'runs' }) },
             { label: '关闭数据集', action: () => closeDoc(sessionId) },
             { label: '导出输出为 HTML…', action: () => exportOutput() },
             { label: '导出表格为 CSV…', action: () => exportOutputCsv() },
@@ -7197,7 +7346,12 @@ let ITEM_CSV_PENDING = null
                 className: `ap-menu-pop ${index >= menus.length - 3 ? 'ap-flip' : ''}`,
               }, renderMenuItems(entry.items))
               : null))),
-        !showToolbar ? null : h('div', { className: 'ap-toolbar' },
+        !showToolbar ? null : h('div', {
+          className: 'ap-toolbar',
+          onMouseOver: onToolbarOver,
+          onMouseOut: onToolbarOut,
+          onMouseLeave: onToolbarLeave,
+        },
           h('button', {
             className: 'ap-tool ap-icon-btn', title: '打开数据', 'aria-label': '打开数据', onClick: () => command('open'),
           }, apIcon('open')),
@@ -7444,6 +7598,16 @@ let ITEM_CSV_PENDING = null
                   }),
                   tableStyle,
                   picks: reportPick,
+                  onInsertRunSyntax: (runId) => {
+                    const text = syntaxForRun(runId)
+                    if (!text) { notify(tr('这一批运行的语法没有记下来（升级前的运行）')); return }
+                    insertSyntax(text, { replace: true })
+                  },
+                  onReplayRun: (runId) => {
+                    const entry = runHistory.find((item) => String(item.runId) === String(runId))
+                    if (!entry) { notify(tr('这一批运行的语法没有记下来（升级前的运行）')); return }
+                    void run(entry.text, entry.persist === true, entry.title)
+                  },
                   onTogglePick: (id) => (id === '__clear__' ? setReportPick(new Set()) : toggleReportPick(id)),
                   onReportExport: () => setBrowser({ mode: 'report', format: 'pdf' }),
                   onRemove: async (id) => {
@@ -7657,6 +7821,59 @@ let ITEM_CSV_PENDING = null
               }
             },
           })
+          : null,
+        toolTip
+          ? h('div', {
+            className: 'ap-tip',
+            style: { left: toolTip.x, top: toolTip.y },
+            // The tip must never eat the hover that produced it.
+            role: 'tooltip',
+          }, tr(toolTip.text))
+          : null,
+        dialog?.kind === 'templates'
+          ? h(Modal, {
+            title: '语法模板库',
+            wide: true,
+            onCancel: () => setDialog(null),
+            okText: '关闭',
+            onOk: () => setDialog(null),
+          },
+          h('div', { className: 'ap-hint' }, tr('点一条就插到语法页末尾：尖括号里的是占位符，换成你自己的变量名再运行。')),
+          h('div', { className: 'ap-tmpl' },
+            TEMPLATE_GROUPS.map((group) => h('div', { className: 'ap-tmpl-group', key: group },
+              h('div', { className: 'ap-tmpl-head' }, tr(group)),
+              SYNTAX_TEMPLATES
+                .filter((entry) => entry.group === group)
+                .map((entry) => h('button', {
+                  key: entry.label,
+                  className: 'ap-tmpl-item',
+                  title: entry.syntax,
+                  onClick: () => insertSyntax(entry.syntax),
+                },
+                h('span', { className: 'ap-tmpl-label' }, tr(entry.label)),
+                h('code', { className: 'ap-tmpl-code' }, entry.syntax.split('\n')[0])))))))
+          : null,
+        dialog?.kind === 'runs'
+          ? h(Modal, {
+            title: '运行历史',
+            wide: true,
+            onCancel: () => setDialog(null),
+            okText: '关闭',
+            onOk: () => setDialog(null),
+          },
+          runHistory.length === 0
+            ? h('div', { className: 'ap-hint' }, tr('这次会话还没有运行过分析。'))
+            : h('div', { className: 'ap-runs' },
+              runHistory.map((entry) => h('div', { className: 'ap-run-row', key: `${entry.runId}-${entry.at}` },
+                h('span', { className: 'ap-run-when' }, tr('运行 {0}', String(entry.runId))),
+                h('span', { className: 'ap-run-title' }, entry.title ? tr(entry.title) : tr('（未命名）')),
+                h('code', { className: 'ap-run-syntax' }, String(entry.text).split('\n')[0].slice(0, 60)),
+                h('span', { className: 'ap-grow' }),
+                h('button', { className: 'ap-tool', onClick: () => insertSyntax(entry.text, { replace: true }) }, '插入语法'),
+                h('button', {
+                  className: 'ap-tool',
+                  onClick: () => { setDialog(null); void run(entry.text, entry.persist === true, entry.title) },
+                }, '重跑')))))
           : null,
         dialog?.kind === 'import'
           ? h(ImportDialog, {
@@ -7947,12 +8164,35 @@ let ITEM_CSV_PENDING = null
               office: '导出输出到…',
               exportdoc: '导出输出到…',
               report: '导出报告卡到…',
+              reportBook: '导出报告（成册）到…',
               chartExport: '导出图表到…',
               itemCsv: '导出表格到…',
               export: '导出为 CSV…',
               labelFile: '选择值标签文件',
             }[browser.mode] ?? '选择文件',
-            extra: browser.mode === 'office'
+            extra: browser.mode === 'reportBook'
+              ? h('div', null,
+                h('div', { className: 'ap-row', style: { alignItems: 'center', gap: 8 } },
+                  h('span', { className: 'ap-hint' }, '标题'),
+                  h('input', {
+                    type: 'text',
+                    style: { flex: 1 },
+                    value: browser.reportTitle ?? '',
+                    placeholder: tr('默认用数据集名'),
+                    onChange: (event) => setBrowser((current) => (current ? { ...current, reportTitle: event.target.value } : current)),
+                  })),
+                h('div', { className: 'ap-row', style: { alignItems: 'center', gap: 8 } },
+                  h('span', { className: 'ap-hint' }, '副标题'),
+                  h('input', {
+                    type: 'text',
+                    style: { flex: 1 },
+                    value: browser.reportSubtitle ?? '',
+                    placeholder: tr('课程、项目或作者（可留空）'),
+                    onChange: (event) => setBrowser((current) => (current ? { ...current, reportSubtitle: event.target.value } : current)),
+                  })),
+                h('div', { className: 'ap-hint' }, tr('文件名后缀决定格式：.docx 或 .html（.html 用浏览器打开、可直接打印成 PDF）。')),
+                h('div', { className: 'ap-hint' }, tr('报告只装订勾选的输出（当前 {0} 项）：在输出树里点每项左侧的框勾选，勾选顺序就是装订顺序。', reportPick.size)))
+              : browser.mode === 'office'
               ? h('div', null,
                 Array.isArray(browser.only) && browser.only.length > 0
                   ? h('div', { className: 'ap-row', style: { alignItems: 'center', gap: 8 } },
@@ -7991,6 +8231,8 @@ let ITEM_CSV_PENDING = null
                 ? `${String(readSessionCwd() ?? st?.cwd ?? '').replace(/\/$/, '')}/${String(browser.title ?? 'table')}.csv`
               : browser.mode === 'report'
                 ? `${String(readSessionCwd() ?? st?.cwd ?? '').replace(/\/$/, '')}/${String(st?.dataset?.name ?? 'report').replace(/\.[^.]+$/, '')}-报告卡.${browser.format}`
+              : browser.mode === 'reportBook'
+                ? `${String(readSessionCwd() ?? st?.cwd ?? '').replace(/\/$/, '')}/${String(st?.dataset?.name ?? 'report').replace(/\.[^.]+$/, '')}-报告.${browser.format === 'html' ? 'html' : 'docx'}`
               : browser.mode === 'office' && Array.isArray(browser.only) && browser.only.length > 0
                 ? `${String(readSessionCwd() ?? st?.cwd ?? '').replace(/\/$/, '')}/${String(browser.title ?? 'table').replace(/[\\/:*?"<>|]/g, '_')}.${browser.format}`
               : browser.mode === 'office' || browser.mode === 'exportdoc'
@@ -8065,6 +8307,32 @@ let ITEM_CSV_PENDING = null
                 finally { setBusy(false) }
                 return
               }
+              if (mode === 'reportBook') {
+                // Ticking in the output tree is the selection; the order there is
+                // the order of the report. Nothing is recomputed here — the host
+                // assembles the tables it already has.
+                const chosen = items.filter((item) => reportPick.has(item.id)).map((item) => item.id)
+                if (chosen.length === 0) { notify(tr('先勾选要装订的表或图：输出树里每项左侧的框')); return }
+                const lower = String(path).toLowerCase()
+                if (!lower.endsWith('.docx') && !lower.endsWith('.html') && !lower.endsWith('.htm')) {
+                  notify(tr('文件名要以 .docx 或 .html 结尾：它决定报告格式'))
+                  return
+                }
+                setBusy(true)
+                try {
+                  const value = await api('api/reportBook', {
+                    sessionId,
+                    path,
+                    items: chosen,
+                    title: browser.reportTitle ?? '',
+                    subtitle: browser.reportSubtitle ?? '',
+                  })
+                  const result = value.result ?? {}
+                  notify(tr('已生成报告 {0}（{1} 表 {2} 图，{3} KB）', result.path, result.tables ?? 0, result.figures ?? 0, Math.round((result.bytes ?? 0) / 1024)))
+                } catch (error) { notify(error.message) }
+                finally { setBusy(false) }
+                return
+              }
               if (mode === 'report') {
                 // The syntax of every ticked result, in output order.
                 const scripts = items
@@ -8097,6 +8365,35 @@ let ITEM_CSV_PENDING = null
           })
           : null)
     }
+
+    // Every template is a complete, runnable program with placeholder variable
+    // names in angle brackets: the user replaces them, and the dialog says so.
+    // They are grouped the way the Analyze menu is, not alphabetically, because
+    // someone who does not know the syntax looks for the procedure's name first.
+    const TEMPLATE_GROUPS = ['描述', '比较均值', '相关与回归', '降维与信度', '非参数', '数据整理']
+    const SYNTAX_TEMPLATES = [
+      { group: '描述', label: '描述统计（均数/标准差/极值）', syntax: 'DESCRIPTIVES /VARIABLES=<变量1> <变量2> /STATISTICS=MEAN STDDEV MIN MAX.' },
+      { group: '描述', label: '频率与集中趋势', syntax: 'FREQUENCIES /VARIABLES=<变量> /STATISTICS=MEAN MEDIAN MODE.' },
+      { group: '描述', label: '交叉表 + 卡方', syntax: 'CROSSTABS /TABLES=<行变量> BY <列变量> /STATISTICS=CHISQ.' },
+      { group: '描述', label: '均值过程（分组均数）', syntax: 'MEANS TABLES=<因变量> BY <分组变量>.' },
+      { group: '比较均值', label: '独立样本 t 检验', syntax: 'T-TEST GROUPS=<分组变量>(1 2) /VARIABLES=<因变量>.' },
+      { group: '比较均值', label: '配对样本 t 检验', syntax: 'T-TEST PAIRS=<变量1> WITH <变量2>.' },
+      { group: '比较均值', label: '单样本 t 检验', syntax: 'T-TEST /TESTVAL=0 /VARIABLES=<变量>.' },
+      { group: '比较均值', label: '单因素方差分析', syntax: 'ONEWAY <因变量> BY <因子> /STATISTICS=DESCRIPTIVES HOMOGENEITY /POSTHOC=TUKEY.' },
+      { group: '相关与回归', label: '双变量相关', syntax: 'CORRELATIONS /VARIABLES=<变量1> <变量2> <变量3>.' },
+      { group: '相关与回归', label: '线性回归', syntax: 'REGRESSION /DEPENDENT=<因变量> /METHOD=ENTER <自变量1> <自变量2> /STATISTICS=COEFF R ANOVA.' },
+      { group: '相关与回归', label: '二元 Logistic 回归', syntax: 'LOGISTIC REGRESSION <因变量> WITH <自变量1> <自变量2>.' },
+      { group: '降维与信度', label: '信度（Cronbach α）', syntax: 'RELIABILITY /VARIABLES=<题项1> <题项2> <题项3>.' },
+      { group: '降维与信度', label: '因子分析', syntax: 'FACTOR /VARIABLES=<题项1> <题项2> <题项3> /CRITERIA=FACTORS(1).' },
+      { group: '降维与信度', label: '快速聚类（K 均值）', syntax: 'QUICK CLUSTER <变量1> <变量2> /CRITERIA=CLUSTERS(3).' },
+      { group: '非参数', label: 'Mann-Whitney U', syntax: 'NPAR TESTS /MANN-WHITNEY=<因变量> BY <分组变量>(1 2).' },
+      { group: '非参数', label: 'Wilcoxon 符号秩', syntax: 'NPAR TESTS /WILCOXON=<变量1> WITH <变量2>.' },
+      { group: '非参数', label: '单样本 K-S 正态性', syntax: 'NPAR TESTS /K-S(NORMAL)=<变量>.' },
+      { group: '数据整理', label: '计算新变量', syntax: 'COMPUTE <新变量> = <表达式>.\nEXECUTE.' },
+      { group: '数据整理', label: '重编码成分组', syntax: 'RECODE <变量> (LO THRU 30=1) (31 THRU HI=2) INTO <新变量>.\nEXECUTE.' },
+      { group: '数据整理', label: '排序与筛选', syntax: 'SORT CASES BY <变量>(A).\nSELECT IF (<条件>).\nEXECUTE.' },
+      { group: '数据整理', label: '按组聚合（保存汇总值）', syntax: 'AGGREGATE /OUTFILE=* MODE=ADDVARIABLES /BREAK=<分组变量> /<新变量>_mean=MEAN(<变量>).' },
+    ]
 
     const CHART_SPECS = {
       bar: {
