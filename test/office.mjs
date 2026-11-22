@@ -884,13 +884,6 @@ check('an English export writes English shell text and keeps data values', () =>
   const body = docx['word/document.xml'].toString('utf8')
   assert.match(body, /Note: /, 'the note prefix is translated')
   assert.match(body, /Source: New dataset\(d\.sav\)/, `source stamp: ${body.slice(0, 400)}`)
-  // The unnamed branch is its own template; it drifted by one space once already.
-  const unsaved = unzip(buildDocx({
-    items: [{ kind: 'table', title: 'Frequencies', table: { caption: 'Frequencies', matrix: [['a', 'N'], ['1', '2']], notes: [] } }],
-    sources: [{ origin: 'new', name: null, sourcePath: null, caseCount: 2, varCount: 1 }],
-    lang: 'en',
-  }))['word/document.xml'].toString('utf8')
-  assert.match(unsaved, /New dataset\(unsaved\)/, `unsaved source stamp: ${/New dataset\([a-z]*\)/.exec(unsaved)?.[0] ?? unsaved.slice(0, 300)}`)
   assert.match(body, /Run #3/, 'the run number is translated')
   assert.match(body, /Data fingerprint ab12cd34/, 'the fingerprint label is translated')
   assert.match(body, /甲|乙/, 'data values stay as entered')
@@ -906,6 +899,19 @@ check('an English export writes English shell text and keeps data values', () =>
 // Sheet names and the placeholders that stand in for a picture are shell text
 // too: an English workbook used to come out with 图表 / 数据 tabs and a
 // 图表见上方 spacer, and a docx with no dataset name kept 统计输出 in the title.
+// The unnamed branch is its own template; it drifted by one space once already, so
+// it gets a check of its own rather than riding along with the named form.
+check('an unnamed built dataset keeps its template in English', () => {
+  const xml = unzip(buildDocx({
+    items: [{ kind: 'table', title: 'Frequencies', table: { caption: 'Frequencies', matrix: [['a', 'N'], ['1', '2']], notes: [] } }],
+    sources: [{ origin: 'new', name: null, sourcePath: null, caseCount: 2, varCount: 1 }],
+    lang: 'en',
+  }))['word/document.xml'].toString('utf8')
+  const stamp = /New dataset\([a-z]*\)/.exec(xml)?.[0] ?? xml.slice(0, 300)
+  assert.match(xml, /New dataset\(unsaved\)/, `unsaved source stamp: ${stamp}`)
+  assert.equal(/New dataset \(/.test(xml), false, 'the unnamed form has no space before the bracket')
+})
+
 check('sheet names, chart placeholders and the title fallback are translated too', () => {
   const wb = unzip(buildXlsx({ items: [], lang: 'en', data: { variables: [{ name: 'g' }], rows: [[1]] } }))
   const names = [...wb['xl/workbook.xml'].toString('utf8').matchAll(/name="([^"]*)"/g)].map((match) => match[1])

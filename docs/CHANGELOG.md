@@ -1,6 +1,19 @@
-<!-- 计数口径（0.54.97 起为最终版）：各段写的「全量 N 条 ok」= **Linux 上、没装 pdftotext** 的 `grep -cE '^ok\b'`。两个已知偏差：装了 poppler 会多跑 `pdf-notes` 1 条；Windows 上 smoke 的 core-dump 用例被 `process.platform !== 'win32'` 跳过，少 1 条。0.54.96 及更早小节写的是当时的口径（多数只按 poppler 判）。 -->
+<!-- 计数口径（0.54.98 起）：各段写的「全量 N 条 ok」= `grep -cE '^ok\b'` 的总和，**Linux 与 Windows 相同**（0.54.97 阶段我曾以为 Windows 少 1，Win10 用逐套件表否掉了：Windows 上 568 与 Linux 无 poppler 的 568 相等）。唯一已知偏差：装了 poppler 会多跑 `pdf-notes` 1 条。 -->
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
+
+## 0.54.98
+
+Win10 0.54.97 报告的 P1×1 + P2×1 + P3×3：
+
+- **P1-① `test/regression.mjs` 的退出码判定落在第 56 条断言之前**（长期存在）：`process.exitCode = 1` 写在文件中间（`test/regression.mjs:863`），那之后的 1000 多行里任何失败都只打印 `FAIL`、退出码仍是 0。把赋值挪进 `check()` 的 catch（与 `build`/`office`/`tables` 等 27 个套件同形），并在文件末尾再补一次。Win10 用 `mut/` 里的 TAP 证明了盲区；我现在用「把断言改错」实测 `rc=1`、`regression: 97 checks passed (with 2 failures)`。这条直接削弱了之前所有「regression 红了」的证据，属于地基问题。
+- **P2-① 计数口径的根因判错**：「Windows 少 1 因为 smoke 的 core-dump 用例被平台跳过」不成立 —— Win10 逐套件表显示 `smoke` 只贡献 3 条 `^ok`，那一条本来就不打 `ok` 行（它在 `Promise` 里打印正文）。改成「Windows 与 Linux 相同」，头部注释与 0.54.97 段一并改正。
+- **P2-② 「原先那条断言等于没有断言」结论不成立**：`buildDocx()` 返回 Buffer，`assert.match(Buffer, …)` 会抛 `ERR_ASSERTION`，所以真有那么一条断言时它**必然红**，不可能长期绿着。我上一版那句「顺带修了一处假断言」撤掉；实际发生的是「无名分支此前没有断言，我新增时第一版写错了对象」。
+- **P3-① `## 0.54.97` 段没有计数行**：补 `34 套件 / 568 条 ok`。
+- **P3-② `test/regression.mjs` 的 `check()` 与其它套件不同形**：已按 P1-① 统一（catch 里设退出码 + 末尾兜底）。
+- **P3-③ 无名断言嵌在「英文外壳」大 check 里**：拆成独立的 `check('an unnamed built dataset keeps its template in English')`，失败时能点名。变异：词典改回 `New dataset (unsaved)` 实测 `rc=1`、红在 `FAIL an unnamed built dataset keeps its template in English`。
+
+计数口径：34 套件 / **569** 条 ok（Linux，装了 poppler 一例；拆出独立 check 后 office 54→55）。
 
 ## 0.54.97
 
@@ -10,7 +23,8 @@ Win10 0.54.96 报告的 P2×2 + P3×2（外加计数口径的最终裁定）：
 - **P2-② 手写 `REGRESSION` 少了插件自算的两张表**：`pspp_run` 出 3 张、`pspp_analyze` 出 5 张，差额是 `Durbin-Watson（插件计算）` 与 `共线性诊断（插件计算）`，因为 `runSyntax` 里那段的条件只看 `options.regression`。改成同一个 `requestedModel`（显式列表优先，否则从语法解析）既喂 `annotateSampleSize` 也喂 `collinearityTable`/`durbinWatsonTable`。
 - **P3-① 无名新建数据集没有测试守护**：`test/office.mjs` 之前只断言带名字的 `Source: New dataset(d.sav)`，无名分支改回带空格四个套件全绿。补一条 `sources: [{ origin: 'new', name: null, sourcePath: null, … }]` 的断言；把词典改回 `New dataset (unsaved)` 实测 `rc=1`。
 - **P3-② 返回形状不一致**：`requestedRegression` 早已返回 `{ dependent, independents }`（与 `analysisExtras('regression', …)` 同形），报告里那句 `dependents` 数组是 0.54.96 之前的旧形状，此处只补一条注释把约定写死。
-- 计数口径：Win10 连续三版判我「多写 1」，根因不是 poppler 而是 **Windows 跳过一条 smoke 用例**。文档从此写「Linux 无 poppler N（Windows N−1）」，0.54.93/0.54.94/0.54.95/0.54.96 四段一并改正。
+- 计数口径：Win10 连续三版判我「多写 1」。当时判成「Windows 跳过一条 smoke 用例」，写成了「Linux 无 poppler N（Windows N−1）」；0.54.98 用逐套件表推翻了这条判断，**Windows 与 Linux 相同**，见 0.54.98 段 P2-①。
+- 计数：34 套件 / 568 条 ok（Linux 无 poppler；装了 poppler 569）。
 
 ## 0.54.96
 

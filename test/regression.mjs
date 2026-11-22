@@ -12,6 +12,7 @@ const check = (name, fn) => {
     console.log(`ok   ${name}`)
   } catch (error) {
     failures.push(name)
+    process.exitCode = 1
     console.error(`FAIL ${name}: ${error.message}`)
   }
 }
@@ -859,8 +860,6 @@ check('collinearity drops the user\'s missing-value codes', () => {
   // to move the tolerance from 0.911 to 0.728.
   assert.deepEqual(withCode.matrix, without.matrix)
 })
-
-if (failures.length > 0) process.exitCode = 1
 
 check('a requested crosstab statistic the engine skipped is named, with the reason', () => {
   const items = items2x2()
@@ -1805,3 +1804,7 @@ check('a hand-written regression hands over its predictors', () => {
 })
 
 console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)
+
+// Keep the summary last and repeat the exit code here: a `FAIL` line alone must
+// never leave a green run behind.
+if (failures.length > 0) process.exitCode = 1
