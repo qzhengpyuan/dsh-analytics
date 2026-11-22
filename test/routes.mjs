@@ -55,6 +55,23 @@ class Res {
   const payload = JSON.parse(fresh.text)
   if (payload.latest !== '0.99.0' || payload.newer !== true) throw new Error(`the answer is not forwarded: ${fresh.text}`)
   if (!payload.current) throw new Error('the answer names the version it compared against')
+
+  // A release number is not data: the check answers without a session, exactly
+  // like api/version, so an installer or a doctor script can ask it. Everything
+  // that touches a dataset still gets the 401.
+  const gated = createHandler({
+    registry,
+    connection: { requestRejection: () => 401 },
+    config: {},
+    settings: settingsStore,
+    updateCheck: async (current) => ({ current, latest: '0.99.0', newer: true }),
+  })
+  const open = new Res()
+  await gated({ method: 'GET', url: '/analytics/api/update', headers: { host: '127.0.0.1:3080' } }, open)
+  if (open.code !== 200) throw new Error(`the update check stays outside the session gate, got ${open.code}`)
+  const shut = new Res()
+  await gated({ method: 'GET', url: '/analytics/api/state?sessionId=x', headers: { host: '127.0.0.1:3080' } }, shut)
+  if (shut.code !== 401) throw new Error(`a dataset route still needs a session, got ${shut.code}`)
 }
 
 // The web server can come up before the connection service. A handler that

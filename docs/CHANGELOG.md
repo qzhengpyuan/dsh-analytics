@@ -2,6 +2,21 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.57.2
+
+Win10 复验 0.57.0 的报告（`win10-report-0570.md`）里 1 条 P1、1 条 P2、3 条 P3，一次修完。
+
+- **P1 图不进册、还被塞进无关的表**：三处叠加。① `lib/workspace.js` 的 `sourceRunId` 缺省取 `this.lastRunId`，与图画的变量无关；② `lib/office.js` 的 `pairCharts` 按 `runId` 相同就配对，配上的图走 `tableXml` 后紧跟 `imageXml`（表内），`standalone` 分支永远走不到；③ 图表 item **没有 `script`**，而勾选框判据是 `item.script` ⇒ 图在输出树里根本没有框，用户选不到，`api/reportBook` 收到的只能是表 id。
+  修法：`lib/office.js` 新增 `reportSections(items)` —— 成册报告**不做配对**，勾选顺序就是结构，每张图自成一节（`buildReportDocx` / `buildReportHtml` 都换过去；`buildDocx`/`buildXlsx` 的配对策略不变，那里"图属于哪张表"仍有意义）。`client.js` 的勾选框改成 `item.script || item.kind === 'image'`，图的提示语单独写「放进报告（成册）」。于是 `figures` 计数也不再是假承诺：勾了几张图就是几节。
+- **P2 被经过的图标永久丢失 `title`**：`hideToolTip()` 只还原 `tipState.current.anchor` 那一个按钮，而 `onToolbarOver` 每经过一个按钮就 `removeAttribute('title')` ⇒ 旧按钮从此没有原生提示。改成 `tipState.current.stripped = new Map()` 记录**每一个**被摘掉 title 的按钮，离开工具栏（或组件卸载）时全部还原。
+- **P3-1 `api/update` 在没有会话时 401**：`lib/routes.js` 里它与 `api/version` 一样只回公开信息（版本号、Release 地址），提到会话闸门之前；没接线时仍回 503。`api/state` 之类一律仍要会话（新增用例两侧都断言）。
+- **P3-2 `figures` 计数名不副实**：随 P1 一并修好（现在图真的成节，计数即节数）。
+- **P3-3 `src570/pspp.html` 这类引擎输出被 `git add -A` 带进仓库**：`.gitignore` 加 `pspp.html` 与 `src*/pspp.html`，已跟踪的那份 `git rm --cached`（工作副本备份在 `/mnt/E/备份文件/pspp-html-20261122/`）。
+
+用例：`test/office.mjs` 新增 2 条（三条目「表 1 / 图 1 / 表 2」——图必须自成节、`<w:drawing>` 不得落在任何 `<w:tbl>` 内、顺序按勾选；HTML 侧同序）、`test/client.mjs` 扩 2 条（图表行也有勾选框；经过的图标离开工具栏后 title 全部还原）、`test/routes.mjs` 扩 1 条（无会话时 `api/update` 200、`api/state` 仍 401）。
+
+计数：**35** 套件 / **589** 条 ok（装了 poppler 590）。
+
 ## 0.57.1
 
 0.57.0 的自检补强，以及用户要求的那份滚动计划。

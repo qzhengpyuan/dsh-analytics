@@ -4875,10 +4875,13 @@ function normalizeChoices(list) {
               : null
             // Everything that can be replayed into a report card gets a tick
             // box, not only the results computed here.
-            const pick = picks && item.script
+            // A chart has no `script` — it was not computed by a statement, it
+            // was drawn from data — so keying the tick box on `script` alone left
+            // the one output a report is most often made of without a box.
+            const pick = picks && (item.script || item.kind === 'image')
               ? h('input', {
                 type: 'checkbox',
-                title: '放进报告卡',
+                title: item.kind === 'image' ? '放进报告（成册）' : '放进报告卡',
                 checked: picks.has(item.id),
                 onChange: () => onTogglePick?.(item.id),
               })
@@ -5672,16 +5675,21 @@ let ITEM_CSV_PENDING = null
       // time), so the bar drives its own tip and takes `title` away while the
       // pointer is inside it — otherwise two tooltips appear, one over the other.
       const [toolTip, setToolTip] = useState(null)
-      const tipState = useRef({ timer: 0, visible: false, anchor: null })
+      const tipState = useRef({ timer: 0, visible: false, anchor: null, stripped: new Map() })
       const TIP_DELAY_MS = 700
+      // Every button visited loses its `title` while the bar owns the tip, so
+      // every one of them has to get it back — restoring only the last button
+      // left a trail of icons whose native tooltip was gone for good.
+      const restoreTitles = () => {
+        for (const [button, title] of tipState.current.stripped) {
+          if (button?.isConnected && !button.hasAttribute('title')) button.setAttribute('title', title)
+        }
+        tipState.current.stripped.clear()
+      }
       const hideToolTip = () => {
         window.clearTimeout(tipState.current.timer)
         tipState.current.timer = 0
-        const anchor = tipState.current.anchor
-        if (anchor?.dataset?.tip) {
-          anchor.setAttribute('title', anchor.dataset.tip)
-          delete anchor.dataset.tip
-        }
+        restoreTitles()
         if (tipState.current.visible) {
           tipState.current.visible = false
           setToolTip(null)
@@ -5698,7 +5706,7 @@ let ITEM_CSV_PENDING = null
         const text = button.getAttribute('title') || button.getAttribute('aria-label') || ''
         if (!text) return
         if (button.hasAttribute('title')) {
-          button.dataset.tip = text
+          tipState.current.stripped.set(button, button.getAttribute('title'))
           button.removeAttribute('title')
         }
         tipState.current.anchor = button
@@ -5720,6 +5728,7 @@ let ITEM_CSV_PENDING = null
         hideToolTip()
         tipState.current.anchor = null
       }
+      useEffect(() => () => restoreTitles(), [])
 
       // Templates append instead of replacing: a user who is halfway through a
       // script wants the new program after it, and a blank one is unaffected.

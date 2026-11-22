@@ -1032,6 +1032,58 @@ await check('the HTML report is self-contained and prints as one document', () =
   assert.doesNotMatch(html, /<script/i, 'and no script runs in it')
 })
 
+// A bound report binds what was ticked, in tick order. A chart used to be glued
+// into whichever table shared its run id — so a figure drawn after a second
+// analysis landed under the first analysis's table, and a report of "two tables
+// and one chart" had no 图 1 at all. Ticking the chart is the user's decision;
+// it must become its own section.
+await check('a ticked figure gets its own section, not a table to hide in', () => {
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c6300010000050001', 'hex')
+  const items = [
+    { kind: 'table', id: 'run-2-0', runId: 2, title: 'Descriptive Statistics', table: { caption: 'Descriptive Statistics', matrix: [['', 'N'], ['score', '12']] } },
+    { kind: 'image', id: 'chart-3-0', runId: 3, title: 'score 的直方图', url: '/analytics/api/artifact?runId=3&name=chart.png' },
+    { kind: 'table', id: 'run-3-0', runId: 3, title: 'Descriptive Statistics', table: { caption: 'Descriptive Statistics', matrix: [['', 'N'], ['age', '12']] } },
+  ]
+  const docx = buildReportDocx({
+    title: 'R',
+    items,
+    images: [{ url: '/analytics/api/artifact?runId=3&name=chart.png', bytes: png, width: 1, height: 1 }],
+  })
+  const xml = unzip(docx)['word/document.xml'].toString('utf8')
+  const insideTable = (offset) => {
+    let position = 0
+    for (;;) {
+      const open = xml.indexOf('<w:tbl>', position)
+      if (open < 0) return false
+      const close = xml.indexOf('</w:tbl>', open)
+      if (open < offset && offset < close) return true
+      position = close + '</w:tbl>'.length
+    }
+  }
+  const drawing = xml.indexOf('<w:drawing>')
+  assert.ok(drawing > 0, 'the chart is embedded')
+  assert.equal(insideTable(drawing), false, 'and it is not inside any table')
+  // Once in the contents, once above the figure.
+  assert.equal((xml.match(/图 1　score 的直方图/g) ?? []).length, 2, 'the figure is numbered in the contents and as its own heading')
+  assert.equal((xml.match(/表 2　Descriptive Statistics/g) ?? []).length, 2, 'the second table keeps its own number')
+  // Ordered as ticked: table 1, figure 1, table 2.
+  const positions = [xml.indexOf('表 1　'), xml.indexOf('图 1　', xml.indexOf('表 1　')), xml.indexOf('表 2　', xml.indexOf('图 1　'))]
+  assert.ok(positions[0] < positions[1] && positions[1] < positions[2], `sections follow the tick order: ${JSON.stringify(positions)}`)
+})
+
+await check('the HTML report keeps a ticked figure in the same order', () => {
+  const html = buildReportHtml({
+    title: 'R',
+    items: [
+      { kind: 'table', id: 't1', title: 'T1', table: { caption: 'T1', matrix: [['', 'N'], ['a', '1']] } },
+      { kind: 'image', id: 'i1', title: '直方图', url: '/x.png' },
+    ],
+    images: [{ url: '/x.png', bytes: Buffer.from('89504e470d0a1a0a', 'hex') }],
+  })
+  assert.match(html, /图 1　直方图/, 'the figure has its own heading')
+  assert.ok(html.indexOf('表 1　T1') < html.indexOf('图 1　直方图'), 'and it comes after the table it was ticked after')
+})
+
 if (failures.length > 0) {
   console.error(`${failures.length} failed, ${checks - failures.length} passed`)
 } else {

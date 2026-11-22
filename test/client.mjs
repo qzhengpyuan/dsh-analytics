@@ -2734,6 +2734,10 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
       script: 'FREQUENCIES /VARIABLES=score.',
       table: { caption: 'score', matrix: [['', 'N'], ['score', '30']] },
       notes: [],
+    }, {
+      // A chart is an output without a script: it is drawn from data.
+      kind: 'image', id: 'chart-1-0', runId: 1, title: 'score 的直方图',
+      artifactUrl: '/analytics/api/artifact?runId=1&name=chart.svg', alt: 'score 的直方图',
     }],
     tables: [], charts: [],
     splitBy: [], weightBy: null, filterBy: null, selectIf: null,
@@ -2845,6 +2849,13 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   const tick = workHost.querySelector('.ap-item input[type=checkbox]')
   assert.ok(tick, 'an output with a script can be ticked for the report')
+  // A chart has no script: it was drawn from data, not computed by a statement.
+  // Keying the tick box on `script` left the one output a report is most often
+  // made of without a box at all.
+  const chartBoxes = [...workHost.querySelectorAll('.ap-item')]
+    .filter((node) => node.querySelector('img, .ap-chart'))
+    .flatMap((node) => [...node.querySelectorAll('input[type=checkbox]')])
+  assert.ok(chartBoxes.length >= 1, 'a chart row carries a tick box too, so it can be bound into a report')
   await act(async () => {
     tick.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
     await new Promise((resolve) => setTimeout(resolve, 40))
@@ -2890,6 +2901,10 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   assert.equal(workHost.querySelector('.ap-tip'), null, 'leaving the bar hides the tip')
   assert.equal(icons[1].hasAttribute('title'), true, 'and gives the native title back')
+  // Every icon the pointer passed over loses its title while the bar owns the
+  // tip; restoring only the last one left the earlier icons without a title for
+  // the rest of the session.
+  assert.equal(icons[0].hasAttribute('title'), true, 'the icon passed through earlier got its title back too')
   await act(async () => { workRoot.unmount() })
   console.log('ok  syntax templates, run history, bound report and the SPSS-style toolbar tip')
 }
