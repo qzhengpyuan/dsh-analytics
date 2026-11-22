@@ -1293,6 +1293,10 @@
     "正在检查更新…": "Checking for updates…",
     "检查更新失败：{0}": "Could not check for updates: {0}",
     "有新版本 {0}（当前 {1}）：{2}": "Version {0} is available (you have {1}): {2}",
-    "已是最新版本（{0}）": "This is the newest version ({0})"
+    "已是最新版本（{0}）": "This is the newest version ({0})",
+    "引擎崩溃{0}：这是 PSPP 引擎自身的缺陷，不是你的数据或语法问题；引擎报告的原因：{1}。请换一种做法再试（去掉触发它的那条统计量，或改用另一个过程），并把这条消息反馈给插件维护者": "The engine crashed{0}: this is a defect in PSPP itself, not in your data or syntax. What the engine reported: {1}. Try a different approach (drop the statistic that triggers it, or use another procedure) and report this message to the plugin maintainer",
+    "处理 {0} 时引擎崩溃{1}：这是 PSPP 引擎自身的缺陷，不是你的数据或语法问题；引擎报告的原因：{2}。请换一种做法再试（去掉触发它的那条统计量，或改用另一个过程），并把这条消息反馈给插件维护者": "Crashed while handling {0}{1}: this is a defect in PSPP itself, not in your data or syntax. What the engine reported: {2}. Try a different approach (drop the statistic that triggers it, or use another procedure) and report this message to the plugin maintainer",
+    "没有给出原因": "no cause given",
+    "（退出码 {0}）": "(exit code {0})"
   }
 }

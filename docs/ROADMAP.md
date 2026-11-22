@@ -19,8 +19,8 @@
 | M3 | 统计分析全量（描述/交叉/均值/方差/相关/回归/非参数/信度/因子/多选题） | ✅ 完成 |
 | M4 | 图表（自绘 SVG 七种）与输出（HTML/Word/Excel/PDF/SPV） | ✅ 完成 |
 | M5 | agent 工具层（23 个 `pspp_*`，挂预设，不泄漏到别的会话） | ✅ 完成 |
-| M6 | 双语界面（1285 条词条，模板化，导出外壳跟随语言） | ✅ 完成（长尾收尾中） |
-| M7 | 工程化（35 套件 583 断言、CI 双平台、打包自检、退出码纪律） | ✅ 完成 |
+| M6 | 双语界面（1294 条词条，模板化，导出外壳跟随语言） | ✅ 完成（长尾收尾中） |
+| M7 | 工程化（35 套件 584 断言、CI 双平台、打包自检、退出码纪律） | ✅ 完成 |
 | M8 | 假设检验注文体系（期望频数/方差齐性/正态性/多重比较/样本量/权重/零个案） | 🟡 进行中（真引擎覆盖已补 4 处，剩余见下） |
 | M9 | 稳健性收尾（畸形语法、边界数据、错误文案统一、死词条门禁） | 🟡 进行中 |
 | M10 | 分发（npm 发布、一条命令安装、更新检查） | 🔴 未完成 |
@@ -32,7 +32,7 @@
 - [x] 真引擎覆盖：`annotateComparisons`、`annotateSampleSize`、`annotateZeroCases`、`annotateWeightedEmpty`
 - [x] 真引擎覆盖剩余注文：`annotateNormality`、`applyContinuityNote`、`annotateNonFiniteCoefficients`、`annotateReliabilityIcc`（0.56.1）
 - [ ] 注文的「适用条件」与 SPSS 逐条对齐（例如 SPSS 用 Levene 的哪一列、Welch 何时替代）
-- [ ] 注文在导出（Word/Excel/HTML）里的排版统一（当前靠段落，长注文会挤）
+- [x] 注文在导出（Word/Excel/HTML）里的排版统一（0.56.2：xlsx 长注文按合并宽度加行高；前缀与正文分开翻译）
 
 ## M9 稳健性收尾 —— 剩余项
 
@@ -41,7 +41,7 @@
 - [ ] `localize()` 对 `${}` 拼装句子的漏翻族：改用模板键（本轮先修「不可估」这一处，其余按同一模式扫）
 - [ ] `requestedRegression` 之类别名解析：已钉住 PSPP 只认 `METHOD=ENTER`，把这条限制写进 FEATURES
 - [ ] 面板大表虚拟化的实机观感（滚动条、spacer 高度、底色）
-- [ ] 引擎崩溃文案（`You have discovered a bug`）在多语言下的一致性
+- [x] 引擎崩溃文案（`You have discovered a bug`）在多语言下的一致性（0.56.4）
 
 ## M10 分发 —— 待办
 

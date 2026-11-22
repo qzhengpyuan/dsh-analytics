@@ -1,6 +1,7 @@
 import assert from 'node:assert'
 import { describeEngineCrash, describeEngineError } from '../lib/fserr.js'
 import { describeFailure } from '../lib/workspace.js'
+import { localize } from '../lib/i18n.js'
 
 let checks = 0
 function check(name, body) {
@@ -53,6 +54,17 @@ check('a real crash banner is reported as an engine defect, not a syntax error',
   // Actionable: change the approach and report the defect.
   assert.match(said, /换一种做法再试/)
   assert.match(said, /反馈给插件维护者/)
+})
+
+check('the crash paragraph is translatable, exit code included', () => {
+  // It used to be glued together with `${}`: no dictionary key can match a
+  // sentence that is already built, so the English interface showed the whole
+  // paragraph in Chinese.
+  const said = describeFailure({ code: 139, stderr: BANNER })
+  const english = localize(said, 'en')
+  assert.doesNotMatch(english, /[\u4e00-\u9fff]/, `no Chinese left: ${english}`)
+  assert.match(english, /\(exit code 139\)/, 'the exit code keeps its brackets in English')
+  assert.match(english, /defect in PSPP itself/, 'the point of the message survives')
 })
 
 check('the same crash on Windows (exit code 3) takes the same branch', () => {

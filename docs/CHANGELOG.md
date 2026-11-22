@@ -2,6 +2,13 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.56.4
+
+- **引擎崩溃那段话现在翻译得出来**（此前英文界面整段是中文）。根因同 0.56.0 那一族：句子是用 `${exit}`/`${reason}` 拼好的，而词典只能匹配**未填值**的模板。改成 `引擎崩溃{0}：…原因：{1}…` 形态，并补三条词条（`处理 {0} 时引擎崩溃{1}：…`、`（退出码 {0}）`、`没有给出原因`）。崩溃模板加进 `RECURSIVE_TEMPLATES`，`（退出码 139）` 这个捕获位才会跟着翻；`test/crash.mjs` 新增一条断言英文整段无汉字、括号形态正确。
+- **序次关联量补真引擎覆盖**：`CROSSTABS /STATISTICS=CHISQ GAMMA BTAU CTAU D ETA` 由 PSPP 自己算（Kendall's tau-b/tau-c、Gamma、Somers' d、Eta），插件只做呈现；但此前没有任何用例证明这些表真的回得来。`test/smoke.mjs` 新增一段，断言 `Symmetric Measures` 有 tau-b/tau-c/Gamma、`Directional Measures` 有 Somers' d 与 Eta。
+
+计数：**35** 套件 / **584** 条 ok（Linux、无 poppler；装 poppler 585）—— crash 7 → 8；词典 1294 条。
+
 ## 0.56.3
 
 - **新增「帮助 → 检查更新…」**：`GET api/update` 读公开仓库的 `releases/latest`，返回 `{current, latest, newer, url, publishedAt, notes}`。三种结局都可见：有新版本（报版本号与 Release 链接）、已是最新、**检查失败**（带原因）—— 失败被缓存成「已是最新」是最容易骗人的实现，这里刻意不缓存失败、下次点击重试。GitHub 未认证额度 60 次/小时，因此答案缓存十分钟，并发请求合并成一次。新增 `lib/update.js`（`createUpdateCheck`、`compare`）与套件 `test/update.mjs`（6 条：逐段比版本、新版带链接、同版不算新、缓存与失败不缓存、非 200 报错、并发合并）。

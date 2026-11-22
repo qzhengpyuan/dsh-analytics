@@ -1049,6 +1049,22 @@ if (process.platform !== 'win32') {
   assert.match(coefficientNotes, /系数里有 NaN/, `a constant predictor is reported: ${coefficientNotes.slice(0, 200)}`)
   console.log('real engine: the non-finite coefficient note lands on Coefficients')
 
+  // PSPP computes the ordinal measures itself when asked (tau-b, tau-c, gamma,
+  // Somers' d, eta); nothing in the plugin has to reimplement them, but nothing
+  // proved they come back either, so the panel's checkboxes rode on faith.
+  const ordinal = await notes.runSyntax('CROSSTABS /TABLES=g BY w /STATISTICS=CHISQ GAMMA BTAU CTAU D ETA.')
+  const symmetric = ordinal.items.find((item) => /Symmetric Measures/i.test(String(item.table?.caption ?? '')))
+  assert.ok(symmetric, 'the ordinal measures table comes back')
+  const symmetricText = JSON.stringify(symmetric.table.matrix)
+  assert.match(symmetricText, /Kendall's tau-b/, 'tau-b is printed')
+  assert.match(symmetricText, /Kendall's tau-c/, 'tau-c is printed')
+  assert.match(symmetricText, /Gamma/, 'gamma is printed')
+  const directional = ordinal.items.find((item) => /Directional Measures/i.test(String(item.table?.caption ?? '')))
+  assert.ok(directional, "Somers' d arrives in its own table")
+  assert.match(JSON.stringify(directional.table.matrix), /Somers' d/, "Somers' d is printed")
+  assert.match(JSON.stringify(directional.table.matrix), /Eta/, 'eta is printed')
+  console.log('real engine: the ordinal measures (tau-b/tau-c/gamma/d/eta) come back')
+
   const reliability = await notes.runSyntax('RELIABILITY /VARIABLES=rater1 rater2.')
   const icc = reliability.items.find((item) => /组内相关系数/.test(String(item.title ?? '')))
   assert.ok(icc, 'a reliability run appends the ICC block')
