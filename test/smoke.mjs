@@ -1072,6 +1072,20 @@ if (process.platform !== 'win32') {
   assert.match(iccNotes, /ICC\(2,1\)/, `the ICC block explains its convention: ${iccNotes.slice(0, 200)}`)
   assert.ok(icc.table.matrix.some((row) => /ICC\(2,1\)/.test(String(row[0]))), 'the ICC table carries the ICC(2,1) row')
   console.log('real engine: reliability gets an ICC block (the GET FILE header no longer blocks it)')
+
+  // PSPP accepts these three shapes and does nothing at all: exit 0, no stderr,
+  // no table. There is no engine signal, so the message has to come from the
+  // shape of the command — and it must not blame a filter.
+  for (const [syntax, expected] of [
+    ['REGRESSION.', /\/DEPENDENT/],
+    ['FACTOR.', /\/VARIABLES/],
+  ]) {
+    const failure = await notes.runSyntax(syntax).then(() => null, (error) => error)
+    assert.ok(failure, `\`${syntax}\` is refused rather than reported as an empty run`)
+    assert.match(failure.message, expected, `\`${syntax}\` names the missing part: ${failure.message.slice(0, 160)}`)
+    assert.doesNotMatch(failure.message, /筛选/, `\`${syntax}\` does not blame a filter`)
+  }
+  console.log('real engine: a silently-skipped command names the missing subcommand')
 }
 
 // Teardown must not be able to fail the run on its own: on Windows a workspace

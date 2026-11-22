@@ -2,6 +2,20 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.56.6
+
+畸形语法抽查（15 条）抓到一条误诊：`REGRESSION.`（只有命令名、没有子命令）在 PSPP 2.1.3 里**退出码 0、stderr 空、输出完全为空**，插件只据此判定"没有产出任何表"，落到"内存里这份数据有 N 例，但引擎那边没有可分析的个案"——把一条没写完的命令说成筛选把个案筛掉了。`FACTOR.` 同样症状。
+
+找不到引擎信号，只能从命令形状判断，于是新增 `silentCommandProblem(script)`（导出，供测试直接调）：
+
+- `REGRESSION` 语句没有 `/DEPENDENT=` → 「这条 REGRESSION 没有写 /DEPENDENT=…：PSPP 2.1.3 会静默跳过它（不报错、也不产出任何表）。补上 /DEPENDENT=因变量 /METHOD=ENTER 自变量名 再跑一次」。
+- `FACTOR` 语句没有 `/VARIABLES=` 也没有 `/CRITERIA=` → 同名提示，指出缺 `/VARIABLES=`。
+- 反例也验证过：`REGRESSION /DEPENDENT=a.`（只给因变量）在 PSPP 里其实**会跑**并出 Model Summary / ANOVA / Coefficients（把因变量当成自变量自己），所以不加"缺 /METHOD"的判断——加了会误报一条本来能用的命令。
+
+另在 `if (parsed.length === 0)` 分支补上一层：解析出的诊断里若有 `severity === 'error'`，先按它给中文解释，不再等到 zero-case 那句。用例落在 `test/smoke.mjs`（真引擎）：三条命令都必须抛错、文案里要出现缺失的子命令、并且**不得出现"筛选"**。
+
+计数不变：**35** 套件 / **584** 条 ok。
+
 ## 0.56.5
 
 文档与可发现性这一批（不改计算行为）：
