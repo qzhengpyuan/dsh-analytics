@@ -2790,6 +2790,18 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
       globalThis.__gridBody = body
       return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { runId: 9, charts: body?.items?.length ?? 0, layout: body?.layout }, state: workState }) }
     }
+    if (String(url).includes('api/chart/options')) {
+      globalThis.__chartOptionsBody = body
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: {
+        runId: Number(body?.runId),
+        title: 'score 的直方图',
+        subtitle: 'N = 30',
+        xLabel: '得分',
+        yLabel: '',
+        accent: '#2f6fbb',
+        sortCategories: 'none',
+      } }) }
+    }
     if (String(url).includes('api/chart/update')) {
       globalThis.__chartPatchBody = body
       return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state: workState }) }
@@ -3067,8 +3079,13 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   const chartEditor = workHost.querySelector('.ap-modal')
   assert.match(chartEditor.textContent, /副标题/, 'the editor offers a subtitle')
-  const subtitleInput = [...chartEditor.querySelectorAll('input[type=text]')][1]
-  assert.ok(subtitleInput, 'the subtitle is a text field')
+  assert.equal(Number(globalThis.__chartOptionsBody?.runId), 1, 'the editor first reads what the chart looks like')
+  const editorInputs = [...chartEditor.querySelectorAll('input[type=text]')]
+  assert.equal(editorInputs.length, 4, 'title, subtitle and the two axis titles')
+  assert.equal(editorInputs[0].value, 'score 的直方图', 'the title is prefilled, not blank')
+  assert.equal(editorInputs[1].value, 'N = 30', 'so is the subtitle it already has')
+  assert.equal(editorInputs[2].value, '得分', 'and the axis title')
+  const subtitleInput = editorInputs[1]
   await act(async () => {
     const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
     setValue.call(subtitleInput, 'N = 30，M = 4.2')
@@ -3077,6 +3094,9 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   await clickIn(chartEditor, '应用')
   assert.equal(globalThis.__chartPatchBody?.subtitle, 'N = 30，M = 4.2', 'the subtitle travels with the patch')
+  assert.equal(globalThis.__chartPatchBody?.xLabel, undefined, 'an untouched axis title is not sent, so it cannot be cleared')
+  assert.equal(globalThis.__chartPatchBody?.accent, undefined, 'nor the colour')
+  assert.equal(globalThis.__chartPatchBody?.title, undefined, 'nor the title')
 
   // 重绘…: the same data as another kind, and the old chart stays.
   const redrawButton = [...workHost.querySelectorAll('.ap-tool')].find((node) => node.textContent === '重绘…')
@@ -3149,6 +3169,8 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     /少了一个右括号/)
   assert.match(String(hooks.checkExpression('scor * 2', 'double', workState.variables ?? [])),
     /不是当前数据集里的变量/)
+  assert.match(String(hooks.checkExpression('score *', 'double', workState.variables ?? [])),
+    /还缺一个运算对象/, 'a dangling operator is caught here, not by the engine')
   assert.equal(hooks.checkExpression('MEAN(score, gender)', 'double', workState.variables ?? []), null,
     'a known function is allowed')
 

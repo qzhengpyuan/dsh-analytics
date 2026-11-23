@@ -43,6 +43,13 @@ await workspace.createDataset({
 })
 for (const row of values) workspace.appendCase({ gender: row[0], age: row[1], score: row[2] })
 
+// The panel prints the engine's own version under 「关于」 and on the status
+// line; state used to omit it, so every dataset said 「引擎：未知」.
+await workspace.probeEngineVersion()
+const engineVersion = workspace.state().engine.version
+console.log('engine version in state:', engineVersion)
+if (!/PSPP/i.test(String(engineVersion))) throw new Error(`state.engine.version is not the engine's version line: ${engineVersion}`)
+
 const saved = await workspace.save(join(root, 'demo.sav'))
 console.log('saved:', saved)
 

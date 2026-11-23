@@ -331,6 +331,21 @@ console.log('chart edited', r.code, edited.chart.title === '性别与得分', ed
 console.log('chart edit bumped url', /v=\d+/.test(String(edited.item?.artifactUrl)))
 const editedSvg = await call('GET', `${base}/api/artifact?sessionId=${encodeURIComponent(sid)}&runId=${barResult.runId}&name=chart.svg`)
 console.log('edited svg has accent', String(editedSvg.text).includes('#b4453a'))
+// 编辑器要回填当前外观：读回的就是当初存下去的那几项，缺省项给空串。
+r = await call('POST', `${base}/api/chart/options`, { sessionId: sid, runId: barResult.runId })
+const optionsBack = r.json().result
+console.log('chart options read back', r.code,
+  optionsBack.title === '性别与得分',
+  optionsBack.accent === '#b4453a',
+  optionsBack.sortCategories === 'desc',
+  optionsBack.subtitle === '')
+// 只发改动的键：副标题写进去，先前设的 accent 与 sortCategories 不能被清掉。
+r = await call('POST', `${base}/api/chart/update`, { sessionId: sid, runId: barResult.runId, subtitle: 'N = 12' })
+const patched = r.json().result
+console.log('partial edit keeps the rest', patched.chart.subtitle === 'N = 12', patched.chart.accent === '#b4453a', patched.options.sortCategories === 'desc')
+r = await call('POST', `${base}/api/chart/options`, { sessionId: sid, runId: 9999 })
+console.log('chart options of unknown run refused', r.code, /没有图表/.test(String(r.json().error)))
+
 r = await call('POST', `${base}/api/chart/update`, { sessionId: sid, runId: 9999, title: 'x' })
 console.log('chart edit of unknown run refused', r.code, /没有图表/.test(String(r.json().error)))
 

@@ -961,7 +961,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
      * read again on every change and the first rows are shown, so the choice is
      * made against the data instead of against its name.
      */
-    function ImportWizard({ path, preview, busy, onClose, onPreview, onRun }) {
+    function ImportWizard({ path, preview, previewError, busy, onClose, onPreview, onRun }) {
       const [encoding, setEncoding] = useState('auto')
       const [delimiter, setDelimiter] = useState('auto')
       const [header, setHeader] = useState(preview?.hasHeader !== false)
@@ -972,6 +972,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       const [names, setNames] = useState({})
       const [types, setTypes] = useState({})
       const kind = preview?.kind ?? 'delimited'
+      const failed = previewError ? h('div', { className: 'ap-error' }, previewError) : null
       const columns = preview?.columns ?? []
       const settings = () => ({
         encoding,
@@ -1071,6 +1072,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
           checked: header,
           onChange: (event) => { setHeader(event.target.checked); ask({ hasHeader: event.target.checked }) },
         }), '第一行是变量名（不勾则按 V1、V2… 命名）'),
+      failed,
       busy
         ? h('div', { className: 'ap-hint' }, tr('正在读取…'))
         : h('div', { className: 'ap-wiz-preview' },
@@ -2108,6 +2110,12 @@ function checkExpression(expression, target, variables) {
     if (depth < 0) return '表达式的括号不成对：多了一个右括号'
   }
   if (depth > 0) return '表达式的括号不成对：少了一个右括号'
+  // `age *` used to reach the engine, which answered with an English
+  // "Syntax error parsing expression." — say it here instead.
+  if (/[+\-*/^(,]\s*$/.test(expression.trim())) {
+    return '表达式末尾还缺一个运算对象：运算符后面要跟变量、数字或函数调用'
+  }
+  if (/^\s*[*/^]/.test(expression.trim())) return '表达式不能以运算符开头：先在前面写一个变量或数字'
   const known = new Set((variables ?? []).map((variable) => String(variable.name).toLowerCase()))
   if (target) known.add(String(target).toLowerCase())
   const words = expression.match(/[A-Za-z_\u4e00-\u9fff][A-Za-z0-9_\u4e00-\u9fff]*/g) ?? []
@@ -4859,7 +4867,7 @@ function normalizeChoices(list) {
               })),
               h('td', null, h('select', {
                 value: variable.measure, onChange: (event) => onUpdate?.(variable.name, { measure: event.target.value }),
-              }, h('option', { value: 'scale' }, '度量'), h('option', { value: 'ordinal' }, '有序'), h('option', { value: 'nominal' }, '名义'))),
+              }, h('option', { value: 'scale' }, '标度'), h('option', { value: 'ordinal' }, '有序'), h('option', { value: 'nominal' }, '名义'))),
               h('td', null, h('select', {
                 value: variable.alignment, onChange: (event) => onUpdate?.(variable.name, { alignment: event.target.value }),
               }, h('option', { value: 'left' }, '左'), h('option', { value: 'right' }, '右'), h('option', { value: 'center' }, '居中'))),
@@ -5546,13 +5554,13 @@ function normalizeChoices(list) {
         : null)
     }
 
-    function ChartEditDialog({ title, onClose, onApply }) {
-      const [heading, setHeading] = useState(title ?? '')
-      const [subtitle, setSubtitle] = useState('')
-      const [xLabel, setXLabel] = useState('')
-      const [yLabel, setYLabel] = useState('')
-      const [accent, setAccent] = useState('')
-      const [order, setOrder] = useState('none')
+    function ChartEditDialog({ title, current, onClose, onApply }) {
+      const [heading, setHeading] = useState(current?.title ?? title ?? '')
+      const [subtitle, setSubtitle] = useState(current?.subtitle ?? '')
+      const [xLabel, setXLabel] = useState(current?.xLabel ?? '')
+      const [yLabel, setYLabel] = useState(current?.yLabel ?? '')
+      const [accent, setAccent] = useState(current?.accent ?? '')
+      const [order, setOrder] = useState(current?.sortCategories ?? 'none')
       const [error, setError] = useState(null)
       const field = (label, node) => h('label', { className: 'ap-field' }, h('span', null, label), node)
       const text = (value, setter, placeholder) => h('input', {
@@ -5571,14 +5579,22 @@ function normalizeChoices(list) {
             setError('标题不能为空')
             return
           }
-          onApply({
-            title: heading.trim(),
-            subtitle,
-            xLabel,
-            yLabel,
-            accent: accent || '',
-            sortCategories: order,
-          })
+          // Only send what actually changed: the host deletes a field when it
+          // receives an empty string, so an untouched box must stay omitted.
+          const next = { title: heading.trim(), subtitle, xLabel, yLabel, accent: accent || '', sortCategories: order }
+          const patch = {}
+          for (const [key, value] of Object.entries(next)) {
+            if (key === 'title') {
+              if (value !== (current?.title ?? title ?? '')) patch.title = value
+            } else if (value !== (current?.[key] ?? (key === 'sortCategories' ? 'none' : ''))) {
+              patch[key] = value
+            }
+          }
+          if (Object.keys(patch).length === 0) {
+            onClose()
+            return
+          }
+          onApply(patch)
         },
       },
       field('标题', text(heading, setHeading, '图表标题')),
@@ -8037,7 +8053,18 @@ let ITEM_CSV_PENDING = null
                 : h(OutputDoc, {
                   items,
                   state: st ?? { id: sessionId },
-                  onEditChart: (chart) => setDialog({ kind: 'chart', ...chart }),
+                  onEditChart: async (chart) => {
+                    // Read the saved options first: the dialog must show what the
+                    // chart currently looks like, otherwise 应用 silently clears it.
+                    let current = null
+                    try {
+                      const value = await api('api/chart/options', { sessionId, runId: chart.runId })
+                      current = value.result ?? null
+                    } catch {
+                      current = null
+                    }
+                    setDialog({ kind: 'chart', ...chart, current })
+                  },
                   tableEdits,
                   onEditTable: (item) => setDialog({ kind: 'tableedit', item }),
                   // SPSS 的导出能只导选中的输出；这张表就在眼前，比先在菜单里
@@ -8328,9 +8355,10 @@ let ITEM_CSV_PENDING = null
             },
           })
           : null,
-        dialog?.kind === 'chart'
+        dialog?.kind === 'chart' && dialog.runId !== undefined
           ? h(ChartEditDialog, {
             title: dialog.title,
+            current: dialog.current,
             onClose: () => setDialog(null),
             onApply: async (patch) => {
               setDialog(null)
@@ -8530,13 +8558,21 @@ let ITEM_CSV_PENDING = null
           ? h(ImportWizard, {
             path: dialog.path,
             preview: dialog.preview,
+            previewError: dialog.previewError ?? null,
             busy,
             onClose: () => setDialog(null),
             onPreview: async (options) => {
               try {
                 const value = await api('api/previewImport', { sessionId, path: dialog.path, options })
-                setDialog((current) => (current && current.kind === 'importWizard' ? { ...current, preview: value.result } : current))
+                setDialog((current) => (current && current.kind === 'importWizard'
+                  ? { ...current, preview: value.result, previewError: null }
+                  : current))
               } catch (error) {
+                // A stale table next to a toast that already faded reads as
+                // "the numbers were applied". Clear it and keep the reason.
+                setDialog((current) => (current && current.kind === 'importWizard'
+                  ? { ...current, preview: null, previewError: error.message }
+                  : current))
                 notify(error.message)
               }
             },
@@ -8736,7 +8772,7 @@ let ITEM_CSV_PENDING = null
             onClose: () => setDialog(null),
           })
           : null,
-        dialog?.kind === 'chart'
+        dialog?.kind === 'chart' && dialog.runId === undefined
           ? h(ChartDialog, {
             type: dialog.type,
             variables,
