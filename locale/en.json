@@ -1376,6 +1376,16 @@
     "「{0}」用同一组变量重画；原图保留在输出里。": "\"{0}\" is drawn again from the same variables; the original stays in the output.",
     "拼版不能重绘：先取消拼版，重画单图": "A grid cannot be redrawn: unmake the grid and redraw a single chart",
     "已重绘（{0}）": "Redrawn ({0})",
-    "PNG 导出倍率（1× 是图上看到的尺寸）": "PNG export magnification (1× is the size shown)"
+    "PNG 导出倍率（1× 是图上看到的尺寸）": "PNG export magnification (1× is the size shown)",
+    "设计": "Design",
+    "自动（因子主效应 + 二阶交互 + 协变量）": "Automatic (factor main effects, two-way interaction, covariates)",
+    "只要主效应（因子与协变量都不交互）": "Main effects only (no interactions)",
+    "自定义（自己写 /DESIGN 的右侧）": "Custom (write the right side of /DESIGN yourself)",
+    "自定义设计（写在 /DESIGN= 后面的部分）": "Custom design (the part after /DESIGN=)",
+    "例如 g x 或 a b a*b x；只写右边，不要写 /DESIGN=": "For example g x, or a b a*b x; the right side only, no /DESIGN=",
+    "自定义设计是空的：写 /DESIGN 后面的部分，例如 g x": "The custom design is empty: write the part after /DESIGN, for example g x",
+    "图（PSPP 不画，由插件按同一次拟合作图）": "Plots (PSPP draws none; the plugin uses the same fit)",
+    "残差散点图（残差 × 预测值）": "Residual scatter (residual vs fitted)",
+    "标准化残差正态 P-P 图": "Normal P-P plot of standardised residuals"
   }
 }

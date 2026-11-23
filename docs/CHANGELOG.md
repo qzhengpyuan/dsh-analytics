@@ -2,6 +2,16 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.61.0
+
+把「引擎做不到」和「插件能做」分开摆出来。
+
+- **GLM 的模型选择**：对话框多一组「模型」——自动（因子主效应 + 二阶交互）、只要主效应、自定义（自己写 `/DESIGN=` 右侧）。PSPP 2.1.3 的 `GLM` 不接受 `WITH` 子命令（探针原话 `GLM: Syntax error expecting MISSING, INTERCEPT, CRITERIA, METHOD, or DESIGN.`），所以协变量不放进来；要调整协变量请走「分析 → 回归 → 线性回归」，对话框里也写了这句。`/SAVE` 同样不被接受，保存预测值这一栏也没有做。
+- **回归诊断图**：PSPP 只打印系数与 ANOVA，不画图。插件按**同一次拟合**（复用 `solveNormalEquations`）自己画两张散点：残差 × 预测值（带 y = 0 虚线）、标准化残差的正态 P-P 图（带对角线）。它们进输出树、能勾进成册报告、也能换倍率导出。模型里用 `zeroLine` / `diagonal` 两个标志表示参考线，`lib/raster.js` 与浏览器渲染同一份 SVG。
+- **工具侧**：`pspp_analyze` 的 `plots: ["residual", "pp"]` 会顺手把图也画出来并在返回值里给 `plots: [{kind, runId, itemId, url}]`；`analysisExtras('regression', …)` 现在总是把拟合的因变量与自变量传下去（图需要），只有勾了才追加 `plots` 并只保留白名单里的两项。
+- 新增用例：`test/regression.mjs` 加两张图的结构断言（`zeroLine`/`diagonal`、20 点、P-P 两端在 0..1、残差离散度 < 1、无自变量返回空）；`test/routes.mjs` 加 `api/regressionPlot` 组（独立 `fit.csv`，残差 200 且 `zeroLine`、P-P 200 且 `diagonal`、不给自变量 400）；`test/build.mjs` 加 `analysisExtras` 的图白名单与「没勾就不传 `plots`」；`test/client.mjs` 加「分析 → 回归 → 线性… → 图」这一路的界面断言。
+- 计数：**37** 套件 / **606** 条 ok（装了 poppler 607）。
+
 ## 0.60.0
 
 同一组数据换一种看法。

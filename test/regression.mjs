@@ -1,6 +1,6 @@
 // Collinearity diagnostics, computed in Node because the engine crashes on TOL.
 import assert from 'node:assert/strict'
-import { collinearityTable, durbinWatsonTable, influenceTable } from '../lib/regression.js'
+import { collinearityTable, durbinWatsonTable, influenceTable, regressionPlots } from '../lib/regression.js'
 import { requestedRegression, classifyScript, inlineCommandProblem, inlineDataRanges, nearestVariableName, splitStatements, annotateSeparation, annotateNonFiniteCoefficients, annotateOversizedTables, annotateCrosstabs, annotateAssumptions, annotateComparisons, annotateNormality, annotateSampleSize, annotateReliabilityIcc, annotateWeightedEmpty, annotateZeroCases, inlineDataTailProblem, degradeStatistics, describeFailure, requestedCrosstabStatistics } from '../lib/workspace.js'
 
 let checks = 0
@@ -1840,6 +1840,39 @@ check('a hand-written regression hands over its predictors', () => {
     { dependent: 'y', independents: ['a'] },
     'a separate /ENTER= subcommand still names its predictors',
   )
+})
+
+
+check('the residual plots come from the same fit the coefficients do', () => {
+  const rows = []
+  for (let index = 0; index < 20; index += 1) {
+    const x = index + 1
+    rows.push([2 + 3 * x + ((index % 3) - 1) * 0.4, x])
+  }
+  const dataset = {
+    variables: [
+      { name: 'y', type: 'numeric', missing: [], valueLabels: {} },
+      { name: 'x', type: 'numeric', missing: [], valueLabels: {} },
+    ],
+    rows,
+  }
+  const plots = regressionPlots(dataset, { dependent: 'y', independents: ['x'] })
+  assert.equal(plots.length, 2, 'a residual scatter and a normal P-P plot')
+  const [residual, pp] = plots
+  assert.equal(residual.kind, 'scatter')
+  assert.equal(residual.zeroLine, true, 'the residual plot reads against zero')
+  assert.equal(residual.points.length, 20)
+  assert.equal(pp.diagonal, true, 'the P-P plot reads against the diagonal')
+  assert.equal(pp.points.length, 20)
+  // Both axes of a P-P plot are probabilities; anything outside 0..1 would mean
+  // the cumulative probability was computed from the wrong quantity.
+  assert.ok(pp.points.every(([expected, observed]) => expected >= 0 && expected <= 1 && observed > 0 && observed <= 1))
+  // A straight line plus noise leaves near-zero residuals: if the fit were the
+  // wrong one the residuals would grow with x instead of staying flat.
+  const spread = Math.max(...residual.points.map(([, value]) => Math.abs(value)))
+  assert.ok(spread < 1, `residuals stay small (spread ${spread})`)
+  // Too little data must return no plots rather than a chart of nothing.
+  assert.deepEqual(regressionPlots(dataset, { dependent: 'y', independents: [] }), [])
 })
 
 console.log(`\nregression: ${checks} checks passed${failures.length ? ` (with ${failures.length} failures)` : ''}`)

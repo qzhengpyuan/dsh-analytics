@@ -3103,6 +3103,28 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   await clickIn(exportSheet, '选择路径')
   assert.equal(globalThis.__chartExportBody?.scale, 3, 'the chosen magnification reaches the export call')
 
+  // 线性回归 has a 图 tab: PSPP prints no regression plots, so they are drawn
+  // from the same fit and must be offered where SPSS offers them.
+  pop = await openMenu('分析')
+  const regressionGroup = [...pop.querySelectorAll('button')].find((node) => String(node.textContent).startsWith('回归'))
+  await act(async () => {
+    regressionGroup?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const linearEntry = [...(regressionGroup?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])]
+    .find((node) => String(node.textContent).startsWith('线性'))
+  assert.ok(linearEntry, 'the regression dialog is reachable')
+  await act(async () => {
+    linearEntry.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const regressionSheet = workHost.querySelector('.ap-modal')
+  assert.match(regressionSheet.textContent, /图（PSPP 不画/, 'the regression dialog offers plots')
+  await clickIn(regressionSheet, '图（PSPP 不画')
+  assert.match(workHost.querySelector('.ap-modal').textContent, /残差散点图/, 'the residual plot is offered')
+  assert.match(workHost.querySelector('.ap-modal').textContent, /正态 P-P 图/, 'and the normal P-P plot')
+  await clickIn(workHost.querySelector('.ap-modal'), '取消')
+
   await act(async () => { workRoot.unmount() })
-  console.log('ok  syntax templates, run history, bound report, the toolbar tip, the grid, the subtitle, the redraw and the export scale')
+  console.log('ok  syntax templates, run history, bound report, the toolbar tip, the grid, the subtitle, the redraw, the export scale and the regression plots')
 }

@@ -211,6 +211,23 @@ const gridRefused = await call('POST', `${base}/api/chartGrid`, { sessionId: wiz
 if (gridRefused.code !== 200) throw new Error('2x1 holds two charts and must succeed')
 const tooMany = await call('POST', `${base}/api/chartGrid`, { sessionId: wizardSid, items: [chartIds[0], chartIds[1], chartIds[0]], layout: '1x2' })
 if (tooMany.code !== 400) throw new Error('three charts in a two-cell layout must be refused')
+// A two-column numeric file of its own: a residual plot needs a fit that is not
+// perfect, and the wizard fixture has one numeric column only.
+const fitCsv = join(home, 'fit.csv')
+const fitRows = Array.from({ length: 20 }, (_, index) => `${2 + 3 * (index + 1) + ((index % 3) - 1) * 0.4},${index + 1}`)
+await writeFile(fitCsv, `y,x\n${fitRows.join('\n')}\n`)
+const fitSid = `${sid}-fit`
+const fitOpen = await call('POST', `${base}/api/open`, { sessionId: fitSid, path: fitCsv })
+if (fitOpen.code !== 200) throw new Error(`opening the fit fixture failed: ${fitOpen.json().error}`)
+const residualPlot = await call('POST', `${base}/api/regressionPlot`, { sessionId: fitSid, kind: 'residual', regression: { dependent: 'y', independents: ['x'] } })
+console.log('regression plot', residualPlot.code, residualPlot.json().result?.chart?.kind)
+if (residualPlot.code !== 200) throw new Error(`api/regressionPlot failed: ${residualPlot.json().error}`)
+if (residualPlot.json().result?.chart?.zeroLine !== true) throw new Error('the residual plot must read against zero')
+const ppPlot = await call('POST', `${base}/api/regressionPlot`, { sessionId: fitSid, kind: 'pp', regression: { dependent: 'y', independents: ['x'] } })
+if (ppPlot.code !== 200 || ppPlot.json().result?.chart?.diagonal !== true) throw new Error('the P-P plot must read against the diagonal')
+const plotRefused = await call('POST', `${base}/api/regressionPlot`, { sessionId: fitSid, kind: 'residual', regression: { dependent: 'y', independents: [] } })
+if (plotRefused.code !== 400) throw new Error('a model without predictors must be refused')
+
 const redrawn = await call('POST', `${base}/api/chart/redraw`, { sessionId: wizardSid, runId: Number(String(chartIds[0]).replace(/^chart-/, '').split('-')[0]), type: 'boxplot' })
 const redrawResult = redrawn.json().result
 const redrawState = redrawn.json().state

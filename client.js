@@ -2713,13 +2713,22 @@ function normalizeChoices(list) {
       },
       glm: {
         title: '一般线性模型（单变量）',
-        hint: 'PSPP 的 GLM 没有事后检验（/POSTHOC 会报语法错误），勾了事后检验时插件会另跑一条 ONEWAY——同一个单因子模型，事后表就是 SPSS「事后多重比较」那张。',
+        hint: 'PSPP 的 GLM 没有事后检验（/POSTHOC 会报语法错误），勾了事后检验时插件会另跑一条 ONEWAY——同一个单因子模型，事后表就是 SPSS「事后多重比较」那张。PSPP 2.1.3 的 GLM 也不接受 WITH，所以这里没有协变量栏（SPSS 的「协变量」框在本插件里没有对应项）；要调整协变量请用分析 → 回归 → 线性回归。',
         fields: [
           { key: 'vars', kind: 'multi', label: '因变量', required: true, accept: 'numeric' },
           { key: 'by', kind: 'single', label: '固定因子', required: true, accept: 'any' },
           { key: 'by2', kind: 'single', label: '第二因子（可选，加了就是双因子模型）', accept: 'any' },
         ],
         groups: [
+          { key: 'model', title: '模型', items: [
+            { key: 'design', label: '设计', kind: 'select', default: 'auto', options: [
+              ['auto', '自动（因子主效应 + 二阶交互 + 协变量）'],
+              ['main', '只要主效应（因子与协变量都不交互）'],
+              ['custom', '自定义（自己写 /DESIGN 的右侧）'],
+            ] },
+            { key: 'custom', label: '自定义设计（写在 /DESIGN= 后面的部分）', kind: 'text',
+              hint: '例如 g x 或 a b a*b x；只写右边，不要写 /DESIGN=' },
+          ] },
           { key: 'options', title: '选项', items: [
             { key: 'contrasts', label: '对比系数（每个水平一个数；双因子写成「因子 = 数」）', kind: 'text', hint: '单因子：三个水平想让「第 1 组对其余两组」写 2 -1 -1，两个对比写 2 -1 -1; 0 1 -1，走 ONEWAY 由引擎印 Contrast Tests。双因子：写成 a = 2 -1 -1; b = 0 0 1，插件在自己的设计矩阵上算（PSPP 的 GLM 没有 /CONTRAST），主效应用等权组合，与 SPSS 的 Type III 一致。' },
             { key: 'posthoc', label: '事后检验', kind: 'select', default: '0', options: [
@@ -2736,14 +2745,21 @@ function normalizeChoices(list) {
           const posthoc = String(flags?.options?.posthoc ?? '0')
           const usePosthoc = posthoc !== '0'
           const by2 = String(v.by2 ?? '').trim()
+          const mode = String(flags?.model?.design ?? 'auto')
+          const custom = String(flags?.model?.custom ?? '').trim()
+          const dependent = v.vars[0]
+          if (mode === 'custom') {
+            if (!custom) return { error: '自定义设计是空的：写 /DESIGN 后面的部分，例如 g x' }
+            const byAll = [v.by, by2].filter(Boolean).join(' ')
+            return { syntax: `GLM ${dependent} BY ${byAll} /DESIGN=${custom}.` }
+          }
           // A second factor means the design has an interaction, and then there is
           // no engine path for contrasts at all: fit them on our design matrix.
           if (by2 !== '') {
             if (usePosthoc) return { error: '双因子模型没有引擎事后检验（PSPP 的 GLM 不收 /POSTHOC，ONEWAY 只做单因子）：去掉事后检验，或者只用单因子' }
             const named = parseNamedContrasts(flags?.options?.contrasts)
             if (named.error) return { error: named.error }
-            const dependent = v.vars[0]
-            const design = `${v.by} ${by2} ${v.by}*${by2}`
+            const design = [v.by, by2, ...(mode === 'main' ? [] : [`${v.by}*${by2}`])].join(' ')
             return {
               syntax: `GLM ${dependent} BY ${v.by} ${by2} /DESIGN=${design}.`,
               contrasts: named.list.length > 0
@@ -2754,10 +2770,10 @@ function normalizeChoices(list) {
           const parsed = parseContrasts(flags?.options?.contrasts)
           if (parsed.error) return { error: parsed.error }
           const glm = `GLM ${v.vars.join(' ')} BY ${v.by} /DESIGN=${v.by}.`
-          const dependent = v.vars.join(' ') || v.vars[0]
+          const dependentList = v.vars.join(' ') || v.vars[0]
           let syntax = glm
           if (usePosthoc || parsed.list.length > 0) {
-            const parts = [`ONEWAY ${dependent} BY ${v.by}`]
+            const parts = [`ONEWAY ${dependentList} BY ${v.by}`]
             if (usePosthoc) parts.push('/STATISTICS=DESCRIPTIVES HOMOGENEITY', `/POSTHOC=${posthoc} ALPHA(0.05)`)
             parsed.list.forEach((coeffs) => parts.push(`/CONTRAST=${coeffs.join(' ')}`))
             syntax = `${glm}\n${parts.join(' ')}.`
@@ -2809,6 +2825,10 @@ function normalizeChoices(list) {
             { key: 'sresid', label: '学生化残差' },
             { key: 'cook', label: "Cook's D" },
           ] },
+          { key: 'plots', title: '图（PSPP 不画，由插件按同一次拟合作图）', items: [
+            { key: 'residual', label: '残差散点图（残差 × 预测值）' },
+            { key: 'pp', label: '标准化残差正态 P-P 图' },
+          ] },
         ],
         build: (v, flags) => {
           // TOL is never sent to the engine: with it PSPP 2.1.3 crashes inside
@@ -2825,13 +2845,15 @@ function normalizeChoices(list) {
           if (save.length) parts.push(`/SAVE=${save.join(' ')}`)
           const collinearity = flags?.statistics?.tol !== false
           const influence = flags?.statistics?.influence === true
-          const regression = collinearity || influence
-            ? { dependent: v.dep, independents: v.ind, influence }
-            : null
+          // Always carry the model: the residual plots need the same fit even
+          // when neither collinearity nor influence was asked for.
+          const regression = { dependent: v.dep, independents: v.ind, influence, collinearity }
+          const plots = onKeys(flags, 'plots')
           return {
             syntax: `${parts.join(' ')}.`,
             persist: save.length > 0,
             regression,
+            plots,
           }
         },
       },
@@ -8061,6 +8083,18 @@ let ITEM_CSV_PENDING = null
                 return
               }
               await run(built.syntax, built.persist === true, spec?.title, built.pairwise, built.regression, built.roc, built.exact, built.exactChi, built.contrasts)
+              // Regression plots are drawn after the tables, from the same fit,
+              // so a failed run leaves no orphan picture behind.
+              if (Array.isArray(built.plots) && built.plots.length > 0 && built.regression) {
+                for (const plot of built.plots) {
+                  try {
+                    const value = await api('api/regressionPlot', { sessionId, kind: plot, regression: built.regression })
+                    setSt(stateOf(value))
+                  } catch (error) {
+                    notify(error.message)
+                  }
+                }
+              }
             },
           })
           : null,

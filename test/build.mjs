@@ -528,7 +528,11 @@ check('regression can save predictions and residuals', () => {
   assert.deepEqual(
     analysisExtras('regression', { dependent: 'score', independents: ['age'], statistics: ['ALL'] }),
     { regression: { dependent: 'score', independents: ['age'], influence: false } })
-  assert.deepEqual(analysisExtras('regression', { dependent: 'score', independents: ['age'], collinearity: false }), {})
+  // The model still travels with collinearity off: the residual plots need the
+  // same fit, and runSyntax skips the table when nothing asked for it.
+  assert.deepEqual(
+    analysisExtras('regression', { dependent: 'score', independents: ['age'], collinearity: false }),
+    { regression: { dependent: 'score', independents: ['age'], influence: false } })
   // An explicit list wins, and unknown keywords are dropped rather than sent.
   assert.equal(
     buildAnalysis('regression', { dependent: 'score', independents: ['age'], statistics: ['BCOV', 'DURBIN'] }),
@@ -738,6 +742,24 @@ check('glm accepts a randomized block design with an explicit design list', () =
   assert.throws(
     () => buildAnalysis('glm', { variables: ['y'], factors: ['g'], covariates: ['x'] }),
     /不接受协变量/)
+  // The panel's model choice maps onto the engine's /DESIGN list: main effects
+  // only, or the full two-factor model.
+  assert.equal(
+    buildAnalysis('glm', { variables: ['y'], by: 'a', design: 'a' }),
+    'GLM y BY a /DESIGN=a.')
+  assert.equal(
+    buildAnalysis('glm', { variables: ['y'], factors: ['a', 'b'], design: 'a b' }),
+    'GLM y BY a b /DESIGN=a b.')
+})
+
+
+check('regression extras carry the plots the dialog ticked', () => {
+  const extras = analysisExtras('regression', { dependent: 'y', independents: ['x'], plots: ['residual', 'pp'] })
+  assert.deepEqual(extras.plots, ['residual', 'pp'])
+  assert.deepEqual(extras.regression, { dependent: 'y', independents: ['x'], influence: false })
+  // Anything the dialog did not offer is dropped rather than passed through.
+  assert.equal(analysisExtras('regression', { dependent: 'y', independents: ['x'], plots: ['residual', 'bogus'] }).plots.length, 1)
+  assert.equal(analysisExtras('regression', { dependent: 'y', independents: ['x'] }).plots, undefined)
 })
 
 check('split accepts the break arguments the tool documents', () => {

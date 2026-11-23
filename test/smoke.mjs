@@ -592,6 +592,32 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('glm post-hoc rides on oneway:', ran.items.map((item) => item.title).join(' | ').slice(0, 120))
 }
 
+// ---- GLM's 主效应 design vs a custom /DESIGN -------------------------------
+// The dialog offers automatic (a b a*b), main effects only (a b) and custom. The
+// first two are the same statement with a different right side, so one engine run
+// of each proves the strings the dialog can emit are accepted.
+{
+  const ws = new Workspace({ id: 'smoke38b', engine, root, config: { timeoutMs: 60000 } })
+  await ws.init()
+  const rows = []
+  for (let a = 1; a <= 2; a += 1) for (let b = 1; b <= 2; b += 1) for (let i = 0; i < 4; i += 1) rows.push([10 * a + 5 * b + i, a, b])
+  await ws.createDataset({
+    variables: [
+      { name: 'score', type: 'numeric', width: 8, decimals: 1 },
+      { name: 'a', type: 'numeric', width: 2, decimals: 0, measure: 'nominal' },
+      { name: 'b', type: 'numeric', width: 2, decimals: 0, measure: 'nominal' },
+    ],
+    rows,
+  })
+  await ws.runSyntax('EXECUTE.')
+  for (const design of ['a b', 'a b a*b']) {
+    const ran = await ws.runSyntax(`GLM score BY a b /DESIGN=${design}.`)
+    assert.equal(ran.diagnostics.filter((entry) => entry.severity === 'error').length, 0, `${design} runs`)
+    assert.ok(/Tests of Between-Subjects Effects|ANOVA/.test(JSON.stringify(ran.items)), `${design} prints the table`)
+  }
+  console.log('glm designs: main effects and the full factorial both run')
+}
+
 // ---- the Durbin-Watson table that PSPP never prints ------------------------
 {
   const ws = new Workspace({ id: 'smoke39', engine, root, config: { timeoutMs: 60000 } })
