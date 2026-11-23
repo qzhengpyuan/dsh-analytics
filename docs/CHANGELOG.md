@@ -2,6 +2,17 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.68.0
+
+补上 SPSS「分析 → 非参数检验 → 独立样本 → 中位数检验」。它不是新写的算法：PSPP 2.1.3 其实能跑，只是插件一直没有入口。
+
+- **真引擎先探过再接线**：`NPAR TESTS /MEDIAN=x BY g(1 3).` 在 2.1.3 上退出码 0，输出 `Frequencies`（`x > Median` / `≤ Median` 两行的分组计数）与 `Test Statistics`（`N`、`Median`、`Chi-Square`、`df`、`Asymp. Sig.`）。顺手确认了两条边界：`/MEDIAN=10`（写数值）报 `expecting variable name`，`DATA LIST` 不接受 `(2F8.0)` 这种复写格式——两条都只影响写探针脚本，不影响插件生成的语法。
+- **对话框**：`client.js` 新增 `nparMedian` spec（检验变量、分组变量、分组值范围，默认 `1 3`），菜单「分析 → 非参数检验 → K 个独立样本（中位数）…」，排在 Kruskal-Wallis 后面；hint 说明它比 K-W 粗但对极端值更稳。
+- **工具侧**：`lib/tools.js` 新增 `npar_median` 分支（数值组代码按 `最小 最大` 拼区间、字符串分组变量按 `'A' 'B'` 拼代码表，与 K-W 同一套规则），`pspp_analyze` 的 `analyses` 白名单与描述同步。
+- 用例：`test/build.mjs` 两条（数值范围 `group(1 3)`、字符串代码表 `grp('A' 'B')`）；`test/smoke.mjs` 一条真引擎（三组各 3 例，断言 0 个 error、输出里有 `Test Statistics` 与 `Median|Chi-Square`）；`test/tools.mjs` 把 `npar_median` 加进「常见过程都跑得通」的清单；`test/client.mjs` 一条断言对话框拼出的语法与提示文案。
+- 词典：新增菜单项、对话框标题与提示的英文，`strings` 1444 条——英文面板里漏一条就会让「分析菜单里不许有汉字」那条用例红，这次正是它先抓到的。
+- 计数：**37** 套件 / **615** 条 ok（装了 poppler 616）。
+
 ## 0.67.0
 
 替换缺失值补齐到 SPSS 的五种方法，并把 Win10 复验时截的真机图写进 README。

@@ -2443,6 +2443,16 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   console.log('ok  the regression dialog carries the interval level and the coefficient matrix')
 }
 
+// 中位数检验：PSPP 认这条语法（0.68.0 探过），所以对话框只负责拼对格式。
+{
+  const specs = hooks.ANALYSIS_SPECS
+  assert.ok(specs?.nparMedian?.build, 'the median test dialog exists')
+  const built = specs.nparMedian.build({ variable: 'score', by: 'group', range: ' 1 3 ' })
+  assert.equal(built.syntax, 'NPAR TESTS /MEDIAN=score BY group(1 3).', `unexpected median syntax: ${built.syntax}`)
+  assert.ok(built.hint && built.hint.length > 10, 'the dialog explains what the test asks')
+  console.log('ok  the median test dialog writes NPAR TESTS /MEDIAN=')
+}
+
 // 缺失值分析 / 替换缺失值：两个对话框都不产出语法（引擎没有 MVA 与 RMV），
 // 它们交给宿主算，所以这里断言的是交给谁、带什么参数。
 {

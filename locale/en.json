@@ -1444,6 +1444,9 @@
     "临近点的中位数": "Median of nearby points",
     "线性插值": "Linear interpolation",
     "线性趋势处的点": "Linear trend at point",
-    "临近点个数（两侧各取几个；只对临近点两种方法有用）": "Number of nearby points (how many on each side; used only by the two nearby methods)"
+    "临近点个数（两侧各取几个；只对临近点两种方法有用）": "Number of nearby points (how many on each side; used only by the two nearby methods)",
+    "K 个独立样本（中位数）": "K Independent Samples (Median)",
+    "K 个独立样本（中位数）…": "K Independent Samples (Median)…",
+    "K 个独立样本（中位数检验）": "K Independent Samples (Median Test)"
   }
 }

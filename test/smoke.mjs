@@ -625,6 +625,29 @@ console.log('alignment survives save:', reread.dataset.variables.map((variable) 
   console.log('glm designs: main effects and the full factorial both run')
 }
 
+// ---- the median test: PSPP does run it, the panel just never asked ---------
+// Probed 2.1.3: `NPAR TESTS /MEDIAN=x BY g(1 3).` exits 0 and prints both the
+// split table and Test Statistics, so the dialog only had to be written.
+{
+  const ws = new Workspace({ id: 'smoke39b', engine, root, config: { timeoutMs: 60000 } })
+  await ws.init()
+  const rows = []
+  for (let g = 1; g <= 3; g += 1) for (let i = 0; i < 3; i += 1) rows.push([20 * (g - 1) + i * 5, g])
+  await ws.createDataset({
+    variables: [
+      { name: 'x', type: 'numeric', width: 8, decimals: 1 },
+      { name: 'g', type: 'numeric', width: 2, decimals: 0, measure: 'nominal' },
+    ],
+    rows,
+  })
+  const median = await ws.runSyntax('NPAR TESTS /MEDIAN=x BY g(1 3).')
+  assert.equal(median.diagnostics.filter((entry) => entry.severity === 'error').length, 0, 'the median test runs')
+  const printed = JSON.stringify(median.items)
+  assert.ok(/Test Statistics/.test(printed), 'the median test prints Test Statistics')
+  assert.ok(/Median|Chi-Square/.test(printed), `and names the median and the chi-square: ${printed.slice(0, 200)}`)
+  console.log('real engine: the median test runs and prints Test Statistics')
+}
+
 // ---- the Durbin-Watson table that PSPP never prints ------------------------
 {
   const ws = new Workspace({ id: 'smoke39', engine, root, config: { timeoutMs: 60000 } })

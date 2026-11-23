@@ -139,6 +139,12 @@ check('npar subcommands', () => {
   assert.match(buildAnalysis('npar_mannwhitney', { variables: ['score'], by: 'gender', groups: [1, 2] }), /\/MANN-WHITNEY=score BY gender\(1 2\)/)
   assert.match(buildAnalysis('npar_kruskal', { variables: ['score'], by: 'group', groups: [1, 3] }), /\/KRUSKAL-WALLIS=score BY group\(1 3\)/)
   assert.match(buildAnalysis('npar_friedman', { variables: ['a', 'b', 'c'] }), /\/FRIEDMAN=a b c/)
+  assert.match(buildAnalysis('npar_median', { variables: ['score'], by: 'group', groups: [1, 3] }), /\/MEDIAN=score BY group\(1 3\)/)
+  // A string grouping variable takes quoted codes, not a span.
+  assert.match(
+    buildAnalysis('npar_median', { variables: ['score'], by: 'grp', groupValues: ['A', 'B'], groupString: true }),
+    /\/MEDIAN=score BY grp\('A' 'B'\)/,
+  )
 })
 
 // ---- chart models ----------------------------------------------------------

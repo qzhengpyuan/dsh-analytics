@@ -3166,6 +3166,19 @@ function normalizeChoices(list) {
           return { syntax: `NPAR TESTS /COCHRAN=${v.vars.join(' ')}.` }
         },
       },
+      nparMedian: {
+        title: 'K 个独立样本（中位数检验）',
+        fields: [
+          { key: 'variable', kind: 'single', label: '检验变量', required: true, accept: 'numeric' },
+          { key: 'by', kind: 'single', label: '分组变量', required: true },
+          { key: 'range', kind: 'text', label: '分组值范围（最小 最大）', placeholder: '1 3', required: true },
+        ],
+        defaults: { range: '1 3' },
+        build: (v) => ({
+          syntax: `NPAR TESTS /MEDIAN=${v.variable} BY ${v.by}(${String(v.range).trim()}).`,
+          hint: '把所有个案按检验变量的中位数分成两半，再比较各组高出中位数的比例。分组多于两组时它检验的是「各组分布的中心是否相同」，比 Kruskal-Wallis 粗，但对极端值更稳。',
+        }),
+      },
       nparKendall: {
         title: 'K 个相关样本（Kendall W）',
         fields: [{ key: 'vars', kind: 'multi', label: '变量（至少 3 个）', required: true }],
@@ -7541,6 +7554,7 @@ let ITEM_CSV_PENDING = null
               { label: '2 个相关样本（符号）…', action: () => runAnalysis('nparSign') },
               { label: '2 个独立样本（Mann-Whitney）…', action: () => runAnalysis('nparMannWhitney') },
               { label: 'K 个独立样本（Kruskal-Wallis）…', action: () => runAnalysis('nparKruskal') },
+              { label: 'K 个独立样本（中位数）…', action: () => runAnalysis('nparMedian') },
               { label: 'K 个独立样本（Jonckheere-Terpstra，有序）…', action: () => runAnalysis('nparJonckheere') },
               { label: 'K 个相关样本（Friedman）…', action: () => runAnalysis('nparFriedman') },
               { label: '2 个相关样本（McNemar）…', action: () => runAnalysis('nparMcNemar') },

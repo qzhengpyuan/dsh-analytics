@@ -113,6 +113,7 @@ await check('pspp_analyze covers the common procedures', async () => {
     [{ procedure: 'correlation', variables: ['score', 'group'] }],
     [{ procedure: 'regression', dependent: 'score', independents: ['group'] }],
     [{ procedure: 'npar_mannwhitney', variables: ['score'], by: 'group', groupValues: ['1', '2'] }],
+    [{ procedure: 'npar_median', variables: ['score'], by: 'group', groupValues: ['1', '2'] }],
     [{ procedure: 'examine', variables: ['score'] }],
     [{ procedure: 'ctables', row: 'group', column: 'grp' }],
   ]
