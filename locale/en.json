@@ -1431,6 +1431,11 @@
     "引擎：{0}（GNU PSPP 2.1.3）": "Engine: {0} (GNU PSPP 2.1.3)",
     "引擎来源：{0}": "Engine source: {0}",
     "数据目录：{0}": "Data folder: {0}",
-    "统计过程由内置 GNU PSPP 执行；界面与注文由插件提供。PSPP 是自由软件（GPLv3），与 IBM SPSS Statistics 没有关系。": "The statistical procedures run in the bundled GNU PSPP; the interface and the notes come from this plugin. PSPP is free software (GPLv3) and is not affiliated with IBM SPSS Statistics."
+    "统计过程由内置 GNU PSPP 执行；界面与注文由插件提供。PSPP 是自由软件（GPLv3），与 IBM SPSS Statistics 没有关系。": "The statistical procedures run in the bundled GNU PSPP; the interface and the notes come from this plugin. PSPP is free software (GPLv3) and is not affiliated with IBM SPSS Statistics.",
+    "按类别着色（可选）": "Colour by category (optional)",
+    "按类别着色": "Colour by category",
+    "选了「按类别着色」时，同一个散点图里每个类别用不同颜色并配图例；不选就是单一的散点云。": "With \"Colour by category\" the points of one scatter get one colour per category plus a legend; without it the picture is a single cloud.",
+    "组": "Group",
+    "（缺失）": "(missing)"
   }
 }

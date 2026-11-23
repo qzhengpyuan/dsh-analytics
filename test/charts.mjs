@@ -92,4 +92,26 @@ check('a PNG exported at 3x has three times the pixels', () => {
   assert.deepEqual([one.width * 3, one.height * 3], [three.width, three.height], 'scale is exact, not rounded')
 })
 
+// 散点图按类别着色：每类一个系列、颜色不同、图例在图上。
+check('a grouped scatter draws one colour per category and a legend', () => {
+  const grouped = {
+    variables: [
+      { name: 'x', type: 'numeric', label: '', width: 8, decimals: 1, format: 'F8.1', measure: 'scale', role: 'input', missing: [], valueLabels: {} },
+      { name: 'y', type: 'numeric', label: '', width: 8, decimals: 1, format: 'F8.1', measure: 'scale', role: 'input', missing: [], valueLabels: {} },
+      { name: 'g', type: 'string', label: '组', width: 8, decimals: 0, format: 'A8', measure: 'nominal', role: 'input', missing: [], valueLabels: {} },
+    ],
+    rows: [[1, 3, 'A'], [2, 5, 'A'], [4, 7, 'B'], [6, 9, 'B'], [3, 4, '']],
+  }
+  const model = buildChartModel(grouped, 'scatterplot', { x: 'x', y: 'y', group: 'g' })
+  assert.deepEqual([...model.series.map((entry) => entry.label)].sort(), ['A', 'B', '（缺失）'].sort(), 'one series per label, empty bucket included')
+  assert.equal(model.points.length, 5, 'the axis still covers every case')
+  const svg = renderSvg(model)
+  assert.match(svg, /#2f6fbb/, 'the first colour is used')
+  assert.match(svg, /#d98f3a/, 'and the second')
+  assert.match(svg, /fill-opacity="0\.88"/, 'the legend has a plate so it stays readable')
+  const single = renderSvg(buildChartModel(grouped, 'scatterplot', { x: 'x', y: 'y' }))
+  assert.doesNotMatch(single, /fill-opacity="0\.88"/, 'without a group there is no legend')
+  assert.throws(() => buildChartModel(grouped, 'scatterplot', { x: 'x', y: 'y', group: 'nope' }), /unknown variable/, 'an unknown group variable is refused')
+})
+
 console.log(`${checks} checks passed`)

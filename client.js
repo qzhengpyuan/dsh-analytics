@@ -9104,11 +9104,13 @@ let ITEM_CSV_PENDING = null
       },
       scatterplot: {
         title: '散点图',
+        hint: '选了「按类别着色」时，同一个散点图里每个类别用不同颜色并配图例；不选就是单一的散点云。',
         fields: [
           { key: 'x', kind: 'single', label: 'X 轴', required: true, accept: 'numeric' },
           { key: 'y', kind: 'single', label: 'Y 轴', required: true, accept: 'numeric' },
+          { key: 'group', kind: 'single', label: '按类别着色（可选）', accept: 'any' },
         ],
-        build: (v) => ({ chart: { kind: 'scatterplot', x: v.x, y: v.y } }),
+        build: (v) => ({ chart: { kind: 'scatterplot', x: v.x, y: v.y, group: v.group } }),
       },
     }
 
