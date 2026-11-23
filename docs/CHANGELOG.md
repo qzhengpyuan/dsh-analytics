@@ -2,6 +2,17 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.71.0
+
+补上 SPSS 的「数据 → 转置」。PSPP 2.1.3 其实有 `FLIP`，只是插件一直没有入口——老规矩，先拿真引擎探清行为再接线。
+
+- **探针结论**：`FLIP VARIABLES=a b.` 在真引擎 rc=0，转置后的数据集变量变成 `CASE_LBL, VAR000, VAR001`，`CASE_LBL` 里放原来的变量名，个案数等于被转置的变量个数；加 `/NEWNAMES=k` 时新列名直接取 `k` 那一列的取值（实测 `p, q`）。`/NEWNAMES` 的变量本身不进结果集。
+- **对话框**：数据菜单新增「转置…（行与列互换）」，两个字段——要转置的变量（多选）、名称变量（可选）；hint 写明默认列名 `VAR00001…` 与 `CASE_LBL` 的去向。`build` 返回 `persist: true`，转置写回数据集并算一步撤销。
+- **工具侧**：`pspp_transform` 新增 `transpose`（`variables` + 可选的 `newNames`），进 `transforms` 白名单与描述。
+- 用例：`test/build.mjs` 一条（两条语法 + 空变量被拒）；`test/client.mjs` 一条（对话框拼 `FLIP`、`persist` 为真、名称变量走 `/NEWNAMES=`）。
+- 词典：菜单项、对话框标题、两个字段、hint 五条英文，`strings` 1463 条。
+- 计数：**37** 套件 / **624** 条 ok（装了 poppler 625）。
+
 ## 0.70.0
 
 频率对话框补齐 SPSS 的另两种图，散点图加上拟合线。

@@ -1461,6 +1461,11 @@
     "{0} 的 Q-Q 图（正态分布）": "Q-Q plot of {0} (normal distribution)",
     "直方图上叠加正态曲线": "Overlay a normal curve on the histogram",
     "叠加线性拟合线（标出 R²）": "Overlay a linear fit line (with R²)",
-    "散点图选项": "Scatter options"
+    "散点图选项": "Scatter options",
+    "转置…（行与列互换）": "Transpose… (rows and columns)",
+    "转置（行与列互换）": "Transpose (rows and columns)",
+    "要转置的变量": "Variables to transpose",
+    "名称变量（可选，用它的取值当新变量名）": "Name variable (optional; its values become the new variable names)",
+    "把选中的变量转成个案、原来的个案转成变量。新变量名默认是 VAR00001…（原变量名保留在 CASE_LBL 里），也可以指定「名称变量」，用它的取值当新变量名。": "Turn the chosen variables into cases and the old cases into variables. The new names default to VAR00001… with the old names kept in CASE_LBL, or come from the values of a name variable."
   }
 }

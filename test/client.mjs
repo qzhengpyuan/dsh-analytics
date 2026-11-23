@@ -2480,6 +2480,17 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   console.log('ok  the frequency charts and the scatter fit line are wired to the request')
 }
 
+// 转置：FLIP 引擎支持（探过），所以对话框只负责拼对语法并标记持久化。
+{
+  const spec = hooks.ANALYSIS_SPECS.transpose
+  assert.ok(spec?.build, 'the transpose dialog exists')
+  const plain = spec.build({ vars: ['a', 'b'] })
+  assert.equal(plain.syntax, 'FLIP VARIABLES=a b.', plain.syntax)
+  assert.equal(plain.persist, true, 'the flip replaces the dataset, so it has to persist')
+  assert.equal(spec.build({ vars: ['a', 'b'], newNames: 'k' }).syntax, 'FLIP VARIABLES=a b /NEWNAMES=k.', 'a name variable picks the new column names')
+  console.log('ok  the transpose dialog writes FLIP and persists the result')
+}
+
 // 缺失值分析 / 替换缺失值：两个对话框都不产出语法（引擎没有 MVA 与 RMV），
 // 它们交给宿主算，所以这里断言的是交给谁、带什么参数。
 {

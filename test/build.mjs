@@ -130,6 +130,12 @@ check('ctables include missing and CI level', () => {
   assert.ok(syntax.endsWith('/CRITERIA CILEVEL 99.'), syntax)
 })
 
+check('transpose flips the chosen variables', () => {
+  assert.equal(buildTransform('transpose', { variables: ['a', 'b'] }), 'FLIP VARIABLES=a b.')
+  assert.equal(buildTransform('transpose', { variables: ['a', 'b'], newNames: 'k' }), 'FLIP VARIABLES=a b /NEWNAMES=k.')
+  assert.throws(() => buildTransform('transpose', {}), /requires at least one variable/, 'transposing nothing is refused')
+})
+
 check('npar subcommands', () => {
   assert.match(buildAnalysis('npar_binomial', { variable: 'flag', testValue: 0.5 }), /\/BINOMIAL\(0\.5\)/)
   assert.match(buildAnalysis('npar_ks', { variables: ['score'] }), /\/K-S\(NORMAL\)/)

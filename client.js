@@ -3311,6 +3311,18 @@ function normalizeChoices(list) {
         defaults: { order: 'A' },
         build: (v) => ({ syntax: `SORT CASES BY ${v.vars.map((name) => `${name} (${v.order})`).join(' ')}.`, persist: true }),
       },
+      transpose: {
+        title: '转置（行与列互换）',
+        hint: '把选中的变量转成个案、原来的个案转成变量。新变量名默认是 VAR00001…（原变量名保留在 CASE_LBL 里），也可以指定「名称变量」，用它的取值当新变量名。',
+        fields: [
+          { key: 'vars', kind: 'multi', label: '要转置的变量', required: true },
+          { key: 'newNames', kind: 'single', label: '名称变量（可选，用它的取值当新变量名）' },
+        ],
+        build: (v) => ({
+          syntax: `FLIP VARIABLES=${v.vars.join(' ')}${v.newNames ? ` /NEWNAMES=${v.newNames}` : ''}.`,
+          persist: true,
+        }),
+      },
       select: {
         title: '选择个案',
         fields: [{ key: 'expression', kind: 'text', label: '条件表达式', required: true, placeholder: 'score > 60', hint: '不满足条件的个案会被从数据集中删除' }],
@@ -7497,6 +7509,7 @@ let ITEM_CSV_PENDING = null
               { label: '添加个案…', action: () => setDialog({ kind: 'merge', mode: 'add', path: '', by: '' }) },
               { label: '按关键变量合并…', action: () => setDialog({ kind: 'merge', mode: 'match', path: '', by: '' }) },
             ] },
+            { label: '转置…（行与列互换）', action: () => runAnalysis('transpose') },
             { label: '标识重复个案…', action: () => runAnalysis('duplicates') },
             { label: '标识异常个案…', action: () => runAnalysis('outliers') },
           ],
