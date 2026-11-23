@@ -2466,6 +2466,20 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   console.log('ok  the probability plot dialog sends a chart model, not syntax')
 }
 
+// 频率对话框的四种图、散点图的拟合线：都只交给宿主，不拼额外语法。
+{
+  const specs = hooks.ANALYSIS_SPECS
+  const pie = specs.frequencies.build({ vars: ['score'] }, { statistics: {}, charts: { pie: true } })
+  assert.equal(pie.syntax, 'FREQUENCIES /VARIABLES=score /PIECHART.', pie.syntax)
+  const normal = specs.frequencies.build({ vars: ['score'] }, { statistics: {}, charts: { histNormal: true, histogram: true } })
+  assert.equal(normal.syntax, 'FREQUENCIES /VARIABLES=score /HISTOGRAM NORMAL.', 'the curve already implies a histogram, so it is asked for once')
+  const chartSpecs = hooks.CHART_SPECS
+  const fit = chartSpecs.scatterplot.build({ x: 'age', y: 'score' }, { scatterOptions: { fit: true } })
+  assert.equal(fit.chart.fit, 'linear', 'the fit checkbox travels with the chart request')
+  assert.equal(chartSpecs.scatterplot.build({ x: 'age', y: 'score' }, {}).chart.fit, undefined, 'and nothing is asked for by default')
+  console.log('ok  the frequency charts and the scatter fit line are wired to the request')
+}
+
 // 缺失值分析 / 替换缺失值：两个对话框都不产出语法（引擎没有 MVA 与 RMV），
 // 它们交给宿主算，所以这里断言的是交给谁、带什么参数。
 {

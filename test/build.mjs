@@ -700,6 +700,15 @@ check('crosstabs takes a third variable as a layer', () => {
     'CROSSTABS /TABLES=hosp BY outcome BY sev /CELLS=COUNT ROW.')
 })
 
+check('frequencies draws the four chart kinds', () => {
+  assert.equal(buildAnalysis('frequencies', { variables: ['x'], chart: 'pie' }), 'FREQUENCIES /VARIABLES=x /PIECHART.')
+  assert.equal(buildAnalysis('frequencies', { variables: ['x'], chart: 'histogram' }), 'FREQUENCIES /VARIABLES=x /HISTOGRAM.')
+  assert.equal(buildAnalysis('frequencies', { variables: ['x'], chart: 'histogramNormal' }), 'FREQUENCIES /VARIABLES=x /HISTOGRAM NORMAL.')
+  // The old boolean spelling keeps the bar chart it always meant.
+  assert.equal(buildAnalysis('frequencies', { variables: ['x'], chart: true }), 'FREQUENCIES /VARIABLES=x /BARCHART=COUNT.')
+  assert.throws(() => buildAnalysis('frequencies', { variables: ['x'], chart: 'donut' }), /只认 bar、pie、histogram、histogramNormal/)
+})
+
 check('frequencies keeps the statistics list and the percentiles', () => {
   const plain = buildAnalysis('frequencies', { variables: ['tg'] })
   assert.equal(plain, 'FREQUENCIES /VARIABLES=tg.')

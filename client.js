@@ -2450,7 +2450,9 @@ function normalizeChoices(list) {
           ] },
           { key: 'charts', title: '图表', items: [
             { key: 'bar', label: '条形图' },
+            { key: 'pie', label: '饼图' },
             { key: 'histogram', label: '直方图' },
+            { key: 'histNormal', label: '直方图上叠加正态曲线' },
           ] },
         ],
         build: (v, flags) => {
@@ -2463,7 +2465,10 @@ function normalizeChoices(list) {
           const percentiles = String(v.percentiles ?? '').trim()
           if (percentiles) parts.push(`/PERCENTILES=${percentiles}`)
           if (flags?.charts?.bar) parts.push('/BARCHART')
-          if (flags?.charts?.histogram) parts.push('/HISTOGRAM')
+          if (flags?.charts?.pie) parts.push('/PIECHART')
+          // 叠加正态曲线本身就是直方图：两个都勾也只发一条。
+          if (flags?.charts?.histNormal) parts.push('/HISTOGRAM NORMAL')
+          else if (flags?.charts?.histogram) parts.push('/HISTOGRAM')
           return { syntax: `${parts.join(' ')}.` }
         },
       },
@@ -9187,7 +9192,20 @@ let ITEM_CSV_PENDING = null
           { key: 'y', kind: 'single', label: 'Y 轴', required: true, accept: 'numeric' },
           { key: 'group', kind: 'single', label: '按类别着色（可选）', accept: 'any' },
         ],
-        build: (v) => ({ chart: { kind: 'scatterplot', x: v.x, y: v.y, group: v.group } }),
+        groups: [{
+          key: 'scatterOptions',
+          title: '散点图选项',
+          items: [{ key: 'fit', label: '叠加线性拟合线（标出 R²）' }],
+        }],
+        build: (v, flags) => ({
+          chart: {
+            kind: 'scatterplot',
+            x: v.x,
+            y: v.y,
+            group: v.group,
+            fit: flags?.scatterOptions?.fit === true ? 'linear' : undefined,
+          },
+        }),
       },
     }
     // Same escape hatch as ANALYSIS_SPECS: the panel tests read the chart

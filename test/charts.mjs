@@ -178,4 +178,46 @@ check('the probability plots refuse what they cannot draw', () => {
   )
 })
 
+// 拟合线：SPSS 的图表编辑器能加，PSPP 不画，所以插件自己最小二乘。
+check('the scatter fit line is the least-squares line, with R²', () => {
+  const ds = {
+    variables: [
+      { name: 'x', type: 'numeric' }, { name: 'y', type: 'numeric' }, { name: 'g', type: 'numeric' },
+    ],
+    rows: [[1, 3, 1], [2, 5, 1], [3, 7, 1], [1, 2.9, 2], [2, 5.1, 2], [3, 7.05, 2]],
+  }
+  // 完美直线只取第一组：两组拼起来是「两条平行线 + 截距差」，不是一条直线。
+  const exact = { variables: ds.variables, rows: ds.rows.filter((row) => row[2] === 1) }
+  const plain = buildChartModel(exact, 'scatterplot', { x: 'x', y: 'y', fit: 'linear' })
+  assert.equal(plain.fits.length, 1, 'one line for the whole cloud')
+  assert.equal(plain.fits[0].slope, 2, 'the slope is exact on a perfect line')
+  assert.equal(plain.fits[0].intercept, 1, 'and so is the intercept')
+  assert.equal(plain.fits[0].r2, 1, 'R² is 1 when every point sits on the line')
+  assert.match(renderSvg(plain), /R² = 1/, 'the R² is written on the chart')
+  const grouped = buildChartModel(ds, 'scatterplot', { x: 'x', y: 'y', group: 'g', fit: true })
+  assert.equal(grouped.fits.length, 2, 'one line per series when the points are coloured by a variable')
+  assert.deepEqual(grouped.fits.map((fit) => fit.label), ['1', '2'], 'each line is labelled with its category')
+  assert.ok(grouped.fits.every((fit) => fit.r2 > 0.98), `each series is very nearly a line: ${JSON.stringify(grouped.fits)}`)
+  const none = buildChartModel(ds, 'scatterplot', { x: 'x', y: 'y' })
+  assert.equal(none.fits, undefined, 'no line unless it is asked for')
+})
+
+check('a fit line that cannot be drawn is dropped, not faked', () => {
+  const flat = {
+    variables: [{ name: 'x', type: 'numeric' }, { name: 'y', type: 'numeric' }],
+    rows: [[5, 1], [5, 2], [5, 3]],
+  }
+  assert.equal(buildChartModel(flat, 'scatterplot', { x: 'x', y: 'y', fit: 'linear' }).fits, undefined, 'x never changes, so there is no slope')
+  // 斜率很陡时线会被裁到绘图区里（直接连两端点会画到框外）。
+  const steep = {
+    variables: [{ name: 'x', type: 'numeric' }, { name: 'y', type: 'numeric' }],
+    rows: [[0, 0], [1, 1000], [2, 2000]],
+  }
+  const svg = renderSvg(buildChartModel(steep, 'scatterplot', { x: 'x', y: 'y', fit: 'linear' }))
+  const line = /<line x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)" stroke="#b4453a" stroke-width="1.6"\/>/.exec(svg)
+  assert.ok(line, 'the steep line is drawn')
+  assert.ok(Number(line[2]) >= 0 && Number(line[2]) <= 360, `the start stays inside the viewport: ${line[2]}`)
+  assert.ok(Number(line[4]) >= 0 && Number(line[4]) <= 360, `and so does the end: ${line[4]}`)
+})
+
 console.log(`${checks} checks passed`)
