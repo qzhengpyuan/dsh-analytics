@@ -2453,6 +2453,19 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   console.log('ok  the median test dialog writes NPAR TESTS /MEDIAN=')
 }
 
+// P-P / Q-Q：SPSS 用 EXAMINE 的图选项，PSPP 只给检验表，所以对话框直接交图模型。
+{
+  const specs = hooks.CHART_SPECS
+  assert.ok(specs?.ppplot?.build, 'the probability plot dialog exists')
+  assert.deepEqual(
+    specs.ppplot.build({ variable: 'score', plot: 'qq' }),
+    { chart: { kind: 'ppplot', variable: 'score', plot: 'qq' } },
+    'it hands the chart model to the host instead of syntax',
+  )
+  assert.equal(specs.ppplot.build({ variable: 'score' }).chart.plot, 'pp', 'P-P is the default')
+  console.log('ok  the probability plot dialog sends a chart model, not syntax')
+}
+
 // 缺失值分析 / 替换缺失值：两个对话框都不产出语法（引擎没有 MVA 与 RMV），
 // 它们交给宿主算，所以这里断言的是交给谁、带什么参数。
 {

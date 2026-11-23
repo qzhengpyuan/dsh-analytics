@@ -1447,6 +1447,17 @@
     "临近点个数（两侧各取几个；只对临近点两种方法有用）": "Number of nearby points (how many on each side; used only by the two nearby methods)",
     "K 个独立样本（中位数）": "K Independent Samples (Median)",
     "K 个独立样本（中位数）…": "K Independent Samples (Median)…",
-    "K 个独立样本（中位数检验）": "K Independent Samples (Median Test)"
+    "K 个独立样本（中位数检验）": "K Independent Samples (Median Test)",
+    "P-P / Q-Q 图（正态）": "P-P / Q-Q Plot (Normal)",
+    "P-P / Q-Q 图（正态）…": "P-P / Q-Q Plot (Normal)…",
+    "图型": "Plot type",
+    "P-P 图（累积概率）": "P-P plot (cumulative probability)",
+    "Q-Q 图（分位数）": "Q-Q plot (quantiles)",
+    "观测值": "Observed value",
+    "观测累积概率": "Observed cumulative probability",
+    "期望值（正态）": "Expected value (normal)",
+    "期望累积概率": "Expected cumulative probability",
+    "{0} 的 P-P 图（正态分布）": "P-P plot of {0} (normal distribution)",
+    "{0} 的 Q-Q 图（正态分布）": "Q-Q plot of {0} (normal distribution)"
   }
 }

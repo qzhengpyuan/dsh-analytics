@@ -7588,6 +7588,7 @@ let ITEM_CSV_PENDING = null
             { label: '条形图…', action: () => setDialog({ kind: 'chart', type: 'bar' }) },
             { label: '直方图…', action: () => setDialog({ kind: 'chart', type: 'histogram' }) },
             { label: '箱线图…', action: () => setDialog({ kind: 'chart', type: 'boxplot' }) },
+            { label: 'P-P / Q-Q 图（正态）…', action: () => setDialog({ kind: 'chart', type: 'ppplot' }) },
             { label: '折线图…', action: () => setDialog({ kind: 'chart', type: 'line' }) },
             { label: '饼图…', action: () => setDialog({ kind: 'chart', type: 'pie' }) },
             { label: '面积图…', action: () => setDialog({ kind: 'chart', type: 'area' }) },
@@ -9111,6 +9112,15 @@ let ITEM_CSV_PENDING = null
         fields: [{ key: 'variable', kind: 'single', label: '变量', required: true, accept: 'numeric' }],
         build: (v) => ({ chart: { kind: 'histogram', variable: v.variable } }),
       },
+      ppplot: {
+        title: 'P-P / Q-Q 图（正态）',
+        fields: [
+          { key: 'variable', kind: 'single', label: '变量', required: true, accept: 'numeric' },
+          { key: 'plot', kind: 'select', label: '图型', options: [['pp', 'P-P 图（累积概率）'], ['qq', 'Q-Q 图（分位数）']], default: 'pp' },
+        ],
+        build: (v) => ({ chart: { kind: 'ppplot', variable: v.variable, plot: v.plot ?? 'pp' } }),
+        hint: 'PSPP 的 EXAMINE /PLOT=NPPLOT 只给正态性检验表，不画图；这两张图由插件按同一批个案自己算，点越贴近虚线越接近正态。',
+      },
       boxplot: {
         title: '箱线图',
         fields: [
@@ -9180,6 +9190,9 @@ let ITEM_CSV_PENDING = null
         build: (v) => ({ chart: { kind: 'scatterplot', x: v.x, y: v.y, group: v.group } }),
       },
     }
+    // Same escape hatch as ANALYSIS_SPECS: the panel tests read the chart
+    // dialogs' build() directly instead of driving six clicks per chart type.
+    if (typeof globalThis !== 'undefined' && globalThis.__AP_TEST_HOOKS__) globalThis.__AP_TEST_HOOKS__.CHART_SPECS = CHART_SPECS
 
     /** Merge another .sav: ADD FILES (append cases) or MATCH FILES /BY (join variables). */
     function MergeDialog({ mode, variables, initial, onBrowse, onRun, onClose }) {

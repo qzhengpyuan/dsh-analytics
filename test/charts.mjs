@@ -134,4 +134,48 @@ check('a text variable is counted, and percent turns the counts into shares', ()
   assert.throws(() => buildChartModel(text, 'bar', { variable: 'g' }), /文本变量/, 'a text variable cannot be averaged')
 })
 
+// P-P / Q-Q：PSPP 的 NPPLOT 只出检验表，图由插件按同一批个案算。
+check('the probability plots stick to the diagonal and stay inside 0..1', () => {
+  const ds = {
+    variables: [{ name: 'x', label: '得分', type: 'numeric', width: 8, decimals: 1 }],
+    rows: Array.from({ length: 12 }, (_, index) => [index * 2 + (index % 4 === 0 ? 1 : 0)]),
+  }
+  const pp = buildChartModel(ds, 'ppplot', { variable: 'x' })
+  assert.equal(pp.kind, 'scatter', 'it reuses the scatter renderer')
+  assert.equal(pp.diagonal, true, 'and asks for the reference line')
+  assert.equal(pp.points.length, 12, 'one point per case')
+  for (const [observed, expected] of pp.points) {
+    assert.ok(observed > 0 && observed < 1, `observed cumulative probability stays inside (0,1): ${observed}`)
+    assert.ok(expected >= 0 && expected <= 1, `expected cumulative probability is a probability: ${expected}`)
+  }
+  assert.match(pp.title, /P-P/, 'the title names the plot')
+  const qq = buildChartModel(ds, 'ppplot', { variable: 'x', plot: 'qq' })
+  assert.match(qq.title, /Q-Q/)
+  assert.deepEqual(qq.points.map((point) => point[0]).sort((a, b) => a - b), [1, 2, 4, 6, 9, 10, 12, 14, 17, 18, 20, 22], 'the x axis is the observed value itself')
+  // 中位秩对称：第一点与最后一点的期望分位数关于均值对称。
+  const first = qq.points[0][1]
+  const last = qq.points.at(-1)[1]
+  const mean = ds.rows.reduce((sum, row) => sum + row[0], 0) / ds.rows.length
+  assert.ok(Math.abs((first + last) / 2 - mean) < 0.01, `the expected quantiles are symmetric: ${first} ${last} ${mean}`)
+  const svg = renderSvg(pp)
+  assert.match(svg, /stroke-dasharray="4 3"/, 'the diagonal is drawn dashed')
+})
+
+check('the probability plots refuse what they cannot draw', () => {
+  const ds = {
+    variables: [
+      { name: 'x', type: 'numeric', width: 8, decimals: 1 },
+      { name: 'g', type: 'string', width: 8, format: 'A8' },
+    ],
+    rows: [[1, 'a'], [2, 'a'], [3, 'b']],
+  }
+  assert.throws(() => buildChartModel(ds, 'ppplot', { variable: 'nope' }), /unknown variable/)
+  assert.throws(() => buildChartModel(ds, 'ppplot', { variable: 'g' }), /不是数值变量/)
+  assert.throws(() => buildChartModel({ variables: ds.variables, rows: [[1, 'a'], [2, 'a']] }, 'ppplot', { variable: 'x' }), /不足 3 个/)
+  assert.throws(
+    () => buildChartModel({ variables: ds.variables, rows: [[5, 'a'], [5, 'a'], [5, 'a']] }, 'ppplot', { variable: 'x' }),
+    /全都一样/,
+  )
+})
+
 console.log(`${checks} checks passed`)

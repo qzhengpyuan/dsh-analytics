@@ -159,5 +159,6 @@
 | 2026-11-23 | lead | 0.58.0 发布：向导（预览/列名/类型/跳过行/缺失标记/工作表）+ `pspp_open` 四参数；日期类型明确不做 |
 | 2026-11-23 | lead | 0.59.0 发布：副标题 + 拼版（`composeChartGrid`、`api/chartGrid`、`pspp_chart.grid`）；不做「图表构建器」对话框，理由写在 §3.3；评审 `V-i` 的宽高比判据按实测改成像素尺寸 |
 | 2026-11-23 | lead | 0.60.0 发布：重绘（`redrawChart`、`api/chart/redraw`、`pspp_chart.redrawOf`）+ PNG 倍率；Word/Excel 内嵌尺寸不跟倍率，理由写在 §3.4 |
+| 2026-11-24 | lead | 0.69.0 发布：P-P / Q-Q 图（插件自算点，`PPLOT` 引擎未实现）；`CHART_SPECS` 挂测试钩子 |
 | 2026-11-23 | lead | 0.68.0 发布：中位数检验（`NPAR TESTS /MEDIAN=`，FEATURES 那行「缺」改原生） |
 | 2026-11-23 | lead | 0.67.0 发布：替换缺失值补齐 SPSS 五种方法（`REPLACE_METHODS`、`span` 贯通三层、`pspp_transform.span`）+ README 界面小节；§3.5 的交叉表统计量按 `grep` 复核标记为「早已实现」 |
