@@ -114,4 +114,24 @@ check('a grouped scatter draws one colour per category and a legend', () => {
   assert.throws(() => buildChartModel(grouped, 'scatterplot', { x: 'x', y: 'y', group: 'nope' }), /unknown variable/, 'an unknown group variable is refused')
 })
 
+// 分类变量的条形图：柱高是计次，勾百分比就换成占比（SPSS 的「条形图：分类变量」）。
+check('a text variable is counted, and percent turns the counts into shares', () => {
+  const text = {
+    variables: [
+      { name: 'g', type: 'string', label: '组别', width: 8, decimals: 0, format: 'A8', measure: 'nominal', role: 'input', missing: [], valueLabels: {} },
+    ],
+    rows: [['甲'], ['甲'], ['乙'], ['丙'], ['丙'], [''], ['丙']],
+  }
+  const counted = buildChartModel(text, 'bar', { variable: 'g', statistic: 'COUNT' })
+  assert.equal(counted.yLabel, '个案数', 'the axis says cases')
+  assert.deepEqual(counted.categories.map((entry) => [entry.label, entry.value]), [['丙', 3], ['甲', 2], ['乙', 1]], 'counted per category, empty cells left out')
+  assert.match(counted.title, /个案数/, 'the title says what is counted')
+  const percent = buildChartModel(text, 'bar', { variable: 'g', statistic: 'COUNT', percent: true })
+  assert.equal(percent.yLabel, '百分比（%）', 'the axis switches to percent')
+  const shares = percent.categories.reduce((sum, entry) => sum + entry.value, 0)
+  assert.ok(Math.abs(shares - 100) < 0.2, 'the shares add up to 100')
+  assert.equal(percent.categories.find((entry) => entry.label === '丙').value, 50, 'three of six valid cases is half')
+  assert.throws(() => buildChartModel(text, 'bar', { variable: 'g' }), /文本变量/, 'a text variable cannot be averaged')
+})
+
 console.log(`${checks} checks passed`)

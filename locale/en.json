@@ -1436,6 +1436,11 @@
     "按类别着色": "Colour by category",
     "选了「按类别着色」时，同一个散点图里每个类别用不同颜色并配图例；不选就是单一的散点云。": "With \"Colour by category\" the points of one scatter get one colour per category plus a legend; without it the picture is a single cloud.",
     "组": "Group",
-    "（缺失）": "(missing)"
+    "（缺失）": "(missing)",
+    "变量（数值看均值，分类看计次）": "Variable (mean for numbers, counts for categories)",
+    "数值变量画均值（可选误差线）；文本变量（分类）画个案数，勾上百分比就是占比条形图。": "A numeric variable is drawn as means (with optional error bars); a text variable is counted, and ticking percent turns the counts into shares.",
+    "文本变量按百分比画（分母是该变量的有效个案）": "Draw a text variable as percentages (denominator is its valid cases)",
+    "文本变量": "text variable",
+    "百分比（%）": "Percent (%)"
   }
 }

@@ -9005,8 +9005,9 @@ let ITEM_CSV_PENDING = null
     const CHART_SPECS = {
       bar: {
         title: '条形图',
+        hint: '数值变量画均值（可选误差线）；文本变量（分类）画个案数，勾上百分比就是占比条形图。',
         fields: [
-          { key: 'variable', kind: 'single', label: '变量', required: true, accept: 'numeric' },
+          { key: 'variable', kind: 'single', label: '变量（数值看均值，分类看计次）', required: true, accept: 'any' },
           { key: 'by', kind: 'single', label: '类别轴（可选）', accept: 'any' },
           { key: 'cluster', kind: 'single', label: '分组（并列，可选）', accept: 'any' },
           { key: 'stack', kind: 'single', label: '堆叠（可选）', accept: 'any' },
@@ -9023,21 +9024,29 @@ let ITEM_CSV_PENDING = null
             ] },
             { key: 'significance', label: '自动标注组间差异（Welch t 检验）' },
             { key: 'percentStack', label: '堆叠按百分比（每根柱合计 100%）' },
+            { key: 'percent', label: '文本变量按百分比画（分母是该变量的有效个案）' },
           ],
         }],
-        build: (v, flags) => ({
-          chart: {
-            kind: 'bar',
-            variable: v.variable,
-            by: v.by,
-            cluster: v.cluster,
-            stack: v.stack,
-            statistic: 'MEAN',
-            errorBars: flags?.barOptions?.errorBars || false,
-            significance: flags?.barOptions?.significance === true ? 'auto' : undefined,
-            shape: flags?.barOptions?.percentStack === true && v.stack ? 'stacked100' : undefined,
-          },
-        }),
+        build: (v, flags, variables) => {
+          // 分类变量没有均值可算：它的柱高是计次（或百分比），这也是 SPSS
+          // 里「图形 → 条形图」选一个字符串变量的行为。
+          const target = (variables ?? []).find((item) => item.name === v.variable)
+          const textual = target?.type === 'string'
+          return {
+            chart: {
+              kind: 'bar',
+              variable: v.variable,
+              by: v.by,
+              cluster: v.cluster,
+              stack: v.stack,
+              statistic: textual ? 'COUNT' : 'MEAN',
+              percent: textual && flags?.barOptions?.percent === true ? true : undefined,
+              errorBars: textual ? false : (flags?.barOptions?.errorBars || false),
+              significance: flags?.barOptions?.significance === true ? 'auto' : undefined,
+              shape: flags?.barOptions?.percentStack === true && v.stack ? 'stacked100' : undefined,
+            },
+          }
+        },
       },
       histogram: {
         title: '直方图',
