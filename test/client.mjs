@@ -2794,6 +2794,10 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
       globalThis.__chartPatchBody = body
       return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state: workState }) }
     }
+    if (String(url).includes('api/variable')) {
+      globalThis.__variableBody = body
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state: workState }) }
+    }
     if (String(url).includes('api/reportBook')) {
       globalThis.__lastBookBody = body
       return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { path: body?.path, format: 'docx', bytes: 4096, tables: 1, figures: 0 } }) }
@@ -3135,6 +3139,71 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.match(workHost.querySelector('.ap-modal').textContent, /正态 P-P 图/, 'and the normal P-P plot')
   await clickIn(workHost.querySelector('.ap-modal'), '取消')
 
+  // The compute builder: suggestions come from the spec, and the expression is
+  // checked before anything reaches the engine.
+  assert.equal(hooks.checkExpression('score * 2 + gender', 'double', workState.variables ?? []), null,
+    'a plain expression over existing variables passes')
+  assert.match(String(hooks.checkExpression('score * 2)', 'double', workState.variables ?? [])),
+    /多了一个右括号/)
+  assert.match(String(hooks.checkExpression('score * (2', 'double', workState.variables ?? [])),
+    /少了一个右括号/)
+  assert.match(String(hooks.checkExpression('scor * 2', 'double', workState.variables ?? [])),
+    /不是当前数据集里的变量/)
+  assert.equal(hooks.checkExpression('MEAN(score, gender)', 'double', workState.variables ?? []), null,
+    'a known function is allowed')
+
+  pop = await openMenu('转换')
+  const computeEntry = [...pop.querySelectorAll('button')].find((node) => String(node.textContent).startsWith('计算变量'))
+  assert.ok(computeEntry, 'the compute dialog is reachable')
+  await act(async () => {
+    computeEntry.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+  })
+  const computeSheet = workHost.querySelector('.ap-modal')
+  assert.ok(computeSheet, 'the compute dialog opens')
+  const expressionInput = [...computeSheet.querySelectorAll('input')].find((node) => node.getAttribute('placeholder') === 'age * 2')
+  assert.ok(expressionInput, 'the expression box is there')
+  const suggestButtons = [...computeSheet.querySelectorAll('.ap-suggest-btn')]
+  assert.ok(suggestButtons.length >= 10, 'the functions and variables are offered as buttons')
+  await act(async () => {
+    const mean = suggestButtons.find((node) => node.textContent === 'MEAN(')
+    mean.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  assert.equal(expressionInput.value, 'MEAN(', 'clicking a function inserts it')
+  await clickIn(computeSheet, '取消')
+
+  // 变量视图的批量修改：右键菜单进入，一次提交一个 patch。
+  const varTab = [...workHost.querySelectorAll('.ap-view-tab')].find((node) => String(node.textContent) === '变量视图')
+  await act(async () => {
+    varTab.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+  })
+  const varRows = [...workHost.querySelectorAll('.ap-grid tbody tr')]
+  assert.ok(varRows.length >= 2, 'the variable grid has rows')
+  await act(async () => {
+    varRows[0].dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, clientX: 40, clientY: 40 }))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+  })
+  const batchEntry = [...workHost.querySelectorAll('button.ap-var-item')]
+    .find((node) => String(node.textContent).includes('批量修改'))
+  assert.ok(batchEntry, 'the batch entry is in the context menu')
+  await act(async () => {
+    batchEntry.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+  })
+  const batchSheet = workHost.querySelector('.ap-modal')
+  assert.ok(batchSheet, 'the batch dialog opens')
+  const measureSelect = [...batchSheet.querySelectorAll('select')].pop()
+  await act(async () => {
+    measureSelect.value = 'nominal'
+    measureSelect.dispatchEvent(new window.Event('change', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  await clickIn(batchSheet, '应用')
+  assert.equal(globalThis.__variableBody?.action, 'updateMany', 'one call carries the whole batch')
+  assert.deepEqual(globalThis.__variableBody?.patch?.measure, 'nominal', 'and only the fields the user set')
+
   await act(async () => { workRoot.unmount() })
-  console.log('ok  syntax templates, run history, bound report, the toolbar tip, the grid, the subtitle, the redraw, the export scale and the regression plots')
+  console.log('ok  syntax templates, run history, bound report, the toolbar tip, the grid, the subtitle, the redraw, the export scale, the regression plots and the compute builder')
 }

@@ -1386,6 +1386,23 @@
     "自定义设计是空的：写 /DESIGN 后面的部分，例如 g x": "The custom design is empty: write the part after /DESIGN, for example g x",
     "图（PSPP 不画，由插件按同一次拟合作图）": "Plots (PSPP draws none; the plugin uses the same fit)",
     "残差散点图（残差 × 预测值）": "Residual scatter (residual vs fitted)",
-    "标准化残差正态 P-P 图": "Normal P-P plot of standardised residuals"
+    "标准化残差正态 P-P 图": "Normal P-P plot of standardised residuals",
+    "跳过末尾": "Skip at the end",
+    "行（合计行）": "rows (totals line)",
+    "批量修改变量属性…": "Batch edit variable properties…",
+    "批量修改这 {0} 个变量…": "Batch edit these {0} variables…",
+    "批量修改变量属性": "Batch edit variable properties",
+    "将要修改这 {0} 个变量：{1}": "About to change these {0} variables: {1}",
+    "留空的项不改；一次「撤销」能全部还原。": "Empty fields are left alone; one undo restores everything.",
+    "已修改 {0} 个变量": "Changed {0} variables",
+    "插入：": "Insert:",
+    "小数位": "Decimals",
+    "不改": "Leave alone",
+    "标度": "Scale",
+    "表达式的括号不成对：多了一个右括号": "The brackets in the expression do not pair up: one ) too many",
+    "表达式的括号不成对：少了一个右括号": "The brackets in the expression do not pair up: one ) missing",
+    "表达式里的「{0}」不是当前数据集里的变量：变量名区分大小写之外按原样写，函数名请从下面点选": "\"{0}\" in the expression is not a variable in this dataset: write names as they are, and pick functions from the list below",
+    "目标变量可以是不存在的名字（会新建一列）；表达式里的函数与变量名点下面的按钮插入。保存 = 写回数据集。": "The target may be a new name (a column is created). Insert functions and variable names with the buttons below. Save writes back to the dataset.",
+    "括号要成对；变量名必须是当前数据集里的（表达式里写新名字不会算出来）。": "Brackets must pair up, and every name must already exist in the dataset."
   }
 }

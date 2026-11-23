@@ -779,6 +779,14 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-row { display:flex; gap:8px; align-items:center; }
 /* 11px 是正文下限：说明文字/状态栏之外不再出现更小的字 */
 .ap-hint { color:var(--ap-text-2); font-size:11px; }
+.ap-suggest { display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-top:4px; }
+.ap-suggest-btn { padding:1px 6px; font:inherit; font-size:11px; background:var(--ap-button); color:var(--ap-text);
+  border:1px solid var(--ap-line-2); border-radius:3px; cursor:pointer; }
+.ap-suggest-btn:hover { background:var(--ap-hover); }
+.ap-var-batch { display:flex; flex-direction:column; gap:6px; min-width:280px; }
+.ap-var-batch .ap-row { display:flex; gap:8px; align-items:center; }
+.ap-var-batch label { display:flex; gap:8px; align-items:center; font-size:12px; }
+.ap-var-batch span.ap-hint { margin-left:auto; }
 /* 预设提示条：会话没选「统计分析」预设时，智能体看不到 pspp_* 工具，但面板
    照常可用。底色从 --ap-accent 混出来（不写死亮色），暗色主题下不会刷白。 */
 .ap-preset-bar { display:flex; align-items:center; gap:8px; flex:none; padding:4px 8px;
@@ -938,6 +946,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       const [delimiter, setDelimiter] = useState('auto')
       const [header, setHeader] = useState(preview?.hasHeader !== false)
       const [skipRows, setSkipRows] = useState(String(preview?.skipRows ?? 0))
+      const [skipTail, setSkipTail] = useState(String(preview?.skipTailRows ?? 0))
       const [missing, setMissing] = useState('NA, -9')
       const [sheet, setSheet] = useState(preview?.sheet ?? '')
       const [names, setNames] = useState({})
@@ -949,6 +958,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         delimiter,
         hasHeader: header,
         skipRows: Number(skipRows) || 0,
+        skipTailRows: Number(skipTail) || 0,
         missing: missing.split(/[,，;；\s]+/).filter(Boolean),
         sheet,
       })
@@ -1014,6 +1024,17 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             onBlur: () => ask(),
           }),
           h('span', { className: 'ap-hint' }, '行')),
+        h('label', { className: 'ap-wiz-field' },
+          h('span', null, '跳过末尾'),
+          h('input', {
+            type: 'number',
+            min: 0,
+            value: skipTail,
+            style: { width: 70 },
+            onChange: (event) => setSkipTail(event.target.value),
+            onBlur: () => ask(),
+          }),
+          h('span', { className: 'ap-hint' }, '行（合计行）')),
         h('label', { className: 'ap-wiz-field' },
           h('span', null, '缺失值标记'),
           h('input', {
@@ -1406,6 +1427,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       globalThis.__AP_TEST_HOOKS__.VIRT_TABLE_MIN = VIRT_TABLE_MIN
       globalThis.__AP_TEST_HOOKS__.VIRT_ROW_PX = VIRT_ROW_PX
       globalThis.__AP_TEST_HOOKS__.parseContrasts = parseContrasts
+      globalThis.__AP_TEST_HOOKS__.checkExpression = checkExpression
       globalThis.__AP_TEST_HOOKS__.PREVIEW_ROWS = PREVIEW_ROWS
       globalThis.__AP_TEST_HOOKS__.stateOf = stateOf
       globalThis.__AP_TEST_HOOKS__.tr = tr
@@ -2042,6 +2064,42 @@ function parseContrasts(text) {
   return { list }
 }
 
+// Names PSPP knows inside an expression: functions, and the few bare words
+// that stand for values. Anything else has to be a variable, otherwise the
+// engine fails with its own English message and the user cannot tell which
+// word was wrong.
+const EXPRESSION_WORDS = new Set([
+  'MEAN', 'SUM', 'MIN', 'MAX', 'ABS', 'SQRT', 'LN', 'LG10', 'EXP', 'TRUNC', 'RND', 'MOD',
+  'SD', 'VARIANCE', 'CFVAR', 'NVALID', 'NMISS', 'MISSING', 'SYSMIS', 'NMISS', 'ANY', 'RANGE',
+  'CONCAT', 'SUBSTR', 'UPCASE', 'LOWCASE', 'LENGTH', 'LTRIM', 'RTRIM', 'NUMBER', 'STRING',
+  'AND', 'OR', 'NOT', 'TO', 'THRU', 'BY', 'WITH',
+])
+
+/**
+ * The two mistakes the engine reports in English and at one character of the
+ * expression: an unbalanced bracket and a variable that does not exist.
+ * Catching them here keeps the panel's own vocabulary.
+ */
+function checkExpression(expression, target, variables) {
+  let depth = 0
+  for (const char of expression) {
+    if (char === '(') depth += 1
+    if (char === ')') depth -= 1
+    if (depth < 0) return '表达式的括号不成对：多了一个右括号'
+  }
+  if (depth > 0) return '表达式的括号不成对：少了一个右括号'
+  const known = new Set((variables ?? []).map((variable) => String(variable.name).toLowerCase()))
+  if (target) known.add(String(target).toLowerCase())
+  const words = expression.match(/[A-Za-z_\u4e00-\u9fff][A-Za-z0-9_\u4e00-\u9fff]*/g) ?? []
+  for (const word of words) {
+    const upper = word.toUpperCase()
+    if (EXPRESSION_WORDS.has(upper)) continue
+    if (known.has(word.toLowerCase())) continue
+    return `表达式里的「${word}」不是当前数据集里的变量：变量名区分大小写之外按原样写，函数名请从下面点选`
+  }
+  return null
+}
+
 function normalizeChoices(list) {
       return (Array.isArray(list) ? list : []).map((option) => {
         if (Array.isArray(option)) return { value: String(option[0] ?? ''), label: String(option[1] ?? option[0] ?? '') }
@@ -2204,9 +2262,32 @@ function normalizeChoices(list) {
               placeholder: field.placeholder ?? '',
               onChange: (event) => setValue(field.key, event.target.value),
             })
+          // SPSS's Compute Variable dialog has a function list beside the
+          // expression box. A dropdown of every PSPP function would be noise, so
+          // the dialog carries the handful people actually reach for, plus the
+          // variables themselves; a click appends to the expression.
+          const suggestions = [
+            ...(field.suggestions ?? []),
+            ...(field.suggestVariables ? (variables ?? []).map((variable) => variable.name) : []),
+          ]
+          const append = (piece) => {
+            const current = Array.isArray(values[field.key]) ? values[field.key].join(' ') : String(values[field.key] ?? '')
+            const glued = /[\s(,]$/.test(current) || current === '' ? '' : ' '
+            setValue(field.key, `${current}${glued}${piece}`)
+          }
           return h('div', { key: field.key, className: 'ap-dlg-box ap-dlg-form' },
             h('div', { className: 'ap-dlg-caption' }, field.label),
             control,
+            suggestions.length === 0
+              ? null
+              : h('div', { className: 'ap-suggest' },
+                h('span', { className: 'ap-hint' }, tr('插入：')),
+                suggestions.map((piece) => h('button', {
+                  key: piece,
+                  className: 'ap-suggest-btn',
+                  translate: false,
+                  onClick: () => append(piece),
+                }, piece))),
             field.hint ? h('div', { className: 'ap-hint' }, field.hint) : null)
         }
         const list = field.kind === 'single'
@@ -3135,11 +3216,20 @@ function normalizeChoices(list) {
       },
       compute: {
         title: '计算变量',
+        hint: '目标变量可以是不存在的名字（会新建一列）；表达式里的函数与变量名点下面的按钮插入。保存 = 写回数据集。',
         fields: [
           { key: 'target', kind: 'text', label: '目标变量', required: true },
-          { key: 'expression', kind: 'text', label: '数字表达式', required: true, placeholder: 'age * 2' },
+          { key: 'expression', kind: 'text', label: '数字表达式', required: true, placeholder: 'age * 2',
+            suggestions: ['MEAN(', 'SUM(', 'MIN(', 'MAX(', 'ABS(', 'SQRT(', 'LN(', 'EXP(', 'TRUNC(', 'RND(', '(', ')'],
+            suggestVariables: true,
+            hint: '括号要成对；变量名必须是当前数据集里的（表达式里写新名字不会算出来）。' },
         ],
-        build: (v) => ({ syntax: `COMPUTE ${v.target} = ${v.expression}.\nEXECUTE.`, persist: true }),
+        build: (v, flags, variables) => {
+          const expression = String(v.expression ?? '').trim()
+          const problem = checkExpression(expression, v.target, variables)
+          if (problem) return { error: problem }
+          return { syntax: `COMPUTE ${v.target} = ${expression}.\nEXECUTE.`, persist: true }
+        },
       },
       recode: {
         title: '重新编码为不同变量',
@@ -4391,7 +4481,7 @@ function normalizeChoices(list) {
       })
     }
 
-    function VariableGrid({ variables, widths = {}, onWidth, onUpdate, onAdd, onRename, onDelete, onEditLabels, onMove, jumpTo = null }) {
+    function VariableGrid({ variables, widths = {}, onWidth, onUpdate, onAdd, onRename, onDelete, onEditLabels, onMove, onBatch, jumpTo = null }) {
       const columns = [
         ['name', '名称'], ['type', '类型'], ['width', '宽度'], ['decimals', '小数'],
         ['label', '标签'], ['values', '值'], ['missing', '缺失'], ['columns', '列'], ['measure', '测量'],
@@ -4818,6 +4908,14 @@ function normalizeChoices(list) {
             },
           }, '移到最后面'),
           h('button', {
+            className: 'ap-var-item',
+            onClick: () => {
+              const names = menu.names
+              setMenu(null)
+              onBatch?.(names)
+            },
+          }, menu.names.length > 1 ? tr('批量修改这 {0} 个变量…', menu.names.length) : '批量修改变量属性…'),
+          h('button', {
             className: 'ap-var-item ap-danger',
             onClick: () => {
               const names = menu.names
@@ -4828,6 +4926,62 @@ function normalizeChoices(list) {
             },
           }, menu.names.length > 1 ? tr('删除这 {0} 个变量', menu.names.length) : '删除变量'))
           : null)
+    }
+
+    /**
+     * Batch edit for the variable view. The grid allows shift-click selection
+     * but edits one cell at a time; ten variables sharing 小数位 = 2 is a common
+     * after-import fix, and doing it row by row is also ten undo steps.
+     */
+    function VariableBatchDialog({ names, onClose, onRun }) {
+      const [decimals, setDecimals] = useState('')
+      const [measure, setMeasure] = useState('')
+      const [width, setWidth] = useState('')
+      const [type, setType] = useState('')
+      const patch = () => {
+        const out = {}
+        if (String(decimals).trim() !== '') out.decimals = Number(decimals)
+        if (String(width).trim() !== '') out.width = Number(width)
+        if (measure !== '') out.measure = measure
+        if (type !== '') out.type = type
+        return out
+      }
+      const chosen = patch()
+      return h(Modal, {
+        title: tr('批量修改变量属性'),
+        okText: '应用',
+        okDisabled: Object.keys(chosen).length === 0,
+        onCancel: onClose,
+        onOk: () => onRun(patch()),
+      },
+      h('div', { className: 'ap-hint' }, tr('将要修改这 {0} 个变量：{1}', names.length, names.join('、'))),
+      h('div', { className: 'ap-var-batch' },
+        h('label', null,
+          h('span', null, '类型'),
+          h('select', { value: type, onChange: (event) => setType(event.target.value) },
+            h('option', { value: '' }, '不改'),
+            h('option', { value: 'numeric' }, '数值'),
+            h('option', { value: 'string' }, '字符串'))),
+        h('label', null,
+          h('span', null, '小数位'),
+          h('input', {
+            type: 'number', min: 0, max: 16, value: decimals, style: { width: 80 },
+            placeholder: '不改', onChange: (event) => setDecimals(event.target.value),
+          })),
+        h('label', null,
+          h('span', null, '宽度'),
+          h('input', {
+            type: 'number', min: 1, max: 255, value: width, style: { width: 80 },
+            placeholder: '不改', onChange: (event) => setWidth(event.target.value),
+          })),
+        h('label', null,
+          h('span', null, '测量'),
+          h('select', { value: measure, onChange: (event) => setMeasure(event.target.value) },
+            h('option', { value: '' }, '不改'),
+            h('option', { value: 'scale' }, '标度'),
+            h('option', { value: 'ordinal' }, '有序'),
+            h('option', { value: 'nominal' }, '名义')))),
+      h('div', { className: 'ap-hint' }, '留空的项不改；一次「撤销」能全部还原。'))
     }
 
     /**
@@ -7801,6 +7955,7 @@ let ITEM_CSV_PENDING = null
                       notify(error.message)
                     }
                   },
+                  onBatch: (names) => setDialog({ kind: 'variableBatch', names }),
                   onAdd: async (name) => {
                     try {
                       const value = await api('api/variable', { sessionId, action: 'add', spec: { name } })
@@ -8170,6 +8325,22 @@ let ITEM_CSV_PENDING = null
             // aria-describedby on the button, so no role is needed here.
             'aria-hidden': 'true',
           }, tr(toolTip.text))
+          : null,
+        dialog?.kind === 'variableBatch'
+          ? h(VariableBatchDialog, {
+            names: dialog.names,
+            onClose: () => setDialog(null),
+            onRun: async (patch) => {
+              setDialog(null)
+              try {
+                const value = await api('api/variable', { sessionId, action: 'updateMany', names: dialog.names, patch })
+                setSt(stateOf(value))
+                notify(tr('已修改 {0} 个变量', dialog.names.length))
+              } catch (error) {
+                notify(error.message)
+              }
+            },
+          })
           : null,
         dialog?.kind === 'templates'
           ? h(Modal, {

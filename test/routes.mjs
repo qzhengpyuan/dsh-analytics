@@ -1135,6 +1135,23 @@ console.log('a two-factor GLM contrast is fitted in the plugin', r.code === 200,
   contrastTable?.table?.matrix?.[1]?.[1], contrastTable?.table?.matrix?.[1]?.[5],
   JSON.stringify(contrastTable?.table?.matrix?.[1] ?? null))
 
+// Batch variable edit: one request, one undo step. The panel selects rows in the
+// variable view and sends them all at once.
+r = await call('POST', `${base}/api/variable`, {
+  sessionId: sid,
+  action: 'updateMany',
+  names: ['gender', 'score'],
+  patch: { decimals: 3, measure: 'nominal' },
+})
+const batched = ['gender', 'score'].map((name) => r.json().state.dataset.variables.find((variable) => variable.name === name))
+console.log('updateMany ->', r.code, batched.map((variable) => `${variable.name}:${variable.decimals}:${variable.measure}`).join(' '),
+  r.json().result?.variables?.length)
+r = await call('POST', `${base}/api/history`, { sessionId: sid, action: 'undo' })
+const batchAfterUndo = ['gender', 'score'].map((name) => r.json().state.dataset.variables.find((variable) => variable.name === name))
+console.log('one undo restores both ->', r.code, batchAfterUndo.map((variable) => `${variable.name}:${variable.decimals}:${variable.measure}`).join(' '))
+r = await call('POST', `${base}/api/variable`, { sessionId: sid, action: 'updateMany', names: ['nope'], patch: { decimals: 1 } })
+console.log('updateMany with an unknown name ->', r.code, r.json().error ?? r.json().message)
+
 for (const id of ['pivot01', 'pivot02', 'dup01', 'out01', 'ex01', 'cmh01', 'glmc01']) await call('POST', `${base}/api/close`, { sessionId: id })
 
 r = await call('POST', `${base}/api/close`, { sessionId: 'pivot01' })

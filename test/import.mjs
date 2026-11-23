@@ -169,4 +169,21 @@ await check('a marker only clears a column of its own kind', async () => {
   assert.deepEqual(numbers.rows.map((row) => row[0]), [1, null, 3])
 })
 
+await check('a totals line at the end can be dropped without touching the data', async () => {
+  const text = 'a,b\n1,2\n3,4\n合计,6\n'
+  const whole = await importDelimited(text, {})
+  assert.equal(whole.rows.length, 3, 'the totals line comes in as a row')
+  const trimmed = await importDelimited(text, { skipTailRows: 1 })
+  assert.deepEqual(trimmed.rows, [[1, 2], [3, 4]], 'and is gone when asked')
+  assert.equal(trimmed.notes.some((note) => /合计/.test(note)), false, 'no note about a marker')
+  // Dropping more rows than there are explains itself instead of reporting an empty file.
+  await assert.rejects(() => importDelimited('a\n1\n', { skipTailRows: 9 }), /跳过的行数（9）/)
+})
+
+await check('a worksheet totals line is dropped by the same option', () => {
+  const table = buildTable([['a', 'b'], [1, 2], [3, 4], ['合计', 6]], { skipTailRows: 1 })
+  assert.deepEqual(table.rows, [[1, 2], [3, 4]])
+  assert.throws(() => buildTable([['a'], [1]], { skipTailRows: 5 }), /跳过的行数（5）/)
+})
+
 console.log(`${checks} checks passed`)
