@@ -144,4 +144,29 @@ await check('a format the wizard cannot read says which ones it can', async () =
   })
 })
 
+
+await check('a CSV skipped past its end says how many rows it skipped', async () => {
+  // The worksheet path has always said this; the CSV path used to fall through
+  // to buildTable and report the English "the file has no rows".
+  await assert.rejects(
+    () => importDelimited('a,b\n1,2\n3,4\n', { skipRows: 99 }),
+    /跳过的行数（99）/,
+  )
+})
+
+await check('a marker only clears a column of its own kind', async () => {
+  // "-9" is a declared marker, but it is a number: a text column keeps it as
+  // text instead of losing the cell without recording why.
+  const table = await importDelimited('units\nA\n-9\nB\n', { missing: ['-9'] })
+  const units = table.variables.find((variable) => variable.name === 'units')
+  assert.equal(units.type, 'string')
+  assert.deepEqual(units.missing ?? [], [])
+  assert.deepEqual(table.rows.map((row) => row[0]), ['A', '-9', 'B'])
+  // A numeric column still treats it as missing, and says so.
+  const numbers = await importDelimited('n\n1\n-9\n3\n', { missing: ['-9'] })
+  const n = numbers.variables.find((variable) => variable.name === 'n')
+  assert.deepEqual(n.missing, [-9])
+  assert.deepEqual(numbers.rows.map((row) => row[0]), [1, null, 3])
+})
+
 console.log(`${checks} checks passed`)

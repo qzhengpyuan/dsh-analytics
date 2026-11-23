@@ -2939,6 +2939,16 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   const firstTip = workHost.querySelector('.ap-tip')
   assert.ok(firstTip, 'the tip appears at once, with no pause')
   assert.equal(firstTip.textContent, icons[0].getAttribute('aria-label'), 'the tip names the icon under the pointer')
+  // role="tooltip" would be restyled by the host skins' [role=tooltip] rule at a
+  // higher specificity (measured 1.06:1 in the blue-fantasy skin), so this tip
+  // deliberately carries no role.
+  assert.notEqual(firstTip.getAttribute('role'), 'tooltip', 'the tip is not a skin-styled tooltip role')
+  // The data-view button titles a whole sentence; the tip must still read like
+  // the other icons, so the text comes from aria-label, not title.
+  assert.match(String(icons[2].getAttribute('title') ?? ''), /数据视图正在显示/, 'that button keeps its long title')
+  await hover(icons[2])
+  const longTip = workHost.querySelector('.ap-tip')
+  assert.equal(longTip.textContent, icons[2].getAttribute('aria-label'), 'the tip prefers the short name over the long title')
   assert.equal(icons[0].hasAttribute('title'), false, 'the native tooltip is taken away while the bar owns the tip')
   // The stylesheet, not the inline style: `--ap-panel` can be translucent, and
   // the colour-mix tip then printed its text in the background colour.

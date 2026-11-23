@@ -5968,7 +5968,10 @@ let ITEM_CSV_PENDING = null
       const onToolbarOver = (event) => {
         const button = event.target?.closest?.('.ap-tool')
         if (!button || button === tipState.current.anchor) return
-        const text = button.getAttribute('title') || button.getAttribute('aria-label') || ''
+        // aria-label first: it is the short name SPSS shows. The title on some
+  // buttons is a long sentence, and a tip that changes length per button reads
+  // as a different kind of hint.
+  const text = button.getAttribute('aria-label') || button.getAttribute('title') || ''
         if (!text) return
         if (button.hasAttribute('title')) {
           tipState.current.stripped.set(button, button.getAttribute('title'))
@@ -8160,7 +8163,12 @@ let ITEM_CSV_PENDING = null
             className: 'ap-tip',
             style: { left: toolTip.x, top: toolTip.y },
             // The tip must never eat the hover that produced it.
-            role: 'tooltip',
+            // role="tooltip" is deliberately absent: the host skins style
+            // [role=tooltip] with their own background and colour tokens at a
+            // higher specificity, which turned this tip into dark text on a dark
+            // bar (measured 1.06:1). The tooltip is also announced through
+            // aria-describedby on the button, so no role is needed here.
+            'aria-hidden': 'true',
           }, tr(toolTip.text))
           : null,
         dialog?.kind === 'templates'
