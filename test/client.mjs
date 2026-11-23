@@ -2457,6 +2457,14 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.equal(specs.replaceMissing.fields[0].accept, 'numeric', 'the replace dialog only offers numeric variables')
   const fallback = specs.replaceMissing.build({ variables: ['score'] }, undefined)
   assert.equal(fallback.missing.method, 'mean', 'the method falls back to the series mean')
+  const options = specs.replaceMissing.groups[0].items[0].options.map((entry) => entry[1])
+  assert.deepEqual(options, ['序列平均值', '临近点的平均值', '临近点的中位数', '线性插值', '线性趋势处的点'],
+    'the five methods carry the SPSS names')
+  const nearby = specs.replaceMissing.build({ variables: ['score'] }, { method: { method: 'nearbyMedian', span: '3' } })
+  assert.deepEqual(nearby.missing, { mode: 'replace', variables: ['score'], method: 'nearbyMedian', span: 3 },
+    'the nearby methods carry the span, and it travels as a number')
+  const mean = specs.replaceMissing.build({ variables: ['score'] }, { method: { method: 'mean', span: '3' } })
+  assert.ok(!('span' in mean.missing), 'the series mean ignores the span instead of resending it')
   console.log('ok  the missing-value dialogs hand the work to the host, not the engine')
 }
 

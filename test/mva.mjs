@@ -123,4 +123,27 @@ check('a declared missing code is replaced, a string variable is refused', () =>
   assert.throws(() => replaceMissing(code, ['a'], 'median'), /不认识的替换方法/)
 })
 
+check('nearby mean and median differ when the neighbourhood is skewed', () => {
+  const data = dataset([variable('a', 1)], [[null], [1], [null], [2], [null], [100], [null]])
+  const means = replaceMissing(data, ['a'], 'nearbyMean', { span: 2 })
+  assert.deepEqual(means.map((entry) => entry.row), [0, 2, 4, 6])
+  assert.deepEqual(means.map((entry) => entry.value), [1.5, 34.333333333333336, 34.333333333333336, 51])
+  const medians = replaceMissing(data, ['a'], 'nearbyMedian', { span: 2 })
+  assert.deepEqual(medians.map((entry) => entry.value), [1.5, 2, 2, 51])
+})
+
+check('the trend method evaluates the least-squares line at the blank', () => {
+  const data = dataset([variable('a', 1)], [[null], [2], [null], [4], [null]])
+  const changes = replaceMissing(data, ['a'], 'trend')
+  assert.deepEqual(changes.map((entry) => entry.row), [0, 2, 4])
+  assert.deepEqual(changes.map((entry) => entry.value), [1, 3, 5])
+})
+
+check('a span of zero falls back to one point, and the method list is named in the error', () => {
+  const data = dataset([variable('a', 1)], [[null], [3], [null]])
+  const changes = replaceMissing(data, ['a'], 'nearbyMean', { span: 0 })
+  assert.deepEqual(changes.map((entry) => entry.value), [3, 3])
+  assert.throws(() => replaceMissing(data, ['a'], 'mode'), /nearbyMedian/)
+})
+
 console.log(`mva: ${passed} checks passed`)

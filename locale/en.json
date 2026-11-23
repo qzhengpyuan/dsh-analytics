@@ -1003,13 +1003,10 @@
     "单变量统计量": "Univariate statistics",
     "缺失模式（哪些变量同时缺）": "Missing patterns (which variables are missing together)",
     "替换缺失值": "Replace Missing Values",
-    "PSPP 2.1.3 没有 RMV。三种方法都只用这个变量自己的值，不引入外部数据；替换会作为一步撤销记录，跑下一次分析时才写回文件。": "PSPP 2.1.3 has no RMV. All three methods use only that variable's own values and bring in no external data; the replacement is recorded as one undo step and written back to the file only when the next analysis runs.",
     "要替换的变量": "Variables to replace",
     "方法": "Method",
     "替换方法": "Replacement method",
     "序列平均值": "Series mean",
-    "线性趋势（相邻值内插）": "Linear trend (interpolation between adjacent values)",
-    "临近点": "Nearby points",
     "标识重复个案": "Identify Duplicate Cases",
     "SPSS 的这条命令 PSPP 没有，所以由插件按你选的键变量比对当前数据集：留空表示用全部变量。勾了「创建指示变量」会新增 dupSeq（组内序号，0 表示唯一）与 dupLast（重复组的末条），随后可用「数据 → 选择个案」按 dupSeq > 1 筛出重复。": "PSPP does not have this SPSS command, so the plugin compares the current dataset by the key variables you choose: leave it blank to use every variable. Ticking \"Create indicator variables\" adds dupSeq (the sequence number within the group; 0 means unique) and dupLast (the last case of a duplicate group); Data → Select Cases can then filter duplicates with dupSeq > 1.",
     "定义重复的键变量（留空用全部变量）": "Key variables that define duplicates (leave blank to use all variables)",
@@ -1441,6 +1438,12 @@
     "数值变量画均值（可选误差线）；文本变量（分类）画个案数，勾上百分比就是占比条形图。": "A numeric variable is drawn as means (with optional error bars); a text variable is counted, and ticking percent turns the counts into shares.",
     "文本变量按百分比画（分母是该变量的有效个案）": "Draw a text variable as percentages (denominator is its valid cases)",
     "文本变量": "text variable",
-    "百分比（%）": "Percent (%)"
+    "百分比（%）": "Percent (%)",
+    "PSPP 2.1.3 没有 RMV。五种方法与 SPSS 同名，都只用这个变量自己在个案顺序上的值，不引入外部数据；替换会作为一步撤销记录，跑下一次分析时才写回文件。": "PSPP 2.1.3 has no RMV. The five methods carry the same names as SPSS; all of them use only that variable's own values in case order and bring in no external data. The replacement is recorded as one undo step and written back to the file only when the next analysis runs.",
+    "临近点的平均值": "Mean of nearby points",
+    "临近点的中位数": "Median of nearby points",
+    "线性插值": "Linear interpolation",
+    "线性趋势处的点": "Linear trend at point",
+    "临近点个数（两侧各取几个；只对临近点两种方法有用）": "Number of nearby points (how many on each side; used only by the two nearby methods)"
   }
 }

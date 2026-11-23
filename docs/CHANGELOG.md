@@ -2,6 +2,17 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+## 0.67.0
+
+替换缺失值补齐到 SPSS 的五种方法，并把 Win10 复验时截的真机图写进 README。
+
+- **五种方法与 SPSS 同名**：`lib/mva.js` 的 `replaceMissing` 原来只有三种（序列平均值 / 线性插值 / 临近点），现在补齐「临近点的平均值」「临近点的中位数」「线性趋势处的点」。求值全部只用该变量自己在个案顺序上的值：临近点两种取两侧各 `span` 个最近的有效值再求均值或中位数，趋势法对有效值拟合最小二乘直线并在缺失点处取值。老方法名 `mean`/`linear`/`nearby` 保持不变，`REPLACE_METHODS` 是白名单，未知名报错时把六种名字都列出来。
+- **`span` 参数贯通三层**：对话框（「临近点个数（两侧各取几个…）」，默认 2）→ `api/missing` 的 `body.span` → `workspace.replaceMissingValues({span})` → `replaceMissing(dataset, names, method, {span})`，夹在 1–100；只有临近点两种方法转发的请求里带 `span`，序列平均值不会多发一个用不上的字段。`pspp_transform` 的 `method` 枚举与 `span` 参数同步扩展。
+- **README 有界面图了**：`docs/` 一直是「只有文字」，`docs/screenshots/` 里 23 张图没有任何 Markdown 引用。现在把 Win10 复验时截的四张真机图（暗色皮肤下的输出查看器、数据视图、描述统计对话框、成册报告 HTML）放进 `docs/screenshots/{panel-output,panel-data,dialog-descriptives,report-book}.png`，README 新增「界面」小节用两张两列的表格排开。
+- 用例：`test/mva.mjs` 加三条（偏斜邻域下均值与中位数确实不同：`34.333…` 对 `2`；趋势法在等距两点上还原 `1/3/5`；`span: 0` 回落到一个点、未知名报错里带 `nearbyMedian`）；`test/routes.mjs` 加一条走完整 HTTP 链路（`nearbyMedian` + `span: 2` → 四格被填成 `1.5/2/2/51`，值从 `api/rows` 读回而不是读 state）；`test/client.mjs` 断言五个选项的顺序与 SPSS 中文名一致、`nearbyMedian` 带 `span: 3`（数字而不是字符串）、`mean` 不带 `span`。
+- 词典：删掉「三种方法」那句提示与两条废弃方法名，新增五条方法名 + 提示 + `span` 标签，`strings` 1441 条。
+- 计数：**37** 套件 / **612** 条 ok（装了 poppler 613）；`test/mva.mjs` 的 13 条与 `test/routes.mjs` 的打印行走各自套件的 `^ok` 行，总数不变。
+
 ## 0.66.0
 
 按 Windows 复验报告（`win10-report-0630.md`，P0 = 0 / P1 = 0 / P2 = 3 / P3 = 5）逐条修；本批把 3 条 P2 与 3 条值得修的 P3 全部处理。

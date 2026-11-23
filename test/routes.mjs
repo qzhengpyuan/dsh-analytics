@@ -1053,6 +1053,21 @@ let filledRow = (fill.state?.dataset?.variables ?? []).find((variable) => variab
 console.log('replace missing values fills and reports the count', r.code === 200, fill.result?.filled === 1,
   fill.state?.dataset?.dirty === true, filledRow?.name === 'score')
 
+// The nearby methods take a span from the request and report the method back.
+await seed('rmv02', [
+  { g: 'M', wave: 1, score: null }, { g: 'M', wave: 1, score: 1 },
+  { g: 'M', wave: 1, score: null }, { g: 'M', wave: 1, score: 2 },
+  { g: 'M', wave: 1, score: null }, { g: 'M', wave: 1, score: 100 },
+  { g: 'M', wave: 1, score: null },
+])
+r = await call('POST', `${base}/api/missing`, { sessionId: 'rmv02', mode: 'replace', variables: ['score'], method: 'nearbyMedian', span: 2 })
+fill = r.json()
+const rmvPage = (await call('POST', `${base}/api/rows`, { sessionId: 'rmv02', offset: 0, limit: 10 })).json().page
+const rmvVals = (rmvPage.rows ?? []).map((row) => row[2])
+console.log('nearby median travels with its span', r.code === 200, fill.result?.method === 'nearbyMedian',
+  fill.result?.filled === 4, JSON.stringify(rmvVals))
+await call('POST', `${base}/api/close`, { sessionId: 'rmv02' })
+
 for (const id of ['mva01']) await call('POST', `${base}/api/close`, { sessionId: id })
 
 // 精确检验：交叉表勾上以后，注文由宿主侧枚举算出（PSPP 只给 2×2 的 Fisher）

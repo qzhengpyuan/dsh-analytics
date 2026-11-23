@@ -51,6 +51,7 @@
 | 0.64.0 | 散点图按类别着色（第三变量分组 + 图例），`pspp_chart` 的 `group` | 已发布 |
 | 0.65.0 | 条形图支持分类变量（计次 / 百分比），对标 SPSS 图形 → 条形图 | 已发布 |
 | 0.66.0 | 修 0.63.0 复验报告：引擎版本进 state、图表编辑器回填且只发改动项、新建图表只弹一个模态、表达式悬空运算符、measure 译法、预览错误就地显示 | 已发布 |
+| 0.67.0 | 替换缺失值补齐 SPSS 五种方法（含 `span`）+ README 补界面图小节（Win10 截的四张真机图） | 已发布 |
 
 ## 3. 下一批详细规划
 
@@ -107,7 +108,7 @@
 
 **第一批（统计量）**
 
-- [ ] 交叉表统计量补齐：风险估计（RR/OR + CI）、Cochran–Mantel–Haenszel、Somers' d、Kendall tau-b/c、Eta、r×c 精确检验（2×2 Fisher 已有）。
+- [x] 交叉表统计量补齐：风险估计（RR/OR + CI）、Cochran–Mantel–Haenszel、Somers' d、Kendall tau-b/c、Eta、r×c 精确检验（2×2 Fisher 已有）—— **早已实现，不必重做**。证据：`client.js` 的 `crosstabs` spec 已含 `chisq/phi/cc/lambda/uc/gamma/btau/ctau/somersd/eta/corr/risk/kappa/exact/exactchi/cmh`；RR/OR 由 `lib/risk.js` 算（PSPP 对字符串变量跑 `RISK` 会段错，数值 2×2 仍走引擎的 `Risk Estimate` 表）；CMH 与 Breslow–Day 在 `lib/cmh.js`，由 `lib/workspace.js` 的 `annotateLayeredCmh` 挂在分层交叉表上；2×2 精确检验用引擎自带的 Fisher 行。复核方法：`grep -n "somersd\|exactchi\|annotateLayeredCmh" client.js lib/*.js`。
 - [ ] 判据：每个统计量都有真引擎输出与手算对照（`test/tables.mjs`/`test/exact.mjs`）。
 
 **第二批（对话框）**
@@ -116,7 +117,7 @@
 - [x] GLM 的协变量（WITH）与保存（`/SAVE`）—— **引擎不支持，明确不做**：PSPP 2.1.3 的 `GLM` 对 `WITH` 与 `/SAVE` 都报 `Syntax error expecting MISSING, INTERCEPT, CRITERIA, METHOD, or DESIGN.`（探针实测），对话框 hint 指向「分析 → 回归 → 线性回归」。
 - [x] 回归诊断图（0.61.0）：残差散点（带 y = 0 虚线）与标准化残差正态 P-P 图，按同一次拟合自算（`lib/regression.js` 的 `regressionPlots`），进输出树、能进成册报告。
 - [x] 回归的保存（预测值/残差）：早已由 `/SAVE=PRED RESID` 支持；杠杆值 PSPP 不输出，不做。
-- [ ] 替换缺失值：序列均值/邻近点/线性插值（PSPP 有 `RMV` 先用引擎，缺的再自算）。
+- [x] 替换缺失值（0.67.0）：五种方法与 SPSS 同名（序列平均值 / 临近点的平均值 / 临近点的中位数 / 线性插值 / 线性趋势处的点），临近点两种可设两侧各取几个（`span`，默认 2，夹在 1–100）。**PSPP 2.1.3 没有 `RMV`**（探针：`RMV: RMV is not yet implemented.`，rc=1），所以整条链路都在插件里算：对话框 → `api/missing` 的 `span` → `workspace.replaceMissingValues` → `lib/mva.js` 的 `replaceMissing(dataset, names, method, {span})`；`pspp_transform` 的 `method` 枚举同步扩展。判据：`test/mva.mjs` 三条（偏斜邻域下均值 34.333… 对中位数 2、趋势法还原 1/3/5、`span: 0` 回落与错误文案列全六种方法）、`test/routes.mjs` 一条走 HTTP（`nearbyMedian` + `span: 2` 把四格填成 `1.5/2/2/51`，值从 `api/rows` 读回）、`test/client.mjs` 断言选项顺序用 SPSS 中文名、`span` 以数字下发、均值法不附带 `span`。
 - [x] 判据：`test/smoke.mjs` 用真引擎跑 `/DESIGN=a b`（只要主效应）与 `/DESIGN=a b a*b`（自动）两条；`test/routes.mjs` 覆盖 `api/regressionPlot` 两张图；`test/regression.mjs` 覆盖两张图的模型结构；`test/client.mjs` 打开回归对话框断言「图」组。自定义设计只剩「为空时中文报错」这一条纯字符串分支（`client.js:2752`）。
 
 ### 3.6 批 0.62.0 —— 数据编辑器增强（1 天）
@@ -129,7 +130,7 @@
 
 ### 3.7 批 0.63.0 —— 可发现性与分发（1 天）
 
-- [ ] README 三张实机截图（面板 / 对话框 / 成册报告）—— 需 Win10 截（本机无有认证的浏览器会话）。
+- [x] README 实机截图（0.67.0）：Win10 复验时截了四张（`01-panel-output` / `02-panel-data` / `03-dialog-descriptives` 2× / `04-report-book`，均为 1000×800 或 1320×880，像素自检 ink 占比 2.5%–99.8%），落到 `docs/screenshots/{panel-output,panel-data,dialog-descriptives,report-book}.png`，README 新增「界面」小节两张两列表格引用。附带发现：`docs/screenshots/` 原有 23 张图**没有任何 Markdown 引用**（只有 CHANGELOG 提过），故 README 里这句话同时把目录挂出来了。
 - [x] 三个同名入口文案区分（0.63.0）：左栏「统计分析（数据面板）」、文件页签「统计分析 · 数据文件」、右栏「统计分析」。
 - [x] 帮助菜单补齐（0.63.0）：快捷键一览、关于（版本/引擎/目录/许可）与真实的 `Alt+1…4` 视图切换。
 - [ ] npm 发布：换名（`dsh-analytics-pspp` 已作包名）+ `npm login`；发布前 `npm pack` 后解包复核。
@@ -158,3 +159,4 @@
 | 2026-11-23 | lead | 0.58.0 发布：向导（预览/列名/类型/跳过行/缺失标记/工作表）+ `pspp_open` 四参数；日期类型明确不做 |
 | 2026-11-23 | lead | 0.59.0 发布：副标题 + 拼版（`composeChartGrid`、`api/chartGrid`、`pspp_chart.grid`）；不做「图表构建器」对话框，理由写在 §3.3；评审 `V-i` 的宽高比判据按实测改成像素尺寸 |
 | 2026-11-23 | lead | 0.60.0 发布：重绘（`redrawChart`、`api/chart/redraw`、`pspp_chart.redrawOf`）+ PNG 倍率；Word/Excel 内嵌尺寸不跟倍率，理由写在 §3.4 |
+| 2026-11-23 | lead | 0.67.0 发布：替换缺失值补齐 SPSS 五种方法（`REPLACE_METHODS`、`span` 贯通三层、`pspp_transform.span`）+ README 界面小节；§3.5 的交叉表统计量按 `grep` 复核标记为「早已实现」 |

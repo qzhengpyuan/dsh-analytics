@@ -4,6 +4,20 @@ PSPP 作为 DeepSeek Harness 插件自带引擎的统计分析工作台：**不�
 
 界面在 DSH 原生右侧栏里以 **统计分析** 标签页出现（通过 `dsh-better-sidebar` 的 `registerTab` 注册），按 SPSS 的操作范式组织：菜单栏 + 工具栏 + 数据视图 / 变量视图 / 语法 / 输出查看器 + 分析对话框。名字里的 analytics 说的是用途，真正干活的是自带的 GNU PSPP 引擎。
 
+## 界面
+
+以下截图取自 Windows 10 上的真实 DSH（暗色皮肤），面板本身跟随宿主主题。
+
+| 输出查看器（含表注与图） | 数据视图 |
+| --- | --- |
+| ![输出查看器](docs/screenshots/panel-output.png) | ![数据视图](docs/screenshots/panel-data.png) |
+
+| 分析对话框（描述统计） | 报告成册生成的 HTML（封面 + 目录） |
+| --- | --- |
+| ![描述统计对话框](docs/screenshots/dialog-descriptives.png) | ![报告成册](docs/screenshots/report-book.png) |
+
+更多界面图（菜单、各类对话框、图表、值标签等）在 [docs/screenshots](docs/screenshots)。
+
 ## Requirements
 
 - DeepSeek Harness **>= 0.2.0**（`package.json` 的 `engines.dsh` 声明了这个范围；低于它的宿主会在安装时就拒绝）

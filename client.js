@@ -2988,7 +2988,7 @@ function normalizeChoices(list) {
       },
       replaceMissing: {
         title: '替换缺失值',
-        hint: 'PSPP 2.1.3 没有 RMV。三种方法都只用这个变量自己的值，不引入外部数据；替换会作为一步撤销记录，跑下一次分析时才写回文件。',
+        hint: 'PSPP 2.1.3 没有 RMV。五种方法与 SPSS 同名，都只用这个变量自己在个案顺序上的值，不引入外部数据；替换会作为一步撤销记录，跑下一次分析时才写回文件。',
         fields: [
           { key: 'variables', kind: 'multi', label: '要替换的变量', required: true, accept: 'numeric' },
         ],
@@ -2996,18 +2996,26 @@ function normalizeChoices(list) {
           { key: 'method', title: '方法', items: [
             { key: 'method', label: '替换方法', kind: 'select', default: 'mean', options: [
               ['mean', '序列平均值'],
-              ['linear', '线性趋势（相邻值内插）'],
-              ['nearby', '临近点'],
+              ['nearbyMean', '临近点的平均值'],
+              ['nearbyMedian', '临近点的中位数'],
+              ['linear', '线性插值'],
+              ['trend', '线性趋势处的点'],
             ] },
+            { key: 'span', label: '临近点个数（两侧各取几个；只对临近点两种方法有用）', kind: 'number', default: 2 },
           ] },
         ],
-        build: (v, flags) => ({
-          missing: {
-            mode: 'replace',
-            variables: v.variables,
-            method: String(flags?.method?.method ?? 'mean'),
-          },
-        }),
+        build: (v, flags) => {
+          const method = String(flags?.method?.method ?? 'mean')
+          const span = Number(flags?.method?.span ?? 2)
+          return {
+            missing: {
+              mode: 'replace',
+              variables: v.variables,
+              method,
+              ...(['nearbyMean', 'nearbyMedian'].includes(method) ? { span } : {}),
+            },
+          }
+        },
       },
       logistic: {
         title: '二元 Logistic 回归',
