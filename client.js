@@ -27,6 +27,16 @@ window.__ModuleLoader__.load({
     // Templates whose capture is one of our own sentences, not user data: a
     // variable called 保存 must not turn into "Save" in the English panel.
     const RECURSIVE_TEMPLATES = new Set(['{0}：不可估（{1}）'])
+    // Help → 快捷键一览. Only what the panel really binds: a help page that lists
+    // keys nobody implemented is worse than none.
+    const SHORTCUTS = [
+      { title: '菜单', rows: [['Alt+F / E / V / D / T / A / G / U / S / H', '打开对应菜单'], ['↑ ↓ / ← →', '在菜单项之间移动'], ['Esc', '关闭菜单']] },
+      { title: '语法编辑器', rows: [['Ctrl+Space', '打开补全列表'], ['Enter / Tab', '接受选中的补全'], ['↑ ↓', '在补全列表里移动'], ['Esc', '关闭补全列表']] },
+      { title: '数据视图', rows: [['Ctrl+C / Ctrl+X / Ctrl+V', '复制 / 剪切 / 粘贴单元格'], ['Delete', '清除选中的单元格'], ['Ctrl+Z / Ctrl+Y', '撤销 / 重做'], ['方向键 / Tab / Enter', '在单元格之间移动']] },
+      { title: '变量视图', rows: [['Shift 点击', '连选一段变量'], ['Ctrl 点击', '加选或取消一个变量'], ['右键', '批量修改、移动、删除']] },
+      { title: '运行与输出', rows: [['Ctrl+Enter', '运行语法编辑器里的语法'], ['Alt+1 … Alt+4', '切到数据 / 变量 / 语法 / 输出']] },
+    ]
+
     const TRANSLATED_PROPS = ['title', 'placeholder', 'aria-label', 'alt']
 
     function setDictionary(strings) {
@@ -780,6 +790,16 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 /* 11px 是正文下限：说明文字/状态栏之外不再出现更小的字 */
 .ap-hint { color:var(--ap-text-2); font-size:11px; }
 .ap-suggest { display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-top:4px; }
+.ap-keys { display:flex; flex-direction:column; gap:12px; }
+.ap-keys-group { display:flex; flex-direction:column; gap:4px; }
+.ap-keys-title { font-weight:600; color:var(--ap-text); }
+.ap-keys-row { display:flex; gap:10px; align-items:baseline; }
+.ap-keys-key { font-family:var(--ap-mono, monospace); font-size:11px; color:var(--ap-text-2); min-width:230px; }
+.ap-keys-what { color:var(--ap-text); }
+.ap-about { display:flex; flex-direction:column; gap:5px; }
+.ap-about-name { font-weight:600; font-size:14px; }
+.ap-about-line { color:var(--ap-text-2); }
+.ap-about-note { color:var(--ap-text-3); font-size:11px; line-height:1.5; margin-top:4px; }
 .ap-suggest-btn { padding:1px 6px; font:inherit; font-size:11px; background:var(--ap-button); color:var(--ap-text);
   border:1px solid var(--ap-line-2); border-radius:3px; cursor:pointer; }
 .ap-suggest-btn:hover { background:var(--ap-hover); }
@@ -5980,6 +6000,16 @@ let ITEM_CSV_PENDING = null
       const menuButtonLabels = () => [...(menuBarRef.current?.querySelectorAll('.ap-menu-button') ?? [])].map((node) => node.textContent)
       useEffect(() => {
         const onKey = (event) => {
+          // Alt+1…4 switches the view the way SPSS does; the menu mnemonics
+          // below share the Alt modifier, so digits are handled first.
+          if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+            const view = { 1: 'data', 2: 'variables', 3: 'syntax', 4: 'output' }[String(event.key)]
+            if (view) {
+              event.preventDefault()
+              setView(view)
+              return
+            }
+          }
           if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
           const wanted = MENU_MNEMONICS[String(event.key).toLowerCase()]
           if (!wanted || !menuButtonLabels().includes(wanted)) return
@@ -7552,8 +7582,9 @@ let ITEM_CSV_PENDING = null
         },
         {
           label: '帮助', items: [
+            { label: '快捷键一览…', action: () => setDialog({ kind: 'shortcuts' }) },
             { label: '检查更新…', action: () => { void checkForUpdate() } },
-            { label: '关于 PSPP 分析', action: () => notify('内置 PSPP 引擎 + SPSS 风格工作台；统计过程由 PSPP 执行。') },
+            { label: '关于 PSPP 分析', action: () => setDialog({ kind: 'about' }) },
           ],
         },
       ])
@@ -8440,6 +8471,35 @@ let ITEM_CSV_PENDING = null
               } catch (error) { notify(error.message) }
             },
           })
+          : null,
+        dialog?.kind === 'shortcuts'
+          ? h(Modal, {
+            title: '快捷键一览',
+            wide: true,
+            onCancel: () => setDialog(null),
+            okText: '关闭',
+            onOk: () => setDialog(null),
+          }, h('div', { className: 'ap-keys' },
+            SHORTCUTS.map((group) => h('div', { key: group.title, className: 'ap-keys-group' },
+              h('div', { className: 'ap-keys-title' }, tr(group.title)),
+              group.rows.map((row) => h('div', { key: row[0], className: 'ap-keys-row' },
+                h('span', { className: 'ap-keys-key', translate: false }, row[0]),
+                h('span', { className: 'ap-keys-what' }, tr(row[1]))))))))
+          : null,
+        dialog?.kind === 'about'
+          ? h(Modal, {
+            title: '关于 PSPP 分析',
+            onCancel: () => setDialog(null),
+            okText: '关闭',
+            onOk: () => setDialog(null),
+          }, h('div', { className: 'ap-about' },
+            h('div', { className: 'ap-about-name' }, 'dsh-analytics-pspp'),
+            h('div', { className: 'ap-about-line' }, tr('版本 {0}', st?.version ?? '?')),
+            h('div', { className: 'ap-about-line' }, tr('引擎：{0}（GNU PSPP 2.1.3）', st?.engine?.version ?? tr('未知'))),
+            h('div', { className: 'ap-about-line' }, tr('引擎来源：{0}', st?.engine?.source ?? '?')),
+            h('div', { className: 'ap-about-line' }, tr('数据目录：{0}', '~/.dsh/analytics')),
+            h('div', { className: 'ap-about-note' }, tr('统计过程由内置 GNU PSPP 执行；界面与注文由插件提供。PSPP 是自由软件（GPLv3），与 IBM SPSS Statistics 没有关系。')),
+            h('div', { className: 'ap-about-note' }, tr('MIT License · github.com/qzhengpyuan/dsh-analytics'))))
           : null,
         dialog?.kind === 'valueLabels'
           ? h(ValueLabelDialog, {
@@ -9522,7 +9582,9 @@ let ITEM_CSV_PENDING = null
             name: 'sidebar.panellist',
             id: 'analytics',
             order: 60,
-            label: () => tr('统计分析'),
+            // The left-hand row and the right-hand tab open the same workbench,
+            // so the row says which half of the screen it is.
+            label: () => tr('统计分析（数据面板）'),
           }, () => ICON_LINE(16)))
           ctx.slots.inject('main', () => ctx.slots.register({
             name: 'main',
@@ -9532,7 +9594,7 @@ let ITEM_CSV_PENDING = null
         if (!ctx.betterSidebar) return
         ctx.effect(() => ctx.betterSidebar.registerFileViewer({
           id: 'analytics:data',
-          title: () => tr('统计分析'),
+          title: () => tr('统计分析 · 数据文件'),
           icon: (size) => ICON_LINE(size || 16),
           exts: DATA_VIEWER_EXTS,
           priority: 5,

@@ -119,7 +119,7 @@ assert.deepEqual(registered.viewers[0].exts, ['sav', 'por', 'sys', 'dta'])
 assert.equal(registered.panels.length, 1, 'one row in the left global panel list')
 assert.equal(registered.panels[0].id, 'analytics')
 assert.equal(registered.panels[0].order, 60)
-assert.equal(registered.panels[0].label(), '统计分析', 'the row is labelled like the workbench')
+assert.equal(registered.panels[0].label(), '统计分析（数据面板）', 'the left row says which half of the screen it opens')
 assert.equal(typeof registered.panels[0].component, 'function', 'the row draws an icon')
 // The row sits next to outline glyphs from the harness' own set (16×16 box,
 // fill="none", round caps, currentColor), so a filled blue badge read as a
@@ -3203,6 +3203,30 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   await clickIn(batchSheet, '应用')
   assert.equal(globalThis.__variableBody?.action, 'updateMany', 'one call carries the whole batch')
   assert.deepEqual(globalThis.__variableBody?.patch?.measure, 'nominal', 'and only the fields the user set')
+
+  // Alt+1…4 switches the view; Ctrl+Enter is documented in the shortcuts
+  // table, so the two rows in that table must match something real.
+  await act(async () => {
+    workHost.dispatchEvent(new window.KeyboardEvent('keydown', { key: '3', altKey: true, bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  })
+  assert.ok([...workHost.querySelectorAll('.ap-view-tab')].some((tab) => tab.textContent === '语法' && String(tab.className).includes('ap-active')), 'Alt+3 lands on the syntax view')
+
+  await openMenu('帮助')
+  const helpPop = workHost.querySelector('.ap-menu-pop')
+  const shortcutsEntry = [...helpPop.querySelectorAll('button')].find((node) => node.textContent === '快捷键一览…')
+  assert.ok(shortcutsEntry, 'the help menu offers the shortcut sheet')
+  shortcutsEntry.click()
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 60)) })
+  const keysSheet = workHost.querySelector('.ap-modal')
+  assert.ok(keysSheet && keysSheet.textContent.includes('Ctrl+Enter'), 'the sheet lists Ctrl+Enter')
+  assert.ok(keysSheet.textContent.includes('Alt+1'), 'and the view switch')
+  await clickIn(keysSheet, '关闭')
+
+  const backToVars = [...workHost.querySelectorAll('.ap-view-tab')].find((tab) => tab.textContent === '变量视图')
+  await clickIn(workHost, '变量视图')
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 60)) })
+
 
   await act(async () => { workRoot.unmount() })
   console.log('ok  syntax templates, run history, bound report, the toolbar tip, the grid, the subtitle, the redraw, the export scale, the regression plots and the compute builder')
