@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict'
 
 import { buildChartModel, composeChartGrid, renderSvg } from '../lib/charts.js'
-import { rasterizeSvg } from '../lib/raster.js'
+import { rasterizeSvg, svgToPng } from '../lib/raster.js'
+import { pngSize } from '../lib/office.js'
 
 let checks = 0
 const check = (name, fn) => {
@@ -81,6 +82,14 @@ check('the grid rasterises to a picture whose every cell has ink', () => {
   assert.ok(inkIn(0, 0, 570, 376) > 500, 'the left cell is drawn')
   assert.ok(inkIn(578, 0, 1148, 376) > 500, 'the right cell is drawn')
   assert.equal(inkIn(560, 0, 576, 376), 0, 'the gap between cells stays empty')
+})
+
+
+check('a PNG exported at 3x has three times the pixels', () => {
+  const svg = renderSvg(bar())
+  const one = pngSize(svgToPng(svg, 1))
+  const three = pngSize(svgToPng(svg, 3))
+  assert.deepEqual([one.width * 3, one.height * 3], [three.width, three.height], 'scale is exact, not rounded')
 })
 
 console.log(`${checks} checks passed`)

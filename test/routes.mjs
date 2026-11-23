@@ -211,6 +211,18 @@ const gridRefused = await call('POST', `${base}/api/chartGrid`, { sessionId: wiz
 if (gridRefused.code !== 200) throw new Error('2x1 holds two charts and must succeed')
 const tooMany = await call('POST', `${base}/api/chartGrid`, { sessionId: wizardSid, items: [chartIds[0], chartIds[1], chartIds[0]], layout: '1x2' })
 if (tooMany.code !== 400) throw new Error('three charts in a two-cell layout must be refused')
+const redrawn = await call('POST', `${base}/api/chart/redraw`, { sessionId: wizardSid, runId: Number(String(chartIds[0]).replace(/^chart-/, '').split('-')[0]), type: 'boxplot' })
+const redrawResult = redrawn.json().result
+const redrawState = redrawn.json().state
+console.log('chart redraw', redrawn.code, redrawResult?.chart?.kind, redrawResult?.redrawnFrom)
+if (redrawn.code !== 200) throw new Error(`api/chart/redraw failed: ${redrawn.json().error}`)
+if (redrawResult?.chart?.kind !== 'boxplot') throw new Error('the redrawn model must be the requested kind')
+const stillThere = (redrawState?.items ?? []).filter((item) => item.kind === 'image')
+if (stillThere.length < 3) throw new Error('the original chart must stay in the output tree')
+if (redrawResult?.item?.chartSpec?.redrawnFrom !== redrawResult?.redrawnFrom) throw new Error('the new chart records where it came from')
+const redrawBad = await call('POST', `${base}/api/chart/redraw`, { sessionId: wizardSid, runId: redrawResult.runId, type: 'nonsense' })
+if (redrawBad.code !== 400) throw new Error('an unknown chart type must be refused')
+
 const tableAsChart = await call('POST', `${base}/api/chartGrid`, { sessionId: wizardSid, items: ['nope'], layout: '2x2' })
 if (tableAsChart.code !== 400) throw new Error('an unknown id must be refused')
 

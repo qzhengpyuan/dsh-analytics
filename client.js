@@ -4876,7 +4876,7 @@ function normalizeChoices(list) {
       picks = null, onTogglePick = null, onReportExport = null,
       onReplayRun = null, onInsertRunSyntax = null,
       tableEdits = {}, onEditTable = () => {}, onPairwise = () => {}, onRoc = () => {},
-      onExportItem = () => {},
+      onExportItem = () => {}, pngScale = 1, onPickScale = () => {}, onRedrawChart = () => {},
     }) {
       const [active, setActive] = useState(null)
       // Which big tables the user asked to see in full. View-only, like the
@@ -5219,9 +5219,21 @@ function normalizeChoices(list) {
                   }, '导出 PNG'),
                   h('button', {
                     className: 'ap-tool',
+                    title: '换成另一种图看同一组数据（旧图仍在输出里）',
+                    onClick: () => onRedrawChart?.(item),
+                  }, '重绘…'),
+                  h('button', {
+                    className: 'ap-tool',
                     title: '导出为 SVG（矢量，文字可编辑）',
                     onClick: () => onExportChart(item, 'svg'),
                   }, '导出 SVG'),
+                  h('select', {
+                    className: 'ap-tool ap-export-scale',
+                    title: 'PNG 导出倍率（1× 是图上看到的尺寸）',
+                    value: String(pngScale),
+                    onChange: (event) => onPickScale?.(Number(event.target.value)),
+                  },
+                  [1, 2, 3, 4].map((value) => h('option', { key: value, value: String(value) }, `${value}×`))),
                   h('button', {
                     className: 'ap-tool',
                     title: '只把这一张图导成 .docx 或 .xlsx（Word 里是内嵌图片，Excel 里图占独立工作表）',
@@ -5257,6 +5269,37 @@ function normalizeChoices(list) {
       { key: '#b4453a', label: '红', color: '#b4453a' },
       { key: '#5b636e', label: '灰', color: '#5b636e' },
     ]
+
+    /**
+     * Draw the same data as another kind of chart.
+     *
+     * The variables stay the same and only the picture changes, so this is one
+     * small dialog rather than a second visit to the chart dialog.
+     */
+    function RedrawChartDialog({ runId, title, from, onClose, onRun }) {
+      const [type, setType] = useState(from && from !== 'grid' ? from : 'histogram')
+      const TYPES = [
+        ['bar', '条形图'],
+        ['histogram', '直方图'],
+        ['boxplot', '箱线图'],
+        ['line', '折线图'],
+        ['pie', '饼图'],
+        ['area', '面积图'],
+        ['scatterplot', '散点图'],
+      ]
+      return h(Modal, {
+        title: '重绘为另一种图',
+        onCancel: onClose,
+        okText: '重绘',
+        onOk: () => onRun({ runId, type }),
+      },
+      h('div', { className: 'ap-hint' }, tr('「{0}」用同一组变量重画；原图保留在输出里。', title ?? '')),
+      h('label', { className: 'ap-field' },
+        h('span', null, '新类型'),
+        h('select', { value: type, onChange: (event) => setType(event.target.value) },
+          TYPES.map(([value, label]) => h('option', { key: value, value }, tr(label))))),
+      from === 'grid' ? h('div', { className: 'ap-error' }, '拼版不能重绘：先取消拼版，重画单图') : null)
+    }
 
     /**
      * Bind several charts into one picture.
@@ -5714,6 +5757,8 @@ let ITEM_CSV_PENDING = null
       // Report card: which output items the document should contain. The
       // export replays their syntax, so the selection is by item id.
       const [reportPick, setReportPick] = useState(() => new Set())
+      // PNG export magnification. 1x is the chart as drawn; 3x is for print.
+      const [pngScale, setPngScale] = useState(1)
       // Every successful run is remembered with the syntax that produced it, so
       // a run in the output tree can be repeated or pasted back into the editor.
       // Kept in localStorage because the browser refresh the panel is reloaded
@@ -7803,8 +7848,12 @@ let ITEM_CSV_PENDING = null
                     mode: 'chartExport',
                     runId: item.runId,
                     format,
+                    scale: pngScale,
                     title: item.title || item.alt || 'chart',
                   }),
+                  pngScale,
+                  onPickScale: (value) => setPngScale(value),
+                  onRedrawChart: (item) => setDialog({ kind: 'redraw', runId: item.runId, title: item.title, from: item.chartSpec?.kind ?? null }),
                   tableStyle,
                   picks: reportPick,
                   onInsertRunSyntax: (runId) => {
@@ -8012,6 +8061,27 @@ let ITEM_CSV_PENDING = null
                 return
               }
               await run(built.syntax, built.persist === true, spec?.title, built.pairwise, built.regression, built.roc, built.exact, built.exactChi, built.contrasts)
+            },
+          })
+          : null,
+        dialog?.kind === 'redraw'
+          ? h(RedrawChartDialog, {
+            runId: dialog.runId,
+            title: dialog.title,
+            from: dialog.from,
+            onClose: () => setDialog(null),
+            onRun: async ({ runId, type }) => {
+              setDialog(null)
+              setBusy(true)
+              try {
+                const value = await api('api/chart/redraw', { sessionId, runId, type })
+                setSt(stateOf(value))
+                notify(tr('已重绘（{0}）', tr(type)))
+              } catch (error) {
+                notify(error.message)
+              } finally {
+                setBusy(false)
+              }
             },
           })
           : null,
@@ -8541,7 +8611,7 @@ let ITEM_CSV_PENDING = null
               if (mode === 'chartExport') {
                 setBusy(true)
                 try {
-                  const value = await api('api/chart/export', { sessionId, runId: browser.runId, path, format: browser.format })
+                  const value = await api('api/chart/export', { sessionId, runId: browser.runId, path, format: browser.format, scale: browser.scale })
                   notify(tr('已导出 {0}（{1} KB）', value.result.path, Math.round(value.result.bytes / 1024)))
                 } catch (error) { notify(error.message) }
                 finally { setBusy(false) }

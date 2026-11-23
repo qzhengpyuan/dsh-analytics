@@ -2778,6 +2778,14 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
         }),
       }
     }
+    if (String(url).includes('api/chart/redraw')) {
+      globalThis.__redrawBody = body
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { runId: 11, redrawnFrom: body?.runId }, state: workState }) }
+    }
+    if (String(url).includes('api/chart/export')) {
+      globalThis.__chartExportBody = body
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { path: body?.path, bytes: 4096 } }) }
+    }
     if (String(url).includes('api/chartGrid')) {
       globalThis.__gridBody = body
       return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { runId: 9, charts: body?.items?.length ?? 0, layout: body?.layout }, state: workState }) }
@@ -3056,6 +3064,45 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   await clickIn(chartEditor, '应用')
   assert.equal(globalThis.__chartPatchBody?.subtitle, 'N = 30，M = 4.2', 'the subtitle travels with the patch')
 
+  // 重绘…: the same data as another kind, and the old chart stays.
+  const redrawButton = [...workHost.querySelectorAll('.ap-tool')].find((node) => node.textContent === '重绘…')
+  assert.ok(redrawButton, 'the chart row offers a redraw')
+  await act(async () => {
+    redrawButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const redrawSheet = workHost.querySelector('.ap-modal')
+  assert.match(redrawSheet.textContent, /重绘为另一种图/, 'the redraw dialog opens')
+  const typeSelect = redrawSheet.querySelector('select')
+  await act(async () => {
+    typeSelect.value = 'boxplot'
+    typeSelect.dispatchEvent(new window.Event('change', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  await clickIn(redrawSheet, '重绘')
+  assert.equal(globalThis.__redrawBody?.type, 'boxplot', 'the chosen type is sent')
+  assert.equal(Number(globalThis.__redrawBody?.runId), 1, 'and the chart it came from')
+
+  // PNG 倍率: the select in the row decides what the export writes.
+  const scaleSelect = [...workHost.querySelectorAll('.ap-export-scale')][0]
+  assert.ok(scaleSelect, 'the row offers an export magnification')
+  assert.deepEqual([...scaleSelect.options].map((option) => option.value), ['1', '2', '3', '4'], 'four steps, 1x to 4x')
+  await act(async () => {
+    scaleSelect.value = '3'
+    scaleSelect.dispatchEvent(new window.Event('change', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  const pngButton = [...workHost.querySelectorAll('.ap-tool')].find((node) => node.textContent === '导出 PNG')
+  await act(async () => {
+    pngButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const exportSheet = workHost.querySelector('.ap-modal')
+  const exportPick = exportSheet?.querySelector('.ap-picker, .ap-file-list, ul')
+  assert.ok(exportSheet, 'the file chooser opens')
+  await clickIn(exportSheet, '选择路径')
+  assert.equal(globalThis.__chartExportBody?.scale, 3, 'the chosen magnification reaches the export call')
+
   await act(async () => { workRoot.unmount() })
-  console.log('ok  syntax templates, run history, bound report, the toolbar tip, the grid and the subtitle')
+  console.log('ok  syntax templates, run history, bound report, the toolbar tip, the grid, the subtitle, the redraw and the export scale')
 }

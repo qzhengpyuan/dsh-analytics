@@ -496,7 +496,7 @@
     "改标题、配色与类别排序": "Change the title, colours and category order",
     "放进报告卡": "Add to the report card",
     "效应量": "Effect size",
-    "散点图": "Scatter",
+    "散点图": "Scatterplot",
     "散点图…": "Scatter…",
     "数值": "Numeric",
     "数值为均数差（左组 − 右组），星号为未校正 P：*** <0.001，** <0.01，* <0.05；ns 不标注": "Values are mean differences (left − right); asterisks are uncorrected P: *** <0.001, ** <0.01, * <0.05; ns is not flagged",
@@ -699,7 +699,7 @@
     "第一行是变量名": "First row holds the variable names",
     "第二变量（右轴，可选）": "Second variable (right axis, optional)",
     "筛选：": "Filter: ",
-    "箱线图": "Boxplot",
+    "箱线图": "Box plot",
     "箱线图…": "Boxplot…",
     "类别": "Categories",
     "类别变量": "Category variable",
@@ -1368,6 +1368,14 @@
     "拼版至少要有一张图": "A grid needs at least one chart",
     "拼版至少要勾一张图": "Tick at least one chart to bind",
     "拼版放不下 {0} 张图：{1} 只有 {2} 格，请少勾几张或换一种拼版": "{0} charts do not fit: {1} has {2} cells; untick a few or pick another layout",
-    "留空则不显示（写统计量、样本量或筛选条件）": "Empty hides it (the statistic, the N, or the filter applied)"
+    "留空则不显示（写统计量、样本量或筛选条件）": "Empty hides it (the statistic, the N, or the filter applied)",
+    "重绘…": "Redraw…",
+    "重绘为另一种图": "Redraw as another chart",
+    "重绘": "Redraw",
+    "新类型": "New type",
+    "「{0}」用同一组变量重画；原图保留在输出里。": "\"{0}\" is drawn again from the same variables; the original stays in the output.",
+    "拼版不能重绘：先取消拼版，重画单图": "A grid cannot be redrawn: unmake the grid and redraw a single chart",
+    "已重绘（{0}）": "Redrawn ({0})",
+    "PNG 导出倍率（1× 是图上看到的尺寸）": "PNG export magnification (1× is the size shown)"
   }
 }

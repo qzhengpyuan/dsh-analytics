@@ -43,6 +43,7 @@
 | 0.57.3 | 工具栏提示：改成落上就显示（用户要求），配色改成固定的深底浅字（皮肤下半透明 token 造成的字同底色） | 已发布 |
 | 0.58.0 | 导入向导：预览（编码/分隔符/跳过行/列名与类型/前 20 行）+ 缺失值标记 + 工作表；`pspp_open` 同参数 | 已发布 |
 | 0.59.0 | 图表工作台：副标题 + 多图拼版（2×2/1×2/2×1）+ 光栅器组偏移；用户标题不被翻译 | 已发布 |
+| 0.60.0 | 重绘为另一种图（`redrawOf`）+ PNG 导出倍率 1×–4× | 已发布 |
 
 ## 3. 下一批详细规划
 
@@ -88,11 +89,12 @@
   - `V-k` 英文界面下用户输入的标题与副标题原样保留。
 - [x] 落点：`client.js`（拼版对话框、副标题字段、图形菜单）、`lib/charts.js`（`subtitle` + `composeChartGrid`）、`lib/raster.js`（组偏移）、`lib/workspace.js`（`addChartGrid`、标题本地化口径）、`lib/routes.js`（`api/chartGrid`）、`lib/tools.js`、词条 17 条、新套件 `test/charts.mjs`。
 
-### 3.4 批 0.60.0 —— 重绘与图表细节（新拆出，1 天）
+### 3.4 批 0.60.0 —— 重绘与图表细节（已完成，0.60.0 发布）
 
-- [ ] 「重绘为其它类型」：对已存在的图选新类型，用同一组变量重画（`pspp_chart` 加 `redrawOf`，保留 `sourceRunId`，旧图仍在输出树里）。
-- [ ] 图大小与 DPI：导出 PNG 的 `scale`（1–4）在面板里可选，Excel/Word 内嵌尺寸按比例算（现在固定 px÷96 dpi、封顶 14 cm）。
-- [ ] 判据：`V-l` 重绘后旧图仍在、新图 `kind` 变、`sourceRunId` 与原图一致；`V-m` scale=3 的 PNG 像素是 scale=1 的 3 倍（`pngSize()`）。
+- [x] 「重绘为其它类型」：输出页图上的「重绘…」，选类型后用同一组变量重画；`pspp_chart` 加 `redrawOf`，保留 `sourceRunId` 与 `chartSpec.redrawnFrom`，旧图仍在输出树里；拼版拒绝重绘并说明原因。
+- [x] PNG 导出倍率：图上 1×/2×/3×/4× 下拉，随 `api/chart/export` 的 `scale` 到服务端（`svgToPng`，上限 4）。
+- [ ] Word/Excel 内嵌尺寸按倍率算 —— **不做**：内嵌图走 `MAX_IMAGE_CX = 5_040_000` 封顶（约 14 cm），与用户选的 PNG 倍率无关；把倍率传进 docx 只会让同一张图在不同导出里尺寸不一致。
+- [x] 判据：`V-l` 重绘后旧图仍在、新图 `kind` 变、`sourceRunId` 与原图一致（`test/routes.mjs` 的 `api/chart/redraw` 组）；`V-m` scale=3 的 PNG 像素是 scale=1 的 3 倍（`test/charts.mjs` 的 `svgToPng` + `pngSize`）。
 
 ### 3.5 批 0.61.0 —— 分析补齐第二轮（评审建议砍成两半，1 天 + 1 天）
 
@@ -144,3 +146,4 @@
 | 2026-11-22 | lead | 合并评审 r1：3.1 收尾、0.58 导入向导、0.59 图表（拆出重绘）、0.60 重绘、0.61 分析两半、0.62 编辑器、0.63 分发 |
 | 2026-11-23 | lead | 0.58.0 发布：向导（预览/列名/类型/跳过行/缺失标记/工作表）+ `pspp_open` 四参数；日期类型明确不做 |
 | 2026-11-23 | lead | 0.59.0 发布：副标题 + 拼版（`composeChartGrid`、`api/chartGrid`、`pspp_chart.grid`）；不做「图表构建器」对话框，理由写在 §3.3；评审 `V-i` 的宽高比判据按实测改成像素尺寸 |
+| 2026-11-23 | lead | 0.60.0 发布：重绘（`redrawChart`、`api/chart/redraw`、`pspp_chart.redrawOf`）+ PNG 倍率；Word/Excel 内嵌尺寸不跟倍率，理由写在 §3.4 |
