@@ -42,6 +42,7 @@
 | 0.57.3 | 送验 0.57.2（V-a…V-d + 回归）；等回执 | 送验中 |
 | 0.57.3 | 工具栏提示：改成落上就显示（用户要求），配色改成固定的深底浅字（皮肤下半透明 token 造成的字同底色） | 已发布 |
 | 0.58.0 | 导入向导：预览（编码/分隔符/跳过行/列名与类型/前 20 行）+ 缺失值标记 + 工作表；`pspp_open` 同参数 | 已发布 |
+| 0.59.0 | 图表工作台：副标题 + 多图拼版（2×2/1×2/2×1）+ 光栅器组偏移；用户标题不被翻译 | 已发布 |
 
 ## 3. 下一批详细规划
 
@@ -71,20 +72,21 @@
 - [ ] 风险：逐列强制「字符串」时 `lib/dataset.js:313` 的宽度推断要走 A 格式分支，这条路目前没有真引擎用例。
 - [ ] 落点：`lib/dataset.js`、`lib/xlsx.js`、`lib/routes.js`（`api/previewImport`）、`client.js`、`pspp_import` 参数。
 
-### 3.3 批 0.59.0 —— 图表工作台（主体不含重绘，1–2 天）
+### 3.3 批 0.59.0 —— 图表工作台（已完成，0.59.0 发布）
 
-**评审改了两处**：① 「误差条」不是一个独立类型（`lib/tools.js:1271` 的枚举是 `bar/histogram/scatterplot/boxplot/line/pie/area`，误差线是 bar 的一个模式，见 `lib/charts.js` 的 `ERROR_BAR_LABELS`），规划文案改成「条形图 + 误差线选项」；② 「重绘为其它类型」拆到 0.60.0 单独立项。
+**评审改了两处**：① 「误差条」不是一个独立类型（`lib/tools.js:1271` 的枚举是 `bar/histogram/scatterplot/boxplot/line/pie/area`，误差线是 bar 的一个模式，见 `lib/charts.js` 的 `ERROR_BAR_LABELS`）；② 「重绘为其它类型」拆到 0.60.0 单独立项。
 
-- [ ] 「图形 → 图表构建器…」：变量列表 + 类型条（条形/折线/饼/散点/直方图/箱线/面积），选中类型后只显示该类型需要的目标框；条形图带误差线选项（`sd`/`se`/`ci95`）。
-- [ ] 一页多图拼版：2×2 / 1×2 / 2×1，**按输出树顺序左上→右下**。
-- [ ] 图注副标题：`subtitle` 是**新字段**（`lib/charts.js` 现无此字段，`applyChartOverrides` 只认 `title/xLabel/yLabel/accent/sortCategories`）。
-- [ ] 判据（评审补的四条）：
-  - `V-h` 条形图 + 误差线 ±1 SD → 语法含 `barMode` 且模型 `categories` 带 `errorLow/errorHigh`。
-  - `V-i` 2×2 拼版的 **PNG 像素**宽高比 ≈ 1.0（单图 1.55），断言必须用 `pngSize()`；**不能断言 docx 的 EMU extent** —— `MAX_IMAGE_CX = 5_040_000` 对任何 ≥529 px 宽的图都会 clamp 成同一个值，断言等于没断。
-  - `V-j` `applyChartOverrides(m,{ subtitle:'x' }).subtitle === 'x'` 且 `renderSvg` 输出含该文本。
-  - `V-k` 英文界面下用户输入的标题原样保留（`lib/workspace.js:3809`/`:3871` 两处 `localize(chart.title)` 会把用户中文标题再翻一次，属 0.56.0 那族）。
-- [ ] 风险：**拼版不能拼字符串** —— 每个 SVG 的背景 rect 用 `WIDTH`/`HEIGHT` 常量（`lib/charts.js:922`），直接拼接会让两个 `viewBox` 打架、白底只盖左上角；要么走 `lib/raster.js`（`parseSvg`→`rasterizeSvg`→`encodePng`）重排，要么写 `computeComposite`。
-- [ ] 落点：`client.js`（构建器对话框）、`lib/charts.js`（拼版 + subtitle）、`lib/workspace.js`（图注保存）、`pspp_chart` 参数、词条。
+**落地时的第三个判断**：不做「图表构建器」对话框。七种类型各自的对话框已经在 `图形` 菜单里，误差线早已在条形图「选项」里，再套一层「先选类型再填目标框」只是菜单套菜单，反而多两次点击。本批做真正缺的两件：副标题、多图拼版。
+
+- [x] 图注副标题：`lib/charts.js` 的 `applyChartOverrides` 认 `subtitle`（空串删除），`renderSvg` 画在标题下 `y=36`；`updateChart` 白名单加 `subtitle`；`pspp_chart` 加 `subtitle`。
+- [x] 一页多图拼版：`图形 → 图表拼版…`，2×2 / 1×2 / 2×1，**按勾选顺序**左上→右下；`composeChartGrid()` 生成单文档单背景（不嵌嵌套 `svg`），`lib/raster.js` 补组 `transform` 支持，导出 PNG 与浏览器一致；`pspp_chart` 加 `grid: {items, layout}`。
+- [x] 用户的标题/副标题不再被 `localize()` 再翻一次（`addChart`/`updateChart` 只在 `options.title === undefined` 时翻生成的标题）。
+- [x] 判据（评审四条 + 实施修正）：
+  - `V-h` 条形图 + 误差线 ±1 SD → 模型 `categories` 带 `errorLow/errorHigh`（真引擎与模型侧早有用例，本批未改）。
+  - `V-i` **改用像素尺寸而非宽高比**：评审算的「2×2 ≈ 1.0」不成立 —— 每格是 560×360，2×2 拼版是 1148×748，宽高比仍是 1.53。`test/charts.mjs` 断言 `1x2` 拼版像素恰为 `1148 × 376`、左右两格都有墨迹、中间 16 px 间隙全空。**仍不能断言 docx EMU extent**（`MAX_IMAGE_CX = 5_040_000` 会 clamp）。
+  - `V-j` `applyChartOverrides(m,{ subtitle:'x' }).subtitle === 'x'` 且 `renderSvg` 含该文本、位置在标题下方。
+  - `V-k` 英文界面下用户输入的标题与副标题原样保留。
+- [x] 落点：`client.js`（拼版对话框、副标题字段、图形菜单）、`lib/charts.js`（`subtitle` + `composeChartGrid`）、`lib/raster.js`（组偏移）、`lib/workspace.js`（`addChartGrid`、标题本地化口径）、`lib/routes.js`（`api/chartGrid`）、`lib/tools.js`、词条 17 条、新套件 `test/charts.mjs`。
 
 ### 3.4 批 0.60.0 —— 重绘与图表细节（新拆出，1 天）
 
@@ -141,3 +143,4 @@
 | 2026-11-22 | win10 | 评审 r1（`X:\临时文件\win10-plan-review.md`）：0.57 收尾必须第一个；导入向导提前到图表工作台之前；误差条不是独立类型；重绘拆出；拼版断言只能钉 PNG 像素；`subtitle` 是新字段；工作表选择已有代码只需补用例 |
 | 2026-11-22 | lead | 合并评审 r1：3.1 收尾、0.58 导入向导、0.59 图表（拆出重绘）、0.60 重绘、0.61 分析两半、0.62 编辑器、0.63 分发 |
 | 2026-11-23 | lead | 0.58.0 发布：向导（预览/列名/类型/跳过行/缺失标记/工作表）+ `pspp_open` 四参数；日期类型明确不做 |
+| 2026-11-23 | lead | 0.59.0 发布：副标题 + 拼版（`composeChartGrid`、`api/chartGrid`、`pspp_chart.grid`）；不做「图表构建器」对话框，理由写在 §3.3；评审 `V-i` 的宽高比判据按实测改成像素尺寸 |

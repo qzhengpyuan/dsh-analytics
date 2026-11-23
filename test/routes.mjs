@@ -193,6 +193,27 @@ if (wizardImport.code !== 200) throw new Error(`importing with the wizard option
 if (wizardState?.dataset?.variables?.[0]?.name !== 'age') throw new Error('the name from the wizard must be used')
 if (wizardState?.dataset?.variables?.[0]?.type !== 'numeric') throw new Error('the type from the wizard must be used')
 
+// 图表拼版：两张图合成一张，按给定顺序放进格子
+const chartOne = await call('POST', `${base}/api/chart`, { sessionId: wizardSid, kind: 'bar', variable: 'age' })
+const chartTwo = await call('POST', `${base}/api/chart`, { sessionId: wizardSid, kind: 'histogram', variable: 'age' })
+const chartIds = [chartOne.json().state?.items, chartTwo.json().state?.items]
+  .map((items) => (items ?? []).filter((item) => item.kind === 'image').at(-1)?.id)
+  .filter(Boolean)
+const grid = await call('POST', `${base}/api/chartGrid`, { sessionId: wizardSid, items: chartIds, layout: '1x2' })
+const gridState = grid.json().state
+const gridItem = (gridState?.items ?? []).filter((item) => item.kind === 'image').at(-1)
+console.log('chart grid', grid.code, chartIds.length, grid.json().result?.layout, gridItem?.title)
+if (grid.code !== 200) throw new Error(`api/chartGrid failed: ${grid.json().error}`)
+if (chartIds.length !== 2) throw new Error('both charts must exist before binding them')
+if (grid.json().result?.charts !== 2) throw new Error('the grid must count both charts')
+if (!/拼版/.test(String(gridItem?.title ?? ''))) throw new Error('the grid becomes an output of its own')
+const gridRefused = await call('POST', `${base}/api/chartGrid`, { sessionId: wizardSid, items: chartIds, layout: '2x1' })
+if (gridRefused.code !== 200) throw new Error('2x1 holds two charts and must succeed')
+const tooMany = await call('POST', `${base}/api/chartGrid`, { sessionId: wizardSid, items: [chartIds[0], chartIds[1], chartIds[0]], layout: '1x2' })
+if (tooMany.code !== 400) throw new Error('three charts in a two-cell layout must be refused')
+const tableAsChart = await call('POST', `${base}/api/chartGrid`, { sessionId: wizardSid, items: ['nope'], layout: '2x2' })
+if (tableAsChart.code !== 400) throw new Error('an unknown id must be refused')
+
 // 批量粘贴：一次请求写入一个矩形块
 const paste = await call('POST', `${base}/api/paste`, {
   sessionId: sid,

@@ -5258,8 +5258,58 @@ function normalizeChoices(list) {
       { key: '#5b636e', label: '灰', color: '#5b636e' },
     ]
 
+    /**
+     * Bind several charts into one picture.
+     *
+     * Four small charts side by side answer "how do these compare" better than
+     * four separate pictures scrolled apart, and the grid is one more output —
+     * the individual charts stay in the tree.
+     */
+    function ChartGridDialog({ items, preselected, onClose, onRun }) {
+      const charts = (items ?? []).filter((item) => item.kind === 'image')
+      const [picked, setPicked] = useState(() => {
+        const initial = (preselected ?? []).filter((id) => charts.some((item) => item.id === id))
+        return initial.length > 0 ? initial : charts.map((item) => item.id)
+      })
+      const [layout, setLayout] = useState('2x2')
+      const capacity = layout === '1x2' ? 2 : layout === '2x1' ? 2 : 4
+      const order = picked.map((id) => charts.find((item) => item.id === id)).filter(Boolean)
+      const toggle = (id) => {
+        setPicked((current) => (current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]))
+      }
+      return h(Modal, {
+        title: '图表拼版',
+        wide: true,
+        onCancel: onClose,
+        okText: '拼版',
+        okDisabled: order.length === 0 || order.length > capacity,
+        onOk: () => onRun({ items: order.map((item) => item.id), layout }),
+      },
+      h('div', { className: 'ap-row' },
+        h('span', null, '版式'),
+        h('select', { value: layout, onChange: (event) => setLayout(event.target.value), style: { flex: 1 } },
+          h('option', { value: '2x2' }, '2 × 2（最多 4 张，左上→右下）'),
+          h('option', { value: '1x2' }, '1 × 2（左右并排，最多 2 张）'),
+          h('option', { value: '2x1' }, '2 × 1（上下叠放，最多 2 张）'))),
+      h('div', { className: 'ap-hint' }, tr('勾选要拼的图，勾选顺序就是格子顺序（当前 {0} 张，这种版式放 {1} 张）。', order.length, capacity)),
+      charts.length === 0
+        ? h('div', { className: 'ap-hint' }, '输出里还没有图：先用「图形」菜单画一张。')
+        : h('div', { className: 'ap-picker-list', style: { maxHeight: 220 } },
+          charts.map((item) => h('label', { key: item.id },
+            h('input', {
+              type: 'checkbox',
+              checked: picked.includes(item.id),
+              onChange: () => toggle(item.id),
+            }),
+            tr('{0}（第 {1} 次运行）', item.title ?? item.id, item.runId ?? '?')))),
+      order.length > capacity
+        ? h('div', { className: 'ap-error' }, tr('勾了 {0} 张，这种版式只放 {1} 张：换 2 × 2 或取消几张。', order.length, capacity))
+        : null)
+    }
+
     function ChartEditDialog({ title, onClose, onApply }) {
       const [heading, setHeading] = useState(title ?? '')
+      const [subtitle, setSubtitle] = useState('')
       const [xLabel, setXLabel] = useState('')
       const [yLabel, setYLabel] = useState('')
       const [accent, setAccent] = useState('')
@@ -5284,6 +5334,7 @@ function normalizeChoices(list) {
           }
           onApply({
             title: heading.trim(),
+            subtitle,
             xLabel,
             yLabel,
             accent: accent || '',
@@ -5292,6 +5343,7 @@ function normalizeChoices(list) {
         },
       },
       field('标题', text(heading, setHeading, '图表标题')),
+      field('副标题', text(subtitle, setSubtitle, '留空则不显示（写统计量、样本量或筛选条件）')),
       field('X 轴标题', text(xLabel, setXLabel, '留空则保留原样')),
       field('Y 轴标题', text(yLabel, setYLabel, '留空则保留原样')),
       field('主色', h('select', { value: accent, onChange: (event) => setAccent(event.target.value) },
@@ -7248,6 +7300,7 @@ let ITEM_CSV_PENDING = null
             { label: '饼图…', action: () => setDialog({ kind: 'chart', type: 'pie' }) },
             { label: '面积图…', action: () => setDialog({ kind: 'chart', type: 'area' }) },
             { label: '散点图…', action: () => setDialog({ kind: 'chart', type: 'scatterplot' }) },
+            { label: '图表拼版…', action: () => setDialog({ kind: 'chartGrid' }) },
             {
               label: '快速图形（用当前选中的列）',
               sub: [
@@ -7959,6 +8012,26 @@ let ITEM_CSV_PENDING = null
                 return
               }
               await run(built.syntax, built.persist === true, spec?.title, built.pairwise, built.regression, built.roc, built.exact, built.exactChi, built.contrasts)
+            },
+          })
+          : null,
+        dialog?.kind === 'chartGrid'
+          ? h(ChartGridDialog, {
+            items: st?.items ?? [],
+            preselected: [...reportPick],
+            onClose: () => setDialog(null),
+            onRun: async ({ items: ids, layout }) => {
+              setDialog(null)
+              setBusy(true)
+              try {
+                const value = await api('api/chartGrid', { sessionId, items: ids, layout })
+                setSt(stateOf(value))
+                notify(tr('已拼版 {0} 张图（{1}）', ids.length, layout === '1x2' ? '1 × 2' : layout === '2x1' ? '2 × 1' : '2 × 2'))
+              } catch (error) {
+                notify(error.message)
+              } finally {
+                setBusy(false)
+              }
             },
           })
           : null,

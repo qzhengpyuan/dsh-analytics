@@ -1352,6 +1352,22 @@
     "原表头：{0}": "Original heading: {0}",
     "共 {0} 行、{1} 列；预览显示前 {2} 行。改了编码/分隔符/行数会重新读取。": "{0} rows, {1} columns; the preview shows the first {2}. Changing the encoding, delimiter or skipped lines reads the file again.",
     "自动（UTF-8 优先，失败再 GB18030）": "Automatic (UTF-8 first, then GB18030)",
-    "自动（当前识别为 {0}）": "Automatic (detected {0})"
+    "自动（当前识别为 {0}）": "Automatic (detected {0})",
+    "图表拼版…": "Chart grid…",
+    "图表拼版": "Chart grid",
+    "版式": "Layout",
+    "2 × 2（最多 4 张，左上→右下）": "2 × 2 (up to 4, left to right, top to bottom)",
+    "1 × 2（左右并排，最多 2 张）": "1 × 2 (side by side, up to 2)",
+    "2 × 1（上下叠放，最多 2 张）": "2 × 1 (stacked, up to 2)",
+    "勾选要拼的图，勾选顺序就是格子顺序（当前 {0} 张，这种版式放 {1} 张）。": "Tick the charts to bind; tick order is cell order ({0} ticked, this layout holds {1}).",
+    "输出里还没有图：先用「图形」菜单画一张。": "No charts yet: draw one from the Graphs menu first.",
+    "{0}（第 {1} 次运行）": "{0} (run {1})",
+    "勾了 {0} 张，这种版式只放 {1} 张：换 2 × 2 或取消几张。": "{0} ticked but this layout holds {1}: switch to 2 × 2 or untick a few.",
+    "拼版": "Bind",
+    "已拼版 {0} 张图（{1}）": "Bound {0} charts ({1})",
+    "拼版至少要有一张图": "A grid needs at least one chart",
+    "拼版至少要勾一张图": "Tick at least one chart to bind",
+    "拼版放不下 {0} 张图：{1} 只有 {2} 格，请少勾几张或换一种拼版": "{0} charts do not fit: {1} has {2} cells; untick a few or pick another layout",
+    "留空则不显示（写统计量、样本量或筛选条件）": "Empty hides it (the statistic, the N, or the filter applied)"
   }
 }

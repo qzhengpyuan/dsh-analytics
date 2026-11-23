@@ -2778,6 +2778,14 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
         }),
       }
     }
+    if (String(url).includes('api/chartGrid')) {
+      globalThis.__gridBody = body
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { runId: 9, charts: body?.items?.length ?? 0, layout: body?.layout }, state: workState }) }
+    }
+    if (String(url).includes('api/chart/update')) {
+      globalThis.__chartPatchBody = body
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state: workState }) }
+    }
     if (String(url).includes('api/reportBook')) {
       globalThis.__lastBookBody = body
       return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { path: body?.path, format: 'docx', bytes: 4096, tables: 1, figures: 0 } }) }
@@ -3002,6 +3010,52 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.deepEqual(globalThis.__openBody?.options?.types, ['string', 'string'], 'so is the edited type')
   assert.equal(globalThis.__openBody?.options?.skipRows, 1, 'and the skipped lines')
   assert.deepEqual(globalThis.__openBody?.options?.missing, ['NA', '-9'], 'the missing markers are passed as a list')
+  // 图形 → 图表拼版…: the ticked charts become one picture, in tick order.
+  pop = await openMenu('图形')
+  await clickIn(pop, '图表拼版…')
+  const gridSheet = workHost.querySelector('.ap-modal')
+  assert.match(gridSheet.textContent, /图表拼版/, 'the grid dialog opens')
+  const chartCount = (workState.items ?? []).filter((item) => item.kind === 'image').length
+  const boxes = [...gridSheet.querySelectorAll('input[type=checkbox]')]
+  assert.ok(chartCount >= 1, 'the fixture has a chart')
+  assert.equal(boxes.length, chartCount, 'every chart in the output is offered')
+  assert.ok(boxes.every((box) => box.checked), 'and all of them start ticked')
+  const layoutSelect = gridSheet.querySelector('select')
+  assert.deepEqual([...layoutSelect.options].map((option) => option.value), ['2x2', '1x2', '2x1'], 'the three layouts are there')
+  await act(async () => {
+    layoutSelect.value = '1x2'
+    layoutSelect.dispatchEvent(new window.Event('change', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  await clickIn(gridSheet, '拼版')
+  assert.equal(globalThis.__gridBody?.items?.length, chartCount, 'every ticked chart is sent')
+  assert.equal(globalThis.__gridBody?.layout, '1x2', 'with the chosen layout')
+
+  // 图表编辑器 → 副标题: what the title cannot say, without retyping the title.
+  const workOutTab = [...workHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
+  await act(async () => {
+    workOutTab.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const editButton = [...workHost.querySelectorAll('.ap-tool')].find((node) => node.textContent === '编辑图表')
+  assert.ok(editButton, 'the chart row has an edit button')
+  await act(async () => {
+    editButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const chartEditor = workHost.querySelector('.ap-modal')
+  assert.match(chartEditor.textContent, /副标题/, 'the editor offers a subtitle')
+  const subtitleInput = [...chartEditor.querySelectorAll('input[type=text]')][1]
+  assert.ok(subtitleInput, 'the subtitle is a text field')
+  await act(async () => {
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+    setValue.call(subtitleInput, 'N = 30，M = 4.2')
+    subtitleInput.dispatchEvent(new window.Event('input', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  await clickIn(chartEditor, '应用')
+  assert.equal(globalThis.__chartPatchBody?.subtitle, 'N = 30，M = 4.2', 'the subtitle travels with the patch')
+
   await act(async () => { workRoot.unmount() })
-  console.log('ok  syntax templates, run history, bound report and the SPSS-style toolbar tip')
+  console.log('ok  syntax templates, run history, bound report, the toolbar tip, the grid and the subtitle')
 }
