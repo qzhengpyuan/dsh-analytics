@@ -663,6 +663,16 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 /* 大表先画一屏：几千行的频率表全量渲染会让整页变慢，也让浏览器快照大到没法用 */
 .ap-table-block { display:flex; flex-direction:column; gap:2px; }
 /* 表注：跟着表走，不翻译（里面是变量名和数字） */
+.ap-wiz-controls { flex-wrap:wrap; gap:10px; align-items:flex-end; }
+.ap-wiz-field { display:flex; flex-direction:column; gap:2px; font-size:11px; color:var(--ap-text-2); }
+.ap-wiz-field select, .ap-wiz-field input { font-size:12px; }
+.ap-wiz-preview { max-height:260px; overflow:auto; border:1px solid var(--ap-line); border-radius:3px; margin:4px 0 6px; }
+.ap-wiz-preview table { border-collapse:collapse; width:100%; font-size:11px; }
+.ap-wiz-preview th, .ap-wiz-preview td { border-right:1px solid var(--ap-line); border-bottom:1px solid var(--ap-line); padding:1px 5px; white-space:nowrap; text-align:left; }
+.ap-wiz-preview thead th { background:var(--ap-head); position:sticky; top:0; z-index:1; }
+.ap-wiz-name { width:92px; font-size:11px; }
+.ap-wiz-type { font-size:11px; }
+.ap-missing { color:var(--ap-text-3); font-style:italic; }
 .ap-notes { list-style:none; margin:2px 0 6px; padding:0; display:flex; flex-direction:column; gap:2px; }
 .ap-note { font-size:11px; font-style:italic; color:var(--ap-text-3); line-height:1.45; }
 .ap-table-more { display:flex; align-items:center; gap:8px; padding:2px 2px 4px;
@@ -912,6 +922,142 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         h('label', { style: { display: 'flex', gap: 6, alignItems: 'center' } },
           h('input', { type: 'checkbox', checked: header, onChange: (event) => setHeader(event.target.checked) }),
           '第一行是变量名')))
+    }
+
+    /**
+     * The import wizard: show what the file will become before it becomes it.
+     *
+     * A delimited file carries no encoding, no delimiter and no column types, so
+     * the import guesses — and a guess that turns 「年龄」 into V1 or a numeric
+     * column into text is expensive to notice after the fact. Here the file is
+     * read again on every change and the first rows are shown, so the choice is
+     * made against the data instead of against its name.
+     */
+    function ImportWizard({ path, preview, busy, onClose, onPreview, onRun }) {
+      const [encoding, setEncoding] = useState('auto')
+      const [delimiter, setDelimiter] = useState('auto')
+      const [header, setHeader] = useState(preview?.hasHeader !== false)
+      const [skipRows, setSkipRows] = useState(String(preview?.skipRows ?? 0))
+      const [missing, setMissing] = useState('NA, -9')
+      const [sheet, setSheet] = useState(preview?.sheet ?? '')
+      const [names, setNames] = useState({})
+      const [types, setTypes] = useState({})
+      const kind = preview?.kind ?? 'delimited'
+      const columns = preview?.columns ?? []
+      const settings = () => ({
+        encoding,
+        delimiter,
+        hasHeader: header,
+        skipRows: Number(skipRows) || 0,
+        missing: missing.split(/[,，;；\s]+/).filter(Boolean),
+        sheet,
+      })
+      const ask = (patch = {}) => onPreview({ ...settings(), ...patch })
+      const nameOf = (index) => names[index] ?? columns[index]?.name ?? ''
+      const typeOf = (index) => types[index] ?? columns[index]?.type ?? 'numeric'
+      const importOptions = () => ({
+        ...settings(),
+        names: columns.map((_, index) => nameOf(index)),
+        types: columns.map((_, index) => typeOf(index)),
+      })
+      return h(Modal, {
+        title: '导入向导',
+        onCancel: onClose,
+        okText: '导入',
+        wide: true,
+        onOk: () => onRun(importOptions()),
+      },
+      h('div', { className: 'ap-row' },
+        h('span', null, '文件'),
+        h('span', { className: 'ap-hint', style: { overflow: 'hidden', textOverflow: 'ellipsis' } }, path)),
+      h('div', { className: 'ap-row ap-wiz-controls' },
+        kind === 'sheet'
+          ? h('label', { className: 'ap-wiz-field' },
+            h('span', null, '工作表'),
+            h('select', {
+              value: sheet,
+              onChange: (event) => { setSheet(event.target.value); ask({ sheet: event.target.value }) },
+            }, (preview?.sheets ?? []).map((name) => h('option', { key: name, value: name }, name))))
+          : h('label', { className: 'ap-wiz-field' },
+            h('span', null, '编码'),
+            h('select', {
+              value: encoding,
+              onChange: (event) => { setEncoding(event.target.value); ask({ encoding: event.target.value }) },
+            },
+            h('option', { value: 'auto' }, '自动（UTF-8 优先，失败再 GB18030）'),
+            h('option', { value: 'utf-8' }, 'UTF-8'),
+            h('option', { value: 'gbk' }, 'GBK / GB2312'),
+            h('option', { value: 'gb18030' }, 'GB18030'),
+            h('option', { value: 'big5' }, 'Big5'),
+            h('option', { value: 'latin1' }, 'Latin-1'))),
+        kind === 'sheet'
+          ? null
+          : h('label', { className: 'ap-wiz-field' },
+            h('span', null, '分隔符'),
+            h('select', {
+              value: delimiter,
+              onChange: (event) => { setDelimiter(event.target.value); ask({ delimiter: event.target.value }) },
+            },
+            h('option', { value: 'auto' }, `自动（当前识别为 ${preview?.delimiter === '\t' ? 'Tab' : preview?.delimiter || '逗号'}）`),
+            h('option', { value: ',' }, '逗号 ,'),
+            h('option', { value: ';' }, '分号 ;'),
+            h('option', { value: '\t' }, '制表符 Tab'),
+            h('option', { value: '|' }, '竖线 |'))),
+        h('label', { className: 'ap-wiz-field' },
+          h('span', null, '跳过开头'),
+          h('input', {
+            type: 'number',
+            min: 0,
+            value: skipRows,
+            style: { width: 70 },
+            onChange: (event) => setSkipRows(event.target.value),
+            onBlur: () => ask(),
+          }),
+          h('span', { className: 'ap-hint' }, '行')),
+        h('label', { className: 'ap-wiz-field' },
+          h('span', null, '缺失值标记'),
+          h('input', {
+            type: 'text',
+            value: missing,
+            placeholder: 'NA, -9',
+            style: { width: 120 },
+            onChange: (event) => setMissing(event.target.value),
+            onBlur: () => ask(),
+          }))),
+      h('label', { className: 'ap-check' },
+        h('input', {
+          type: 'checkbox',
+          checked: header,
+          onChange: (event) => { setHeader(event.target.checked); ask({ hasHeader: event.target.checked }) },
+        }), '第一行是变量名（不勾则按 V1、V2… 命名）'),
+      busy
+        ? h('div', { className: 'ap-hint' }, tr('正在读取…'))
+        : h('div', { className: 'ap-wiz-preview' },
+          h('table', { className: 'ap-tbl-grid' },
+            h('thead', null,
+              h('tr', null, columns.map((column, index) => h('th', { key: index },
+                h('input', {
+                  className: 'ap-wiz-name',
+                  type: 'text',
+                  value: nameOf(index),
+                  title: column.label ? tr('原表头：{0}', column.label) : tr('变量名'),
+                  onChange: (event) => setNames((current) => ({ ...current, [index]: event.target.value })),
+                }),
+                h('select', {
+                  className: 'ap-wiz-type',
+                  value: typeOf(index),
+                  onChange: (event) => setTypes((current) => ({ ...current, [index]: event.target.value })),
+                },
+                h('option', { value: 'numeric' }, '数值'),
+                h('option', { value: 'string' }, '字符串')))))),
+            h('tbody', null,
+              (preview?.rows ?? []).map((row, rowIndex) => h('tr', { key: rowIndex },
+                columns.map((_, index) => h('td', { key: index }, row[index] === null || row[index] === undefined ? h('span', { className: 'ap-missing' }, '缺失') : String(row[index])))))))),
+      h('div', { className: 'ap-hint' },
+        tr('共 {0} 行、{1} 列；预览显示前 {2} 行。改了编码/分隔符/行数会重新读取。', preview?.totalRows ?? 0, columns.length, (preview?.rows ?? []).length)),
+      (preview?.notes ?? []).length > 0
+        ? h('ul', { className: 'ap-notes' }, preview.notes.map((note, index) => h('li', { key: index }, note)))
+        : null)
     }
 
     /**
@@ -6880,6 +7026,7 @@ let ITEM_CSV_PENDING = null
           label: '文件', items: [
             { label: '新建数据', action: async () => { const value = await api('api/new', { sessionId }); setSt(stateOf(value)); setView('data') } },
             { label: '打开数据…', action: () => setBrowser({ mode: 'open' }) },
+            { label: '导入向导…', action: () => setBrowser({ mode: 'importWizard' }) },
             { label: '保存数据', action: saveAs },
             { label: '另存为…', action: () => setBrowser({ mode: 'save' }) },
             { sep: true },
@@ -7963,6 +8110,27 @@ let ITEM_CSV_PENDING = null
             },
           })
           : null,
+        dialog?.kind === 'importWizard'
+          ? h(ImportWizard, {
+            path: dialog.path,
+            preview: dialog.preview,
+            busy,
+            onClose: () => setDialog(null),
+            onPreview: async (options) => {
+              try {
+                const value = await api('api/previewImport', { sessionId, path: dialog.path, options })
+                setDialog((current) => (current && current.kind === 'importWizard' ? { ...current, preview: value.result } : current))
+              } catch (error) {
+                notify(error.message)
+              }
+            },
+            onRun: async (options) => {
+              const { path, title } = dialog
+              setDialog(null)
+              await openPath(path, { title, import: options })
+            },
+          })
+          : null,
         dialog?.kind === 'sheet'
           ? h(SheetDialog, {
             path: dialog.path,
@@ -8256,6 +8424,20 @@ let ITEM_CSV_PENDING = null
               const mode = browser.mode
               setBrowser(null)
               if (mode === 'open') return openPath(path)
+              if (mode === 'importWizard') {
+                setBusy(true)
+                try {
+                  // The wizard opens on the file as the import would guess it;
+                  // every change re-asks, so the preview is never stale.
+                  const value = await api('api/previewImport', { sessionId, path, options: {} })
+                  setDialog({ kind: 'importWizard', path, preview: value.result, title: basenameOf(path) })
+                } catch (error) {
+                  notify(error.message)
+                } finally {
+                  setBusy(false)
+                }
+                return
+              }
               if (mode === 'merge') { setDialog((prev) => (prev && prev.kind === 'merge' ? { ...prev, path } : prev)); return }
               if (mode === 'save') {
                 setBusy(true)

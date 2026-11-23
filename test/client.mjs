@@ -2749,12 +2749,45 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   window.fetch = async (url, options) => {
     calls.push(String(url))
     const body = options?.body ? JSON.parse(String(options.body)) : null
+    if (String(url).includes('api/previewImport')) {
+      // The route answers what the file would become; the stub answers with the
+      // options it was given, which is what the wizard must round-trip.
+      globalThis.__previewBody = body
+      const options = body?.options ?? {}
+      const names = options.names ?? ['V1', 'V2']
+      const types = options.types ?? ['numeric', 'string']
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          ok: true,
+          result: {
+            path: body?.path,
+            kind: 'delimited',
+            encoding: options.encoding ?? 'auto',
+            delimiter: options.delimiter ?? ',',
+            hasHeader: options.hasHeader !== false,
+            skipRows: options.skipRows ?? 0,
+            sheet: null,
+            sheets: [],
+            totalRows: 2,
+            columns: names.map((name, index) => ({ name, label: index === 0 ? '年龄' : '性别', type: types[index] ?? 'numeric', width: 12, missing: [] })),
+            rows: [[21, '男'], [34, '女']],
+            notes: ['第 1 列的表头「年龄」没有可用的 ASCII 字符，变量名改为「V1」，原表头保留为标签'],
+          },
+        }),
+      }
+    }
     if (String(url).includes('api/reportBook')) {
       globalThis.__lastBookBody = body
       return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { path: body?.path, format: 'docx', bytes: 4096, tables: 1, figures: 0 } }) }
     }
     if (String(url).includes('api/dir')) {
       return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, path: decodeURIComponent(String(url).split('path=')[1] ?? ''), entries: [], pick: null }) }
+    }
+    if (String(url).includes('api/open')) {
+      globalThis.__openBody = body
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { kind: 'dataset', caseCount: 2 }, state: workState }) }
     }
     if (String(url).includes('api/heartbeat')) {
       return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, signal: workState.signal }) }
@@ -2912,6 +2945,63 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   // tip; restoring only the last one left the earlier icons without a title for
   // the rest of the session.
   assert.equal(icons[0].hasAttribute('title'), true, 'the icon passed through earlier got its title back too')
+
+  // 文件 → 导入向导…: the file is read as a preview first, and every change
+  // re-asks before anything is imported. Without this, a Chinese heading that
+  // turns into V1 or a numeric column read as text is only noticed afterwards.
+  pop = await openMenu('文件')
+  await clickIn(pop, '导入向导…')
+  // The browser lists the cwd on mount and fills the path box when the listing
+  // arrives; typing before that would be overwritten.
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)) })
+  const picker = workHost.querySelector('.ap-modal')
+  assert.ok(picker, 'the file browser opens for the wizard')
+  const wizardPathInput = picker.querySelector('input[type=text]')
+  assert.ok(wizardPathInput, 'the browser has a path box')
+  // React installs its own value setter on the input, so a plain assignment
+  // moves the tracker too and onChange never sees a change. Go through the
+  // prototype setter, which is what a real keystroke does.
+  await act(async () => {
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+    setValue.call(wizardPathInput, '/tmp/wizard.csv')
+    wizardPathInput.dispatchEvent(new window.Event('input', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  await clickIn(picker, '选择路径')
+  const wizard = [...workHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.match(wizard.textContent, /导入向导/, 'the wizard is what opened')
+  assert.equal(globalThis.__previewBody?.path, '/tmp/wizard.csv', 'the preview was asked for that file')
+  const nameBox = wizard.querySelector('.ap-wiz-name')
+  assert.equal(nameBox.value, 'V1', 'the column name the import would use is shown and editable')
+  assert.equal(nameBox.getAttribute('title'), '原表头：年龄', 'the heading that could not be kept is still visible')
+  assert.match(wizard.textContent, /共 2 行、2 列/, 'the preview counts the rows and columns')
+  assert.match(wizard.textContent, /年龄/, 'and repeats the rename note')
+  const skipBox = [...wizard.querySelectorAll('input[type=number]')][0]
+  assert.ok(skipBox, 'the skip-rows field is there')
+  await act(async () => {
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+    setValue.call(skipBox, '1')
+    skipBox.dispatchEvent(new window.Event('input', { bubbles: true }))
+    // React listens for focusout, not blur (blur does not bubble).
+    skipBox.dispatchEvent(new window.Event('focusout', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+  })
+  assert.equal(globalThis.__previewBody?.options?.skipRows, 1, 'changing the skipped lines reads the file again')
+  await act(async () => {
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+    setValue.call(nameBox, 'age')
+    nameBox.dispatchEvent(new window.Event('input', { bubbles: true }))
+    const typeSelect = wizard.querySelector('.ap-wiz-type')
+    typeSelect.value = 'string'
+    typeSelect.dispatchEvent(new window.Event('change', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  await clickIn(wizard, '导入')
+  assert.equal(globalThis.__openBody?.path, '/tmp/wizard.csv', 'importing opens the file the wizard previewed')
+  assert.deepEqual(globalThis.__openBody?.options?.names, ['age', 'V2'], 'the edited variable name is used')
+  assert.deepEqual(globalThis.__openBody?.options?.types, ['string', 'string'], 'so is the edited type')
+  assert.equal(globalThis.__openBody?.options?.skipRows, 1, 'and the skipped lines')
+  assert.deepEqual(globalThis.__openBody?.options?.missing, ['NA', '-9'], 'the missing markers are passed as a list')
   await act(async () => { workRoot.unmount() })
   console.log('ok  syntax templates, run history, bound report and the SPSS-style toolbar tip')
 }

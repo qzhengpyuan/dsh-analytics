@@ -170,6 +170,29 @@ console.log('open sps', openedSps.code, spsJson.result?.kind, String(spsJson.res
 if (spsJson.result?.kind !== 'syntax') throw new Error('api/open must report a syntax file')
 if (spsJson.state?.dataset?.sourcePath?.endsWith('.sps')) throw new Error('a syntax file must not become the dataset')
 
+// 导入向导：预览一个还没导入的文件（列名、类型、前几行），并且不动数据集
+// A session of its own: this block imports a file, and the checks below still
+// need the dataset the later cases were written against.
+const wizardSid = `${sid}-wizard`
+const wizardCsv = join(home, 'wizard.csv')
+await writeFile(wizardCsv, '年度报表\n年龄,性别\n21,男\n34,女\n')
+const previewed = await call('POST', `${base}/api/previewImport`, { sessionId: wizardSid, path: wizardCsv, options: { skipRows: 1 } })
+const previewJson = previewed.json()
+console.log('preview import', previewed.code, previewJson.result?.totalRows, (previewJson.result?.columns ?? []).map((column) => column.type).join(','))
+if (previewed.code !== 200) throw new Error(`api/previewImport failed: ${previewJson.error}`)
+if (previewJson.result?.totalRows !== 2) throw new Error('the preview must count the rows after the skipped ones')
+if ((previewJson.result?.columns ?? []).length !== 2) throw new Error('the preview must list the columns')
+if (previewJson.state?.dataset?.sourcePath?.endsWith('wizard.csv')) throw new Error('a preview must not import anything')
+const wizardImport = await call('POST', `${base}/api/open`, {
+  sessionId: wizardSid,
+  path: wizardCsv,
+  options: { skipRows: 1, names: ['age', 'sex'], types: ['numeric', 'string'], missing: ['-9'] },
+})
+const wizardState = wizardImport.json().state
+if (wizardImport.code !== 200) throw new Error(`importing with the wizard options failed: ${wizardImport.json().error}`)
+if (wizardState?.dataset?.variables?.[0]?.name !== 'age') throw new Error('the name from the wizard must be used')
+if (wizardState?.dataset?.variables?.[0]?.type !== 'numeric') throw new Error('the type from the wizard must be used')
+
 // 批量粘贴：一次请求写入一个矩形块
 const paste = await call('POST', `${base}/api/paste`, {
   sessionId: sid,
