@@ -10052,9 +10052,10 @@ let ITEM_CSV_PENDING = null
             name: 'sidebar.panellist',
             id: 'analytics',
             order: 60,
-            // The left-hand row and the right-hand tab open the same workbench,
-            // so the row says which half of the screen it is.
-            label: () => tr('统计分析（数据面板）'),
+            // Both entries open the same workbench, so they deliberately share
+            // one name: the user asked for the plain "统计分析" here rather than
+            // a row that advertises which half of the screen it lives in.
+            label: () => tr('统计分析'),
           }, () => ICON_LINE(16)))
           ctx.slots.inject('main', () => ctx.slots.register({
             name: 'main',

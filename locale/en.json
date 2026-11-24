@@ -1398,7 +1398,6 @@
     "表达式里的「{0}」不是当前数据集里的变量：变量名区分大小写之外按原样写，函数名请从下面点选": "\"{0}\" in the expression is not a variable in this dataset: write names as they are, and pick functions from the list below",
     "目标变量可以是不存在的名字（会新建一列）；表达式里的函数与变量名点下面的按钮插入。保存 = 写回数据集。": "The target may be a new name (a column is created). Insert functions and variable names with the buttons below. Save writes back to the dataset.",
     "括号要成对；变量名必须是当前数据集里的（表达式里写新名字不会算出来）。": "Brackets must pair up, and every name must already exist in the dataset.",
-    "统计分析（数据面板）": "Statistical analysis (data panel)",
     "统计分析 · 数据文件": "Statistical analysis · data file",
     "快捷键一览…": "Keyboard shortcuts…",
     "快捷键一览": "Keyboard shortcuts",

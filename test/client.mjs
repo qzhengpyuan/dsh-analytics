@@ -119,7 +119,7 @@ assert.deepEqual(registered.viewers[0].exts, ['sav', 'por', 'sys', 'dta'])
 assert.equal(registered.panels.length, 1, 'one row in the left global panel list')
 assert.equal(registered.panels[0].id, 'analytics')
 assert.equal(registered.panels[0].order, 60)
-assert.equal(registered.panels[0].label(), '统计分析（数据面板）', 'the left row says which half of the screen it opens')
+assert.equal(registered.panels[0].label(), '统计分析', 'the left row is named plainly, without the panel suffix')
 assert.equal(typeof registered.panels[0].component, 'function', 'the row draws an icon')
 // The row sits next to outline glyphs from the harness' own set (16×16 box,
 // fill="none", round caps, currentColor), so a filled blue badge read as a

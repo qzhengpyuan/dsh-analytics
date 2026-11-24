@@ -14,7 +14,8 @@
 - **P3-2：`pspp_edit_chart` 的描述说明支持范围**（含 km、树状图、时间序列；分类排序只对 bar/pie/pareto/area 有意义）。
 - **P3-3：Cox 交叉校验写清适用条件** —— 单二分类协变量**且事件时间无并列**时得分检验与 log-rank 逐字相等；有并列时因 ties 处理不同（超几何 vs Breslow）允许不等。
 
-用例：`test/survival.mjs` 8→9 条（图里印中位生存期；从不降到 50% 印 `—` 且 SVG 高度 378）+ `test/routes.mjs` 新增 4 行（真建一张 km 图再 `api/chart/update` 改标题，标题必须落地——这条正是原来的盲区：`test/*.mjs` 从来没有覆盖过 `updateChart`）+ `test/charts.mjs` 的可用值断言收紧。
+- **左侧入口改名**：左栏那一行由「统计分析（数据面板）」改为「统计分析」，与右栏页签同名（两个入口打开的是同一个工作台，后缀只是在解释它落在屏幕哪一半，用户不需要）。
+- 用例：`test/survival.mjs` 8→9 条（图里印中位生存期；从不降到 50% 印 `—` 且 SVG 高度 378）+ `test/routes.mjs` 新增 4 行（真建一张 km 图再 `api/chart/update` 改标题，标题必须落地——这条正是原来的盲区：`test/*.mjs` 从来没有覆盖过 `updateChart`）+ `test/charts.mjs` 的可用值断言收紧。
 
 41 套件 / 673 条 ok（装了 poppler 674），工具 27 个。
 
