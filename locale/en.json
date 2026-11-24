@@ -1626,6 +1626,15 @@
     "查找过程…（Ctrl+Shift+F）": "Search the Menus… (Ctrl+Shift+F)",
     "输入过程名或菜单路径里的字，比如「泊松」「T 检验」": "Type part of a procedure or a menu path, for example “Poisson” or “t-test”",
     "{0} 条可用命令": "{0} commands",
-    "没有匹配的过程": "No procedure matches"
+    "没有匹配的过程": "No procedure matches",
+    "权重估计（加权最小二乘）": "Weight Estimation (weighted least squares)",
+    "权重变量": "Weight variable",
+    "（选一个权重变量）": "(choose a weight variable)",
+    "权重越大表示该个案越可信（残差方差按 1/权重 缩小）；0 或负数会被剔除。": "A larger weight means the case is more reliable (the residual variance shrinks as 1/weight); zero or negative weights are dropped.",
+    "权重全相同时结果与普通最小二乘一致 —— 那样就没必要用这个对话框。": "When every weight is equal the result is ordinary least squares — this dialog is then pointless.",
+    "权重估计…（加权最小二乘）": "Weight Estimation… (weighted least squares)",
+    "权重估计：{0} 例，R² {1}": "Weight estimation: {0} cases, R² {1}",
+    "估计标准误": "Std. error of the estimate",
+    "调整 R²": "Adjusted R²"
   }
 }

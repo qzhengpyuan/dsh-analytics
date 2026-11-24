@@ -2188,6 +2188,54 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     }
 
     /**
+     * 权重估计：同一条回归，每个个案带权重（误差方差按 1/w 缩小）。
+     * PSPP 没有 WLS，所以拟合在宿主侧做；这里只负责挑变量与权重列。
+     */
+    function WlsDialog({ variables, onRun, onClose }) {
+      const numeric = variables.filter((variable) => variable.type === 'numeric')
+      const [dependent, setDependent] = useState(null)
+      const [weight, setWeight] = useState(null)
+      const [chosen, setChosen] = useState([])
+      const toggle = (name) => setChosen((current) => (current.includes(name)
+        ? current.filter((entry) => entry !== name)
+        : [...current, name]))
+      const candidates = numeric.filter((variable) => variable.name !== dependent && variable.name !== weight)
+      const ready = Boolean(dependent && weight && chosen.length > 0)
+      return h(Modal, {
+        title: '权重估计（加权最小二乘）',
+        wide: true,
+        okDisabled: !ready,
+        onCancel: onClose,
+        onOk: () => onRun({ dependent, independents: chosen, weight }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '自变量（数值）'),
+          h('div', { className: 'ap-dlg-list' }, candidates.length
+            ? candidates.map((variable) => h('span', {
+              key: variable.name,
+              className: `ap-chip${chosen.includes(variable.name) ? ' ap-chip-on' : ''}`,
+              onClick: () => toggle(variable.name),
+              translate: false,
+            }, variable.name))
+            : h('div', { className: 'ap-hint' }, '还没有可用的数值自变量（分类自变量要先造哑变量）。'))),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '因变量'),
+            h('select', { value: dependent ?? '', onChange: (event) => setDependent(event.target.value || null) },
+              h('option', { value: '' }, '（选一个因变量）'),
+              numeric.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '权重变量'),
+            h('select', { value: weight ?? '', onChange: (event) => setWeight(event.target.value || null) },
+              h('option', { value: '' }, '（选一个权重变量）'),
+              numeric.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-hint' }, '权重越大表示该个案越可信（残差方差按 1/权重 缩小）；0 或负数会被剔除。'),
+          h('div', { className: 'ap-hint' }, '权重全相同时结果与普通最小二乘一致 —— 那样就没必要用这个对话框。'),
+          h('div', { className: 'ap-hint' }, tr('已选 {0} 个自变量', chosen.length)))))
+    }
+
+    /**
      * Two-way comparison of the groups of one variable.
      *
      * This is the table a paper needs behind an overall group difference, so it
@@ -7292,6 +7340,22 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId])
 
+      const runWls = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/wls', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const model = value.result?.model ?? {}
+          notify(tr('权重估计：{0} 例，R² {1}', model.cases ?? 0, Number(model.rSquare ?? 0).toFixed(3)))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId, notify, setSt, setView, setDialog])
+
       const runPoisson = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -8143,6 +8207,7 @@ let ITEM_CSV_PENDING = null
               { label: '多项 Logistic…（3 类以上）', action: () => setDialog({ kind: 'multinomial' }) },
               { label: '有序 Logistic…（有先后次序）', action: () => setDialog({ kind: 'ordinal' }) },
               { label: '泊松回归…（计数因变量）', action: () => setDialog({ kind: 'poisson' }) },
+              { label: '权重估计…（加权最小二乘）', action: () => setDialog({ kind: 'wls' }) },
             ] },
             { label: '降维', sub: [
               { label: '因子…', action: () => runAnalysis('factor') },
@@ -9389,6 +9454,13 @@ let ITEM_CSV_PENDING = null
           ? h(MultinomialDialog, {
             variables,
             onRun: (payload) => runMultinomial(payload),
+            onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'wls'
+          ? h(WlsDialog, {
+            variables,
+            onRun: (payload) => runWls(payload),
             onClose: () => setDialog(null),
           })
           : null,

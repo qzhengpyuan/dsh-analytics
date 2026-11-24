@@ -1288,6 +1288,14 @@ console.log('multinomial ->', r.code, mlr.result?.matrix?.[0]?.[0], mlr.result?.
 r = await call('POST', `${base}/api/multinomial`, { sessionId: 'mlr01', options: { dependent: 'arm', independents: ['dose'], reference: 'mid' } })
 console.log('multinomial with a reference ->', r.code, r.json().result?.model?.reference,
   r.json().result?.model?.categories?.join(','))
+// Weighted least squares: same normal equations, one weight column.
+r = await call('POST', `${base}/api/wls`, { sessionId: 'mlr01', options: { dependent: 'dose', independents: ['counts'], weight: 'counts' } })
+const wls = r.json()
+console.log('wls ->', r.code, wls.result?.matrix?.[0]?.[0], wls.result?.items?.length,
+  Number.isFinite(wls.result?.model?.rSquare), wls.state?.items?.length > 0)
+r = await call('POST', `${base}/api/wls`, { sessionId: 'mlr01', options: { dependent: 'dose', independents: ['counts'], weight: 'arm' } })
+console.log('wls with a text weight ->', r.code, /权重变量要求数值变量/.test(String(r.json().error)))
+
 // Poisson regression: the count model is fitted in the plugin, so the route
 // must produce the three tables without an engine run.
 r = await call('POST', `${base}/api/poisson`, { sessionId: 'mlr01', options: { dependent: 'counts', independents: ['dose'] } })

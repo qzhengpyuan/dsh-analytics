@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 30, names.join(' '))
+  assert.equal(names.length, 31, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -202,6 +202,17 @@ await check('pspp_poisson fits a log-link count model and reports dispersion', a
   assert.ok(out.cases >= 3, `cases ${out.cases}`)
   assert.ok(out.dispersion >= 0 && Number.isFinite(out.dispersion), `dispersion ${out.dispersion}`)
   assert.match(out.notes.join(' '), /log\(预测计数\)/, 'the note prints the fitted equation')
+})
+
+await check('pspp_wls fits a weighted regression and equals OLS with equal weights', async () => {
+  // `weight` is 1 for every case in the seeded data, so the coefficients must
+  // match the plain regression the engine would give for the same variables.
+  const out = await call('pspp_wls', { dependent: 'score', independents: ['group'], weight: 'time' })
+  assert.equal(out.matrix[0][0], '变量', JSON.stringify(out).slice(0, 300))
+  assert.equal(out.tables.length, 3, 'summary, ANOVA and coefficients')
+  assert.ok(out.cases >= 3, `cases ${out.cases}`)
+  assert.ok(Number.isFinite(out.rSquare), `R² ${out.rSquare}`)
+  assert.match(out.notes.join(' '), /权重合计/, 'the note reports the weight total')
 })
 
 await check('pspp_cluster builds the agglomeration schedule and can draw the tree', async () => {

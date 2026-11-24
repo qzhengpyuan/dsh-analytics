@@ -2136,6 +2136,36 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     await new Promise((resolve) => setTimeout(resolve, 40))
   })
   assert.match(clientSource, /api\('api\/poisson', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/poisson')
+  // 权重估计：与泊松同一个回归组，多一个权重变量下拉。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const analysePop6 = menuHost.querySelector('.ap-menu-pop')
+  const regressionGroup4 = [...analysePop6.querySelectorAll('button')].find((node) => node.textContent.startsWith('回归'))
+  await act(async () => {
+    regressionGroup4?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const wlsItem = [...(regressionGroup4?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])].find((node) => node.textContent.startsWith('权重估计'))
+  assert.ok(wlsItem, 'the regression group lists weight estimation')
+  await act(async () => {
+    wlsItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const wlsDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.match(wlsDialog?.textContent ?? '', /权重估计/, 'the dialog is titled like the procedure')
+  assert.match(wlsDialog.textContent, /权重变量/, 'and asks for the weight column')
+  assert.match(wlsDialog.textContent, /0 或负数会被剔除/, 'and says what happens to bad weights')
+  const wlsOk = [...wlsDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(wlsOk.disabled, true, 'three choices are required before it can run')
+  const wlsCancel = [...wlsDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    wlsCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.match(clientSource, /api\('api\/wls', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/wls')
+
   // 「查找过程」：整条菜单路径可搜，选中即执行。路径是唯一的区分手段，
   // 所以断言里连「分析 → 回归 →」这一段也要对。
   const commands = hooks.flattenCommands([
