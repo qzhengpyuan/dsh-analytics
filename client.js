@@ -7604,6 +7604,7 @@ let ITEM_CSV_PENDING = null
         {
           label: '图形', items: [
             { label: '条形图…', action: () => setDialog({ kind: 'chart', type: 'bar' }) },
+            { label: '帕累托图…', action: () => setDialog({ kind: 'chart', type: 'pareto' }) },
             { label: '直方图…', action: () => setDialog({ kind: 'chart', type: 'histogram' }) },
             { label: '箱线图…', action: () => setDialog({ kind: 'chart', type: 'boxplot' }) },
             { label: 'P-P / Q-Q 图（正态）…', action: () => setDialog({ kind: 'chart', type: 'ppplot' }) },
@@ -9080,6 +9081,16 @@ let ITEM_CSV_PENDING = null
     ]
 
     const CHART_SPECS = {
+      pareto: {
+        title: '帕累托图',
+        hint: '按类别计次、从多到少排序，折线是累计百分比；参考线默认 80%（质量问题里常说的「关键的少数」）。',
+        fields: [
+          { key: 'variable', kind: 'single', label: '类别变量', required: true, accept: 'any' },
+          { key: 'reference', kind: 'number', label: '参考线（累计百分比）', default: 80 },
+          { key: 'maxCategories', kind: 'number', label: '最多画几类（0 = 全部，其余并成「其他」）', default: 0 },
+        ],
+        build: (v) => ({ chart: { kind: 'pareto', options: { variable: v.variable, reference: Number(v.reference ?? 80), maxCategories: Number(v.maxCategories ?? 0) } } }),
+      },
       bar: {
         title: '条形图',
         hint: '数值变量画均值（可选误差线）；文本变量（分类）画个案数，勾上百分比就是占比条形图。',

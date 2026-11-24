@@ -1466,6 +1466,15 @@
     "转置（行与列互换）": "Transpose (rows and columns)",
     "要转置的变量": "Variables to transpose",
     "名称变量（可选，用它的取值当新变量名）": "Name variable (optional; its values become the new variable names)",
-    "把选中的变量转成个案、原来的个案转成变量。新变量名默认是 VAR00001…（原变量名保留在 CASE_LBL 里），也可以指定「名称变量」，用它的取值当新变量名。": "Turn the chosen variables into cases and the old cases into variables. The new names default to VAR00001… with the old names kept in CASE_LBL, or come from the values of a name variable."
+    "把选中的变量转成个案、原来的个案转成变量。新变量名默认是 VAR00001…（原变量名保留在 CASE_LBL 里），也可以指定「名称变量」，用它的取值当新变量名。": "Turn the chosen variables into cases and the old cases into variables. The new names default to VAR00001… with the old names kept in CASE_LBL, or come from the values of a name variable.",
+    "帕累托图…": "Pareto Chart…",
+    "帕累托图": "Pareto chart",
+    "{0} 的帕累托图": "Pareto chart of {0}",
+    "按类别计次、从多到少排序，折线是累计百分比；参考线默认 80%（质量问题里常说的「关键的少数」）。": "Counts per category, sorted from most to least, with the cumulative share as a line; the reference line sits at 80% by default (the vital few).",
+    "参考线（累计百分比）": "Reference line (cumulative %)",
+    "最多画几类（0 = 全部，其余并成「其他」）": "Categories to draw (0 = all; the rest fold into 其他)",
+    "其他": "Other",
+    "参考线 {0}%": "Reference {0}%",
+    "参考线的百分比要在 0 到 100 之间（不含两端）": "The reference line has to be between 0 and 100 percent (exclusive)"
   }
 }

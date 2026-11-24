@@ -220,4 +220,45 @@ check('a fit line that cannot be drawn is dropped, not faked', () => {
   assert.ok(Number(line[4]) >= 0 && Number(line[4]) <= 360, `and so does the end: ${line[4]}`)
 })
 
+check('a pareto chart sorts the bars and accumulates the share', () => {
+  const dataset = {
+    variables: [{ name: 'defect', type: 'string' }],
+    rows: [['A'], ['A'], ['A'], ['B'], ['B'], ['C'], ['C'], ['D']],
+  }
+  const model = buildChartModel(dataset, 'pareto', { variable: 'defect' })
+  assert.equal(model.kind, 'pareto')
+  assert.deepEqual(model.bars.map((bar) => bar.label), ['A', 'B', 'C', 'D'], 'most frequent first, ties by code')
+  assert.deepEqual(model.bars.map((bar) => bar.count), [3, 2, 2, 1])
+  assert.deepEqual(model.bars.map((bar) => bar.cumulative), [37.5, 62.5, 87.5, 100], 'the last point is always 100%')
+  assert.equal(model.reference, 80, 'the default reference line sits at 80%')
+  assert.equal(model.total, 8)
+  const svg = renderSvg(model)
+  assert.match(svg, /参考线 80%/, 'the reference line is labelled')
+  assert.match(svg, /87\.5/, 'the cumulative points are drawn')
+})
+
+check('a pareto chart can fold the tail, and refuses a bad reference', () => {
+  const dataset = {
+    variables: [{ name: 'defect', type: 'string' }],
+    rows: [['A'], ['A'], ['A'], ['B'], ['B'], ['C'], ['C'], ['D']],
+  }
+  const folded = buildChartModel(dataset, 'pareto', { variable: 'defect', maxCategories: 2, reference: 70 })
+  assert.deepEqual(folded.bars.map((bar) => bar.label), ['A', 'B', '其他'], 'the tail becomes one bar')
+  assert.equal(folded.bars[2].count, 3)
+  assert.equal(folded.bars[2].folded, 2, 'and it remembers how many categories it swallowed')
+  assert.equal(folded.bars[2].cumulative, 100, 'the folded bar closes the curve')
+  assert.throws(() => buildChartModel(dataset, 'pareto', { variable: 'defect', reference: 100 }), /参考线/, 'a reference of 100% is refused')
+  assert.throws(() => buildChartModel(dataset, 'pareto', { variable: 'nope' }), /unknown variable/, 'an unknown variable is named')
+})
+
+check('a pareto chart ignores missing values instead of counting them', () => {
+  const dataset = {
+    variables: [{ name: 'defect', type: 'string' }],
+    rows: [['A'], [null], ['B'], [null], ['A']],
+  }
+  const model = buildChartModel(dataset, 'pareto', { variable: 'defect' })
+  assert.equal(model.total, 3, 'blanks are not a category')
+  assert.deepEqual(model.bars.map((bar) => bar.label), ['A', 'B'])
+})
+
 console.log(`${checks} checks passed`)
