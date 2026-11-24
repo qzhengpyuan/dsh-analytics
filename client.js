@@ -7586,6 +7586,9 @@ let ITEM_CSV_PENDING = null
               { label: '表 2：组间比较…', action: () => setDialog({ kind: 'publication', tableKind: 'compare' }) },
             ] },
             { label: 'ROC 曲线…', action: () => runAnalysis('roc') },
+            { label: '生存分析', sub: [
+              { label: 'Kaplan–Meier…（生存曲线 + log-rank）', action: () => setDialog({ kind: 'chart', type: 'km' }) },
+            ] },
             { label: '质量控制', sub: [
               { label: '控制图…（X̄–R）', action: () => setDialog({ kind: 'chart', type: 'control' }) },
               { label: '帕累托图…', action: () => setDialog({ kind: 'chart', type: 'pareto' }) },
@@ -9085,6 +9088,16 @@ let ITEM_CSV_PENDING = null
     ]
 
     const CHART_SPECS = {
+      km: {
+        title: 'Kaplan–Meier 生存曲线',
+        hint: '选随访时间（数值）与事件指示（1 = 事件发生，0 = 删失）；可选分组变量，分组时一并做 log-rank 检验。PSPP 没有生存分析过程，曲线与检验都在插件里算。',
+        fields: [
+          { key: 'time', kind: 'single', label: '生存时间（数值）', required: true },
+          { key: 'event', kind: 'single', label: '事件指示（1 = 事件发生，0 = 删失）', required: true },
+          { key: 'group', kind: 'single', label: '分组变量（可选；分组时做 log-rank 检验）' },
+        ],
+        build: (v) => ({ chart: { kind: 'km', options: { time: v.time, event: v.event, group: v.group || null } } }),
+      },
       control: {
         title: '控制图（X̄–R）',
         hint: '按子组算均值与极差，两组图共用横轴；中心线与上下控制限由平均极差算出（A2 / D3 / D4 常数表只到 10 个个案一组）。越界的点画成红点。',

@@ -63,6 +63,7 @@ jobs:
           node test/contrasts.mjs
           node test/risk.mjs
           node test/exact.mjs
+          node test/survival.mjs
 
       - name: client bundle (jsdom)
         run: node test/client.mjs

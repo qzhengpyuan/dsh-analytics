@@ -1491,6 +1491,21 @@
     "至少要两个子组才画得出控制图（子组太少，控制限没有意义）": "At least two subgroups are needed: with fewer, the control limits mean nothing",
     "各子组的大小必须相同，现在有 {0} 种：控制限常数是按固定子组大小查表的": "Every subgroup has to be the same size; there are {0} different sizes now, and the constants are looked up for one fixed size",
     "子组大小要在 2 到 10 之间（控制图常数表只到 10）": "The subgroup size has to be between 2 and 10 (the constants stop at ten)",
-    "第 {0} 组": "Group {0}"
+    "第 {0} 组": "Group {0}",
+    "Kaplan–Meier…（生存曲线 + log-rank）": "Kaplan–Meier… (survival curve + log-rank)",
+    "Kaplan–Meier 生存曲线": "Kaplan–Meier survival curve",
+    "{0} 的 Kaplan–Meier 生存曲线": "Kaplan–Meier survival curve of {0}",
+    "{0} 的 Kaplan–Meier 生存曲线（按 {1} 分组）": "Kaplan–Meier survival curve of {0} by {1}",
+    "选随访时间（数值）与事件指示（1 = 事件发生，0 = 删失）；可选分组变量，分组时一并做 log-rank 检验。PSPP 没有生存分析过程，曲线与检验都在插件里算。": "Pick the follow-up time (numeric) and the event indicator (1 = event, 0 = censored); a grouping variable is optional and adds a log-rank test. PSPP has no survival procedure, so the curve and the test are computed in the plugin.",
+    "生存时间（数值）": "Survival time (numeric)",
+    "事件指示（1 = 事件发生，0 = 删失）": "Event indicator (1 = event, 0 = censored)",
+    "分组变量（可选；分组时做 log-rank 检验）": "Grouping variable (optional; adds a log-rank test)",
+    "生存分析": "Survival",
+    "生存时间要求数值变量：{0} 是文本变量": "Survival time has to be numeric: {0} is a text variable",
+    "事件指示变量要求数值（1 = 事件发生，0 = 删失）：{0} 是文本变量": "The event indicator has to be numeric (1 = event, 0 = censored): {0} is a text variable",
+    "没有可用的生存数据（生存时间与事件指示都得有值）": "No usable survival data: both the time and the event indicator need a value",
+    "log-rank 的方差矩阵是奇异的：某一组在整个随访里没有事件": "The log-rank variance matrix is singular: one group has no events at all",
+    "随访时间（{0}）": "Follow-up time ({0})",
+    "{0} (n={1}, 事件 {2})": "{0} (n={1}, events {2})"
   }
 }

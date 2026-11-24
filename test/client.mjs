@@ -2497,6 +2497,13 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.equal(numeric.chart.statistic, 'MEAN', 'a numeric variable is still averaged')
   assert.equal(textual.chart.tableId, null, 'the table id defaults to null')
   assert.equal(build(hooks.CHART_SPECS.bar, { variable: 'score', tableId: 'run-1-0' }, {}, variables).chart.tableId, 'run-1-0', 'and travels when chosen')
+  // 生存分析：对话框交时间、事件指示与可选分组，曲线与 log-rank 在插件里算。
+  const km = build(hooks.CHART_SPECS.km, { time: 'score', event: 'gender', group: 'gender' }, {}, variables)
+  assert.equal(km.chart.kind, 'km', 'the dialog asks for a survival model')
+  assert.equal(km.chart.options.time, 'score')
+  assert.equal(km.chart.options.event, 'gender')
+  assert.equal(km.chart.options.group, 'gender')
+  assert.equal(build(hooks.CHART_SPECS.km, { time: 'score', event: 'gender', group: '' }, {}, variables).chart.options.group, null, 'no grouping means one curve')
   // 控制图：对话框只交变量、子组变量与子组大小，限值与越界判断在图模型里。
   const control = build(hooks.CHART_SPECS.control, { variable: 'score', subgroup: 'gender', size: '4' }, {}, variables)
   assert.equal(control.chart.kind, 'control', 'the dialog asks for a control-chart model')
