@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 26, names.join(' '))
+  assert.equal(names.length, 27, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -176,6 +176,14 @@ await check('pspp_cluster builds the agglomeration schedule and can draw the tre
   assert.ok(out.tables.length >= 3, 'schedule, membership and sizes come back')
   assert.ok(out.model.n >= 3, 'every complete case is clustered')
   assert.ok(out.chart?.title, 'the dendrogram is drawn on request')
+})
+
+await check('pspp_timeseries smooths a series and can draw it', async () => {
+  const out = await call('pspp_timeseries', { variable: 'time', method: 'ma', span: 2, periods: 1, chart: true })
+  assert.equal(out.matrix[0][0], '项目', JSON.stringify(out).slice(0, 200))
+  assert.ok(out.model.count >= 1, 'at least one point is fitted')
+  assert.equal(out.model.forecast.length, 1, 'one forecast period was asked for')
+  assert.ok(out.chart?.title, 'the series chart is drawn on request')
 })
 
 await check('pspp_discriminant fits a discriminant model and classifies the cases', async () => {

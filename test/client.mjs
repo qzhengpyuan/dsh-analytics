@@ -2076,6 +2076,27 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.match(clientSource, /api\('api\/cluster', \{ sessionId, options \}\)/, 'the runner posts to api/cluster')
 }
 
+// 时间序列：拟合在宿主侧算，所以对话框只挑方法并把该方法的参数带上；
+// 不该用到的参数不能混进请求体，否则界面会显示一个用户没填过的值。
+{
+  const specs = hooks.ANALYSIS_SPECS
+  assert.ok(specs?.timeseries?.build, 'the time-series dialog exists')
+  const moving = specs.timeseries.build({ variable: 'score', periods: '2' },
+    { tsOptions: { method: 'ma', span: '3', alpha: '0.5', beta: '0.5', chart: true } })
+  assert.deepEqual(moving.timeseries, { variable: 'score', method: 'ma', periods: 2, span: 3 },
+    `unexpected smoothing request: ${JSON.stringify(moving.timeseries)}`)
+  assert.equal(moving.chart, 'timeseries', 'the checkbox asks for the series chart')
+  const holt = specs.timeseries.build({ variable: 'score' },
+    { tsOptions: { method: 'des', span: '9', alpha: '0.4', beta: '0.1' } })
+  assert.deepEqual(holt.timeseries, { variable: 'score', method: 'des', periods: 0, alpha: 0.4, beta: 0.1 },
+    'Holt carries alpha and beta but never the moving-average window')
+  const defaults = specs.timeseries.build({ variable: 'score' }, {})
+  assert.equal(defaults.timeseries.method, 'ses', 'simple smoothing is the default')
+  assert.equal(defaults.timeseries.periods, 0, 'and nothing is extrapolated unless asked')
+  assert.equal(defaults.chart, null, 'no chart unless it is asked for')
+  assert.match(clientSource, /api\('api\/timeseries', \{ sessionId, options \}\)/, 'the runner posts to api/timeseries')
+}
+
 // The settings page is what makes the knobs reachable without editing the
 // profile patch, so it has to render the values it read, say where they live,
 // and post a validated patch back.

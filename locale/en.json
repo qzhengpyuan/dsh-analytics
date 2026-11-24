@@ -1549,6 +1549,22 @@
     "同时画树状图": "Draw the dendrogram too",
     "Ward 法要用「欧氏距离平方」：把距离测度换过来再确定。": "Ward's method needs squared Euclidean distance: switch the measure and press OK.",
     "系统聚类：{0} 个个案分成 {1} 组": "Hierarchical cluster: {0} cases in {1} groups",
-    "系统聚类树状图": "Hierarchical cluster dendrogram"
+    "系统聚类树状图": "Hierarchical cluster dendrogram",
+    "时间序列": "Time Series",
+    "移动平均 / 指数平滑…（序列图）": "Moving Average / Exponential Smoothing… (series chart)",
+    "时间序列（移动平均 / 指数平滑）": "Time Series (moving average / exponential smoothing)",
+    "按个案顺序平滑一条数值序列：移动平均、简单指数平滑或双指数平滑，输出模型摘要（MAE / RMSE / MAPE）与序列拟合表，可另画序列图。PSPP 2.1.3 不认识 TSLINE，也没有指数平滑，所以拟合在插件里算；每个拟合值都是用这一期之前的值做的一步预测。": "Smooths one numeric series in case order with a moving average, simple exponential smoothing or double exponential smoothing, and reports the model summary (MAE / RMSE / MAPE) plus the series table. PSPP 2.1.3 does not know TSLINE and has no exponential smoothing, so the fit is computed inside the plugin; each fitted value is the one-step-ahead forecast made from the cases before it.",
+    "序列变量（数值）": "Series variable (numeric)",
+    "预测期数（0 = 只拟合不外推）": "Forecast periods (0 = fit only, no extension)",
+    "平滑方法": "Smoothing method",
+    "移动平均": "Moving average",
+    "简单指数平滑": "Simple exponential smoothing",
+    "双指数平滑（Holt）": "Double exponential smoothing (Holt)",
+    "移动平均的期数（只对移动平均有用）": "Moving-average periods (moving average only)",
+    "平滑系数 α（0 到 1 之间）": "Smoothing coefficient α (between 0 and 1)",
+    "趋势系数 β（只对双指数平滑有用）": "Trend coefficient β (double smoothing only)",
+    "同时画序列图": "Also draw the series chart",
+    "时间序列：{0} 个点参与拟合，平均绝对误差 {1}": "Time series: {0} points fitted, mean absolute error {1}",
+    "模型摘要": "Model Summary"
   }
 }

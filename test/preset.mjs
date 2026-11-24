@@ -58,7 +58,7 @@ await check('the tools mount on the analytics service and reuse its registry', a
   const ctx = fakeContext({ analytics: service })
   applyTools(ctx, {})
   await new Promise((resolve) => setTimeout(resolve, 50))
-  assert.equal(ctx.registered.length, 26, `registered ${ctx.registered.length} tools`)
+  assert.equal(ctx.registered.length, 27, `registered ${ctx.registered.length} tools`)
   assert.ok(ctx.registered.every((definition) => definition.name.startsWith('pspp_')))
   // Every tool closes over the registry the Host half published: the panel and
   // the conversation must edit one dataset, never two that look alike.
@@ -75,7 +75,7 @@ await check('unmounting removes every tool it registered', async () => {
   const ctx = fakeContext({ analytics: service })
   applyTools(ctx, {})
   await new Promise((resolve) => setTimeout(resolve, 50))
-  assert.equal(ctx.registered.length, 26)
+  assert.equal(ctx.registered.length, 27)
   ctx.disposeAll()
   assert.equal(ctx.registered.length, 0)
 })

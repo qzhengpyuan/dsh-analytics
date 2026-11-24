@@ -3334,6 +3334,41 @@ function normalizeChoices(list) {
           return { cluster: options, chart: flags?.clusterOptions?.chart === true ? 'dendrogram' : null }
         },
       },
+      timeseries: {
+        title: '时间序列（移动平均 / 指数平滑）',
+        hint: '按个案顺序平滑一条数值序列：移动平均、简单指数平滑或双指数平滑，输出模型摘要（MAE / RMSE / MAPE）与序列拟合表，可另画序列图。PSPP 2.1.3 不认识 TSLINE，也没有指数平滑，所以拟合在插件里算；每个拟合值都是用这一期之前的值做的一步预测。',
+        fields: [
+          { key: 'variable', kind: 'single', label: '序列变量（数值）', required: true, accept: 'numeric' },
+          { key: 'periods', kind: 'number', label: '预测期数（0 = 只拟合不外推）', default: 0 },
+        ],
+        groups: [{
+          key: 'tsOptions',
+          title: '方法',
+          items: [
+            { key: 'method', label: '平滑方法', kind: 'select', default: 'ses', options: [
+              ['ma', '移动平均'],
+              ['ses', '简单指数平滑'],
+              ['des', '双指数平滑（Holt）'],
+            ] },
+            { key: 'span', label: '移动平均的期数（只对移动平均有用）', kind: 'number', default: 4 },
+            { key: 'alpha', label: '平滑系数 α（0 到 1 之间）', kind: 'number', default: 0.3 },
+            { key: 'beta', label: '趋势系数 β（只对双指数平滑有用）', kind: 'number', default: 0.2 },
+            { key: 'chart', label: '同时画序列图', kind: 'checkbox', default: true },
+          ],
+        }],
+        build: (v, flags) => {
+          const method = String(flags?.tsOptions?.method ?? 'ses')
+          const options = {
+            variable: v.variable,
+            method,
+            periods: Number(v.periods ?? 0),
+          }
+          if (method === 'ma') options.span = Number(flags?.tsOptions?.span ?? 4)
+          if (method !== 'ma') options.alpha = Number(flags?.tsOptions?.alpha ?? 0.3)
+          if (method === 'des') options.beta = Number(flags?.tsOptions?.beta ?? 0.2)
+          return { timeseries: options, chart: flags?.tsOptions?.chart === true ? 'timeseries' : null }
+        },
+      },
       nparMedian: {
         title: 'K 个独立样本（中位数检验）',
         fields: [
@@ -6917,6 +6952,26 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId])
 
+      const runTimeseries = useCallback(async (options, draw) => {
+        setBusy(true)
+        try {
+          const value = await api('api/timeseries', { sessionId, options })
+          setSt(stateOf(value))
+          setView('output')
+          if (draw === 'timeseries') {
+            const drawn = await api('api/chart', { sessionId, kind: 'timeseries', options })
+            setSt(stateOf(drawn))
+          }
+          const model = value.result?.model ?? {}
+          notify(tr('时间序列：{0} 个点参与拟合，平均绝对误差 {1}', model.count ?? 0, model.mae === null || model.mae === undefined ? '—' : Number(model.mae).toFixed(3)))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId])
+
       const runDiscriminant = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -7817,6 +7872,9 @@ let ITEM_CSV_PENDING = null
               { label: '系统聚类…（层次聚类 + 树状图）', action: () => runAnalysis('hierarchicalCluster') },
               { label: '判别…（Fisher 线性判别）', action: () => setDialog({ kind: 'discriminant' }) },
             ] },
+            { label: '时间序列', sub: [
+              { label: '移动平均 / 指数平滑…（序列图）', action: () => runAnalysis('timeseries') },
+            ] },
             { label: '生存分析', sub: [
               { label: 'Kaplan–Meier…（生存曲线 + log-rank）', action: () => setDialog({ kind: 'chart', type: 'km' }) },
               { label: 'Cox 回归…（比例风险）', action: () => setDialog({ kind: 'cox' }) },
@@ -8577,6 +8635,10 @@ let ITEM_CSV_PENDING = null
               }
               if (built?.cluster) {
                 await runCluster(built.cluster, built.chart)
+                return
+              }
+              if (built?.timeseries) {
+                await runTimeseries(built.timeseries, built.chart)
                 return
               }
               if (built.chart) {

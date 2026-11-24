@@ -1204,6 +1204,17 @@ if (clusterResult.result?.items?.length !== 3) throw new Error('three tables com
 const wardRefused = await call('POST', `${base}/api/cluster`, { sessionId: sid, options: { variables: ['score'], linkage: 'ward' } })
 if (wardRefused.code !== 400 || !/欧氏距离平方/.test(String(wardRefused.json().error))) throw new Error('ward without squared distance must be refused')
 
+// Time-series smoothing lives in the plugin too: PSPP has no TSLINE and no
+// exponential smoothing, so the route has to hand back a summary and a series.
+const smoothed = await call('POST', `${base}/api/timeseries`, { sessionId: sid, options: { variable: 'score', method: 'ma', span: 2, periods: 1 } })
+const smoothing = smoothed.json()
+console.log('timeseries ->', smoothed.code, smoothing.result?.matrix?.[0]?.[0], smoothing.result?.items?.length,
+  smoothing.result?.model?.forecast?.length)
+if (smoothed.code !== 200) throw new Error(`api/timeseries failed: ${smoothing.error}`)
+if (smoothing.result?.items?.length !== 2) throw new Error('the summary and the series table come back')
+const badSeries = await call('POST', `${base}/api/timeseries`, { sessionId: sid, options: { variable: 'gender' } })
+if (badSeries.code !== 400 || !/要求数值变量/.test(String(badSeries.json().error))) throw new Error('a text series must be refused by name')
+
 // Discriminant analysis is fitted in the plugin as well (PSPP has no
 // DISCRIMINANT), so the route has to build four tables from the open rows.
 r = await call('POST', `${base}/api/discriminant`, { sessionId: sid, options: { group: 'gender', variables: ['score'] } })
