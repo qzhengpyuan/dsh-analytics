@@ -2166,6 +2166,37 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   assert.match(clientSource, /api\('api\/wls', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/wls')
 
+  // 二阶段最小二乘：工具数不足时确定按钮不可点（识别不足是代数问题）。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const analysePop7 = menuHost.querySelector('.ap-menu-pop')
+  const regressionGroup5 = [...analysePop7.querySelectorAll('button')].find((node) => node.textContent.startsWith('回归'))
+  await act(async () => {
+    regressionGroup5?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const tslsItem = [...(regressionGroup5?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])].find((node) => node.textContent.startsWith('二阶段最小二乘'))
+  assert.ok(tslsItem, 'the regression group lists two-stage least squares')
+  await act(async () => {
+    tslsItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const tslsDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.match(tslsDialog?.textContent ?? '', /二阶段最小二乘/, 'the dialog is titled like the procedure')
+  assert.match(tslsDialog.textContent, /内生自变量/, 'it separates endogenous regressors')
+  assert.match(tslsDialog.textContent, /工具变量/, 'from the instruments')
+  assert.match(tslsDialog.textContent, /识别不足/, 'and explains what happens when there are too few instruments')
+  const tslsOk = [...tslsDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(tslsOk.disabled, true, 'nothing is fitted until the sets are chosen')
+  const tslsCancel = [...tslsDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    tslsCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.match(clientSource, /api\('api\/twostage', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/twostage')
+
   // 「查找过程」：整条菜单路径可搜，选中即执行。路径是唯一的区分手段，
   // 所以断言里连「分析 → 回归 →」这一段也要对。
   const commands = hooks.flattenCommands([

@@ -72,6 +72,7 @@ jobs:
           node test/ordinal.mjs
           node test/poisson.mjs
           node test/wls.mjs
+          node test/twosls.mjs
 
       - name: client bundle (jsdom)
         run: node test/client.mjs

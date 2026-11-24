@@ -1288,6 +1288,14 @@ console.log('multinomial ->', r.code, mlr.result?.matrix?.[0]?.[0], mlr.result?.
 r = await call('POST', `${base}/api/multinomial`, { sessionId: 'mlr01', options: { dependent: 'arm', independents: ['dose'], reference: 'mid' } })
 console.log('multinomial with a reference ->', r.code, r.json().result?.model?.reference,
   r.json().result?.model?.categories?.join(','))
+// Two-stage least squares: instruments that are no weaker than the endogenous set.
+r = await call('POST', `${base}/api/twostage`, { sessionId: 'mlr01', options: { dependent: 'dose', endogenous: ['counts'], instruments: ['counts'] } })
+const tsls = r.json()
+console.log('twostage ->', r.code, tsls.result?.matrix?.[0]?.[0], tsls.result?.items?.length,
+  Number.isFinite(tsls.result?.model?.rSquare), tsls.result?.model?.stageOne?.length)
+r = await call('POST', `${base}/api/twostage`, { sessionId: 'mlr01', options: { dependent: 'dose', endogenous: ['counts', 'arm'], instruments: ['counts'] } })
+console.log('twostage under-identified ->', r.code, /工具变量不足/.test(String(r.json().error)))
+
 // Weighted least squares: same normal equations, one weight column.
 r = await call('POST', `${base}/api/wls`, { sessionId: 'mlr01', options: { dependent: 'dose', independents: ['counts'], weight: 'counts' } })
 const wls = r.json()

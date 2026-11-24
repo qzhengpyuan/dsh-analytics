@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 31, names.join(' '))
+  assert.equal(names.length, 32, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -213,6 +213,19 @@ await check('pspp_wls fits a weighted regression and equals OLS with equal weigh
   assert.ok(out.cases >= 3, `cases ${out.cases}`)
   assert.ok(Number.isFinite(out.rSquare), `R² ${out.rSquare}`)
   assert.match(out.notes.join(' '), /权重合计/, 'the note reports the weight total')
+})
+
+await check('pspp_twostage fits an instrumented model and reports the first stage', async () => {
+  // score 是内生变量、time 是它自己的工具：这一列在 P_Z 下是恒等映射，所以
+  // 系数与把 time 当普通自变量一致；关键是第一阶段 F 必须是有限的数。
+  const out = await call('pspp_twostage', {
+    dependent: 'score', endogenous: ['time'], instruments: ['time'], exogenous: ['group'],
+  })
+  assert.equal(out.matrix[0][0], '变量', JSON.stringify(out).slice(0, 300))
+  assert.equal(out.tables.length, 3, 'summary, first stage and coefficients')
+  assert.ok(out.cases >= 3, `cases ${out.cases}`)
+  assert.equal(out.stageOne.length, 1, 'one endogenous variable means one first-stage row')
+  assert.ok(Number.isFinite(out.stageOne[0].rSquare), `first-stage R² ${out.stageOne[0].rSquare}`)
 })
 
 await check('pspp_cluster builds the agglomeration schedule and can draw the tree', async () => {

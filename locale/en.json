@@ -1635,6 +1635,21 @@
     "权重估计…（加权最小二乘）": "Weight Estimation… (weighted least squares)",
     "权重估计：{0} 例，R² {1}": "Weight estimation: {0} cases, R² {1}",
     "估计标准误": "Std. error of the estimate",
-    "调整 R²": "Adjusted R²"
+    "调整 R²": "Adjusted R²",
+    "二阶段最小二乘（2SLS）": "Two-stage least squares (2SLS)",
+    "内生自变量（要被工具替代）": "Endogenous regressors (replaced by instruments)",
+    "工具变量": "Instruments",
+    "外生自变量（不需要工具）": "Exogenous regressors (need no instrument)",
+    "没有可用的数值变量。": "No numeric variables are available.",
+    "工具变量个数不能少于内生自变量个数，否则方程识别不足。": "There must be at least as many instruments as endogenous regressors, otherwise the equation is under-identified.",
+    "第一阶段的 F 明显大于 10 才算强工具；F 太小说明工具与内生变量没关系，系数会被放大成噪声。": "A first-stage F well above 10 marks a strong instrument; a small F means the instrument is unrelated to the endogenous regressor and the coefficients become noise.",
+    "内生 {0} 个、工具 {1} 个、外生 {2} 个": "{0} endogenous, {1} instruments, {2} exogenous",
+    "二阶段最小二乘…（工具变量）": "Two-stage least squares… (instrumental variables)",
+    "二阶段最小二乘：{0} 例，R² {1}": "Two-stage least squares: {0} cases, R² {1}",
+    "第一阶段": "First stage",
+    "内生变量": "Endogenous variable",
+    "过度识别": "Over-identified",
+    "恰好识别": "Just-identified",
+    "工具变量不足": "Too few instruments"
   }
 }

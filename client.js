@@ -2188,6 +2188,67 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     }
 
     /**
+     * 二阶段最小二乘：内生自变量用自己的工具变量识别。三个多选 box：
+     * 内生、工具、外生。工具数少于内生数时确定按钮就点不了 —— 识别不足
+     * 是代数问题，不必等宿主回 400。
+     */
+    function TwoStageDialog({ variables, onRun, onClose }) {
+      const numeric = variables.filter((variable) => variable.type === 'numeric')
+      const [dependent, setDependent] = useState(null)
+      const [endogenous, setEndogenous] = useState([])
+      const [instruments, setInstruments] = useState([])
+      const [exogenous, setExogenous] = useState([])
+      const toggle = (setter, name) => setter((current) => (current.includes(name)
+        ? current.filter((entry) => entry !== name)
+        : [...current, name]))
+      const available = numeric.filter((variable) => variable.name !== dependent)
+      const ready = Boolean(dependent && endogenous.length > 0
+        && instruments.length >= endogenous.length)
+      return h(Modal, {
+        title: '二阶段最小二乘（2SLS）',
+        wide: true,
+        okDisabled: !ready,
+        onCancel: onClose,
+        onOk: () => onRun({ dependent, endogenous, instruments, exogenous }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '内生自变量（要被工具替代）'),
+          h('div', { className: 'ap-dlg-list' }, available.length
+            ? available.map((variable) => h('span', {
+              key: `e-${variable.name}`,
+              className: `ap-chip${endogenous.includes(variable.name) ? ' ap-chip-on' : ''}`,
+              onClick: () => toggle(setEndogenous, variable.name),
+              translate: false,
+            }, variable.name))
+            : h('div', { className: 'ap-hint' }, '没有可用的数值变量。')),
+          h('div', { className: 'ap-dlg-caption' }, '工具变量'),
+          h('div', { className: 'ap-dlg-list' }, available.map((variable) => h('span', {
+            key: `z-${variable.name}`,
+            className: `ap-chip${instruments.includes(variable.name) ? ' ap-chip-on' : ''}`,
+            onClick: () => toggle(setInstruments, variable.name),
+            translate: false,
+          }, variable.name)))),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '因变量'),
+            h('select', { value: dependent ?? '', onChange: (event) => setDependent(event.target.value || null) },
+              h('option', { value: '' }, '（选一个因变量）'),
+              numeric.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '外生自变量（不需要工具）'),
+            h('div', { className: 'ap-dlg-list' }, available.map((variable) => h('span', {
+              key: `x-${variable.name}`,
+              className: `ap-chip${exogenous.includes(variable.name) ? ' ap-chip-on' : ''}`,
+              onClick: () => toggle(setExogenous, variable.name),
+              translate: false,
+            }, variable.name)))),
+          h('div', { className: 'ap-hint' }, '工具变量个数不能少于内生自变量个数，否则方程识别不足。'),
+          h('div', { className: 'ap-hint' }, '第一阶段的 F 明显大于 10 才算强工具；F 太小说明工具与内生变量没关系，系数会被放大成噪声。'),
+          h('div', { className: 'ap-hint' }, tr('内生 {0} 个、工具 {1} 个、外生 {2} 个', endogenous.length, instruments.length, exogenous.length)))))
+    }
+
+    /**
      * 权重估计：同一条回归，每个个案带权重（误差方差按 1/w 缩小）。
      * PSPP 没有 WLS，所以拟合在宿主侧做；这里只负责挑变量与权重列。
      */
@@ -7340,6 +7401,22 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId])
 
+      const runTwoStage = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/twostage', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const model = value.result?.model ?? {}
+          notify(tr('二阶段最小二乘：{0} 例，R² {1}', model.cases ?? 0, Number(model.rSquare ?? 0).toFixed(3)))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId, notify, setSt, setView, setDialog])
+
       const runWls = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -8208,6 +8285,7 @@ let ITEM_CSV_PENDING = null
               { label: '有序 Logistic…（有先后次序）', action: () => setDialog({ kind: 'ordinal' }) },
               { label: '泊松回归…（计数因变量）', action: () => setDialog({ kind: 'poisson' }) },
               { label: '权重估计…（加权最小二乘）', action: () => setDialog({ kind: 'wls' }) },
+              { label: '二阶段最小二乘…（工具变量）', action: () => setDialog({ kind: 'twostage' }) },
             ] },
             { label: '降维', sub: [
               { label: '因子…', action: () => runAnalysis('factor') },
@@ -9454,6 +9532,13 @@ let ITEM_CSV_PENDING = null
           ? h(MultinomialDialog, {
             variables,
             onRun: (payload) => runMultinomial(payload),
+            onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'twostage'
+          ? h(TwoStageDialog, {
+            variables,
+            onRun: (payload) => runTwoStage(payload),
             onClose: () => setDialog(null),
           })
           : null,
