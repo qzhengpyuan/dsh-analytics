@@ -261,4 +261,55 @@ check('a pareto chart ignores missing values instead of counting them', () => {
   assert.deepEqual(model.bars.map((bar) => bar.label), ['A', 'B'])
 })
 
+check('an X̄–R chart uses the average range for both sets of limits', () => {
+  const rows = []
+  // Two tidy subgroups: means 12 and 22, both with a range of 4.
+  for (const value of [10, 11, 12, 13, 14]) rows.push([1, value])
+  for (const value of [20, 21, 22, 23, 24]) rows.push([2, value])
+  const dataset = {
+    variables: [{ name: 'g', type: 'numeric' }, { name: 'w', type: 'numeric' }],
+    rows,
+  }
+  const model = buildChartModel(dataset, 'control', { variable: 'w', subgroup: 'g' })
+  assert.equal(model.size, 5, 'the subgroup size comes from the data')
+  assert.deepEqual(model.points.map((point) => point.mean), [12, 22])
+  assert.deepEqual(model.points.map((point) => point.range), [4, 4])
+  // A2 = 0.577 for n = 5: 17 ± 0.577 × 4 = 19.308 / 14.692.
+  assert.equal(model.meanChart.cl, 17)
+  assert.equal(model.meanChart.ucl, 19.31)
+  assert.equal(model.meanChart.lcl, 14.69)
+  // D4 = 2.114, D3 = 0 for n = 5.
+  assert.equal(model.rangeChart.cl, 4)
+  assert.equal(model.rangeChart.ucl, 8.46)
+  assert.equal(model.rangeChart.lcl, 0)
+  assert.deepEqual(model.violations.mean, [0, 1], 'the first mean is below LCL and the second above UCL')
+  assert.deepEqual(model.violations.range, [], 'both ranges sit inside the limits')
+  const svg = renderSvg(model)
+  assert.match(svg, /height="480"/, 'the two panels need a taller canvas')
+  assert.match(svg, /UCL 19\.31/, 'the limits are printed next to their lines')
+  assert.match(svg, /LCL/, 'and the lower one too')
+})
+
+check('an X̄–R chart refuses what it cannot compute', () => {
+  const dataset = {
+    variables: [{ name: 'w', type: 'numeric' }, { name: 't', type: 'string' }],
+    rows: [[1, 'a'], [2, 'b'], [3, 'c'], [4, 'd'], [5, 'e'], [6, 'f']],
+  }
+  assert.throws(() => buildChartModel(dataset, 'control', { variable: 't' }), /数值变量/, 'a text variable is named')
+  assert.throws(() => buildChartModel(dataset, 'control', { variable: 'w', size: 11 }), /2 到 10/, 'the constant table stops at ten')
+  // Six cases with size 4 leaves one full subgroup plus a dropped tail, and one
+  // subgroup cannot carry a range chart.
+  assert.throws(() => buildChartModel(dataset, 'control', { variable: 'w', size: 4 }), /至少要两个子组/, 'a single subgroup is not a chart')
+})
+
+check('an X̄–R chart splits the cases in order when no subgroup variable is given', () => {
+  const rows = []
+  for (const value of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 99]) rows.push([value])
+  const dataset = { variables: [{ name: 'w', type: 'numeric' }], rows }
+  const model = buildChartModel(dataset, 'control', { variable: 'w', size: 5 })
+  assert.equal(model.points.length, 2, 'the trailing 99 is dropped rather than making a one-case subgroup')
+  assert.deepEqual(model.points.map((point) => point.mean), [3, 8])
+  assert.deepEqual(model.points.map((point) => point.range), [4, 4])
+})
+
 console.log(`${checks} checks passed`)

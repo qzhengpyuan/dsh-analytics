@@ -7586,6 +7586,10 @@ let ITEM_CSV_PENDING = null
               { label: '表 2：组间比较…', action: () => setDialog({ kind: 'publication', tableKind: 'compare' }) },
             ] },
             { label: 'ROC 曲线…', action: () => runAnalysis('roc') },
+            { label: '质量控制', sub: [
+              { label: '控制图…（X̄–R）', action: () => setDialog({ kind: 'chart', type: 'control' }) },
+              { label: '帕累托图…', action: () => setDialog({ kind: 'chart', type: 'pareto' }) },
+            ] },
             { sep: true },
             { label: '缺失值分析…', action: () => runAnalysis('missing') },
             { sep: true },
@@ -9081,6 +9085,16 @@ let ITEM_CSV_PENDING = null
     ]
 
     const CHART_SPECS = {
+      control: {
+        title: '控制图（X̄–R）',
+        hint: '按子组算均值与极差，两组图共用横轴；中心线与上下控制限由平均极差算出（A2 / D3 / D4 常数表只到 10 个个案一组）。越界的点画成红点。',
+        fields: [
+          { key: 'variable', kind: 'single', label: '测量变量（数值）', required: true },
+          { key: 'subgroup', kind: 'single', label: '子组变量（可选；不给就按个案顺序每 N 个一组）' },
+          { key: 'size', kind: 'number', label: '子组大小（没选子组变量时用）', default: 5 },
+        ],
+        build: (v) => ({ chart: { kind: 'control', options: { variable: v.variable, subgroup: v.subgroup || null, size: Number(v.size ?? 5) } } }),
+      },
       pareto: {
         title: '帕累托图',
         hint: '按类别计次、从多到少排序，折线是累计百分比；参考线默认 80%（质量问题里常说的「关键的少数」）。',

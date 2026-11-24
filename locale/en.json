@@ -1475,6 +1475,22 @@
     "最多画几类（0 = 全部，其余并成「其他」）": "Categories to draw (0 = all; the rest fold into 其他)",
     "其他": "Other",
     "参考线 {0}%": "Reference {0}%",
-    "参考线的百分比要在 0 到 100 之间（不含两端）": "The reference line has to be between 0 and 100 percent (exclusive)"
+    "参考线的百分比要在 0 到 100 之间（不含两端）": "The reference line has to be between 0 and 100 percent (exclusive)",
+    "控制图…（X̄–R）": "Control Chart… (X̄–R)",
+    "控制图（X̄–R）": "Control chart (X̄–R)",
+    "质量控制": "Quality control",
+    "{0} 的控制图（X̄–R）": "Control chart of {0} (X̄–R)",
+    "按子组算均值与极差，两组图共用横轴；中心线与上下控制限由平均极差算出（A2 / D3 / D4 常数表只到 10 个个案一组）。越界的点画成红点。": "Subgroup means and ranges share one x axis; the centre and control limits come from the average range (the A2 / D3 / D4 tables stop at ten cases per subgroup). Points outside the limits are red.",
+    "测量变量（数值）": "Measurement variable (numeric)",
+    "子组变量（可选；不给就按个案顺序每 N 个一组）": "Subgroup variable (optional; without it the cases are split in order into groups of N)",
+    "子组大小（没选子组变量时用）": "Subgroup size (used when no subgroup variable is chosen)",
+    "子组均值（每 {0} 个个案一组）": "Subgroup means ({0} cases per subgroup)",
+    "子组极差": "Subgroup ranges",
+    "控制图要求数值变量：{0} 是文本变量": "A control chart needs a numeric variable: {0} is a text variable",
+    "子组大小要在 2 到 10 之间（控制图常数表只到 10）；要按变量分子组就把「子组变量」选上": "The subgroup size has to be between 2 and 10 (the constants stop at ten); pick a subgroup variable to group by a variable",
+    "至少要两个子组才画得出控制图（子组太少，控制限没有意义）": "At least two subgroups are needed: with fewer, the control limits mean nothing",
+    "各子组的大小必须相同，现在有 {0} 种：控制限常数是按固定子组大小查表的": "Every subgroup has to be the same size; there are {0} different sizes now, and the constants are looked up for one fixed size",
+    "子组大小要在 2 到 10 之间（控制图常数表只到 10）": "The subgroup size has to be between 2 and 10 (the constants stop at ten)",
+    "第 {0} 组": "Group {0}"
   }
 }

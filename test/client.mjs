@@ -2497,6 +2497,12 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.equal(numeric.chart.statistic, 'MEAN', 'a numeric variable is still averaged')
   assert.equal(textual.chart.tableId, null, 'the table id defaults to null')
   assert.equal(build(hooks.CHART_SPECS.bar, { variable: 'score', tableId: 'run-1-0' }, {}, variables).chart.tableId, 'run-1-0', 'and travels when chosen')
+  // 控制图：对话框只交变量、子组变量与子组大小，限值与越界判断在图模型里。
+  const control = build(hooks.CHART_SPECS.control, { variable: 'score', subgroup: 'gender', size: '4' }, {}, variables)
+  assert.equal(control.chart.kind, 'control', 'the dialog asks for a control-chart model')
+  assert.equal(control.chart.options.size, 4, 'the subgroup size travels as a number')
+  assert.equal(control.chart.options.subgroup, 'gender', 'and so does the subgroup variable')
+  assert.equal(build(hooks.CHART_SPECS.control, { variable: 'score', subgroup: '' }, {}, variables).chart.options.subgroup, null, 'an empty subgroup choice means "split by order"')
   // 帕累托图：对话框只发类别变量与两个选项，计数与排序在图表模型里做。
   const pareto = build(hooks.CHART_SPECS.pareto, { variable: 'score', reference: '90', maxCategories: '3' }, {}, variables)
   assert.equal(pareto.chart.kind, 'pareto', 'the pareto dialog asks for a pareto model')
