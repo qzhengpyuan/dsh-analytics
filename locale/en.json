@@ -2,7 +2,7 @@
   "meta": {
     "title": "Analytics",
     "description": "dsh-analytics: an SPSS-style statistics workbench backed by a bundled GNU PSPP engine — data view, variable view, syntax, output viewer, analysis dialogs, and agent-readable datasets.",
-    "count": 1526
+    "count": 1545
   },
   "strings": {
     " 个个案": " cases",
@@ -1530,6 +1530,25 @@
     "按各组个案数": "Compute from group sizes",
     "输出四张表：分类结果（实际组 × 预测组、各组正确率）、特征值、Wilks 的 Lambda、Fisher 线性判别函数系数。": "Four tables: classification (actual × predicted, per-group hit rates), eigenvalues, Wilks' lambda, and the Fisher linear discriminant coefficients.",
     "已选 {0} 个判别变量": "{0} discriminant variables selected",
-    "判别分析：{0} 组，正确率 {1}%": "Discriminant analysis: {0} groups, {1}% correctly classified"
+    "判别分析：{0} 组，正确率 {1}%": "Discriminant analysis: {0} groups, {1}% correctly classified",
+    "系统聚类": "Hierarchical Cluster",
+    "系统聚类…（层次聚类 + 树状图）": "Hierarchical Cluster… (tree + dendrogram)",
+    "逐层合并最相近的个案，输出凝聚状态表与聚类成员，可另画树状图。PSPP 只做 k-means，所以整棵树在插件里算；Ward 法要用欧氏距离平方。": "Merges the closest cases level by level and reports the agglomeration schedule and the cluster membership; the dendrogram is optional. PSPP only does k-means, so the tree is computed in the plugin; Ward needs squared Euclidean distance.",
+    "聚类变量（数值，至少一个）": "Clustering variables (numeric, at least one)",
+    "分成几组（聚类成员表按这个数切树）": "Number of clusters (the membership table cuts the tree here)",
+    "连接方法": "Linkage",
+    "组间平均连接": "Between-groups average linkage",
+    "组间最长连接": "Between-groups complete linkage",
+    "最短距离法": "Single linkage (nearest neighbour)",
+    "Ward 法（离差平方和）": "Ward's method (squared error)",
+    "距离测度": "Distance measure",
+    "欧氏距离": "Euclidean distance",
+    "欧氏距离平方": "Squared Euclidean distance",
+    "绝对值距离": "City-block (Manhattan) distance",
+    "最大值距离": "Chebyshev (maximum) distance",
+    "同时画树状图": "Draw the dendrogram too",
+    "Ward 法要用「欧氏距离平方」：把距离测度换过来再确定。": "Ward's method needs squared Euclidean distance: switch the measure and press OK.",
+    "系统聚类：{0} 个个案分成 {1} 组": "Hierarchical cluster: {0} cases in {1} groups",
+    "系统聚类树状图": "Hierarchical cluster dendrogram"
   }
 }

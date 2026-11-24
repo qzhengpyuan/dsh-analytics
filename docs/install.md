@@ -75,7 +75,7 @@ plugin_manager install_bundle <项目目录>
 装完检查：
 
 - Loader 里出现 entry `include:analytics`（`plugin_manager list_plugins` 可见 `dsh-analytics`）
-- 新建会话时预设选择器里出现 **统计分析**（`preset-analytics`）；选中它之后对话里出现 25 个工具：`pspp_status` `pspp_open` `pspp_new` `pspp_variables` `pspp_data` `pspp_run` `pspp_run_file` `pspp_analyze` `pspp_transform` `pspp_chart` `pspp_edit_chart` `pspp_export_chart` `pspp_save` `pspp_convert` `pspp_export` `pspp_export_document` `pspp_export_office` `pspp_merge` `pspp_add_variable` `pspp_append_cases` `pspp_publication_table` `pspp_pairwise` `pspp_partial` `pspp_cox` `pspp_discriminant`
+- 新建会话时预设选择器里出现 **统计分析**（`preset-analytics`）；选中它之后对话里出现 26 个工具：`pspp_status` `pspp_open` `pspp_new` `pspp_variables` `pspp_data` `pspp_run` `pspp_run_file` `pspp_analyze` `pspp_transform` `pspp_chart` `pspp_edit_chart` `pspp_export_chart` `pspp_save` `pspp_convert` `pspp_export` `pspp_export_document` `pspp_export_office` `pspp_merge` `pspp_add_variable` `pspp_append_cases` `pspp_publication_table` `pspp_pairwise` `pspp_partial` `pspp_cox` `pspp_discriminant` `pspp_cluster`
 - 别的预设（standard / Blender / 逆向渗透 / 小说…）的会话里**没有**任何 `pspp_*` 工具——这是刻意的，见 README「Agent 工具」
 - 调用 `pspp_status` 应返回 `engine.source: "bundled"`、`engine.version: "pspp (GNU PSPP) 2.1.3"`，`engine.binary` 指向 `engine/linux-x64/bin/pspp`
 - 刷新页面后，右侧栏页签条出现 **PSPP**

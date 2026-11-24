@@ -1195,6 +1195,15 @@ console.log('one undo restores both ->', r.code, batchAfterUndo.map((variable) =
 r = await call('POST', `${base}/api/variable`, { sessionId: sid, action: 'updateMany', names: ['nope'], patch: { decimals: 1 } })
 console.log('updateMany with an unknown name ->', r.code, r.json().error ?? r.json().message)
 
+// Hierarchical clustering: PSPP only ships k-means, so the tree is built here.
+const clustered = await call('POST', `${base}/api/cluster`, { sessionId: sid, options: { variables: ['score'], clusters: 2 } })
+const clusterResult = clustered.json()
+console.log('cluster ->', clustered.code, clusterResult.result?.matrix?.[0]?.[0], clusterResult.result?.items?.length, clusterResult.result?.model?.k)
+if (clustered.code !== 200) throw new Error(`api/cluster failed: ${clusterResult.error}`)
+if (clusterResult.result?.items?.length !== 3) throw new Error('three tables come back')
+const wardRefused = await call('POST', `${base}/api/cluster`, { sessionId: sid, options: { variables: ['score'], linkage: 'ward' } })
+if (wardRefused.code !== 400 || !/欧氏距离平方/.test(String(wardRefused.json().error))) throw new Error('ward without squared distance must be refused')
+
 // Discriminant analysis is fitted in the plugin as well (PSPP has no
 // DISCRIMINANT), so the route has to build four tables from the open rows.
 r = await call('POST', `${base}/api/discriminant`, { sessionId: sid, options: { group: 'gender', variables: ['score'] } })

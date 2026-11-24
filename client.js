@@ -3295,6 +3295,45 @@ function normalizeChoices(list) {
           return { syntax: `NPAR TESTS /COCHRAN=${v.vars.join(' ')}.` }
         },
       },
+      hierarchicalCluster: {
+        title: '系统聚类',
+        hint: '逐层合并最相近的个案，输出凝聚状态表与聚类成员，可另画树状图。PSPP 只做 k-means，所以整棵树在插件里算；Ward 法要用欧氏距离平方。',
+        fields: [
+          { key: 'variables', kind: 'multi', label: '聚类变量（数值，至少一个）', required: true, accept: 'numeric' },
+          { key: 'clusters', kind: 'number', label: '分成几组（聚类成员表按这个数切树）', default: 3 },
+        ],
+        groups: [{
+          key: 'clusterOptions',
+          title: '方法',
+          items: [
+            { key: 'linkage', label: '连接方法', kind: 'select', default: 'average', options: [
+              ['average', '组间平均连接'],
+              ['complete', '组间最长连接'],
+              ['single', '最短距离法'],
+              ['ward', 'Ward 法（离差平方和）'],
+            ] },
+            { key: 'measure', label: '距离测度', kind: 'select', default: 'euclidean', options: [
+              ['euclidean', '欧氏距离'],
+              ['sqeuclidean', '欧氏距离平方'],
+              ['cityblock', '绝对值距离'],
+              ['chebychev', '最大值距离'],
+            ] },
+            { key: 'chart', label: '同时画树状图', kind: 'checkbox', default: true },
+          ],
+        }],
+        build: (v, flags) => {
+          const options = {
+            variables: v.variables,
+            clusters: Number(v.clusters ?? 3),
+            linkage: String(flags?.clusterOptions?.linkage ?? 'average'),
+            measure: String(flags?.clusterOptions?.measure ?? 'euclidean'),
+          }
+          if (options.linkage === 'ward' && options.measure !== 'sqeuclidean') {
+            return { error: 'Ward 法要用「欧氏距离平方」：把距离测度换过来再确定。' }
+          }
+          return { cluster: options, chart: flags?.clusterOptions?.chart === true ? 'dendrogram' : null }
+        },
+      },
       nparMedian: {
         title: 'K 个独立样本（中位数检验）',
         fields: [
@@ -5663,6 +5702,7 @@ function normalizeChoices(list) {
         ['ppplot', 'P-P / Q-Q 图'],
         ['pareto', '帕累托图'],
         ['control', '控制图'],
+        ['dendrogram', '系统聚类树状图'],
       ]
       return h(Modal, {
         title: '重绘为另一种图',
@@ -6857,6 +6897,26 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId])
 
+      const runCluster = useCallback(async (options, draw) => {
+        setBusy(true)
+        try {
+          const value = await api('api/cluster', { sessionId, options })
+          setSt(stateOf(value))
+          setView('output')
+          if (draw === 'dendrogram') {
+            const drawn = await api('api/chart', { sessionId, kind: 'dendrogram', options })
+            setSt(stateOf(drawn))
+          }
+          const model = value.result?.model ?? {}
+          notify(tr('系统聚类：{0} 个个案分成 {1} 组', model.n ?? 0, model.k ?? 0))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId])
+
       const runDiscriminant = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -7754,6 +7814,7 @@ let ITEM_CSV_PENDING = null
             ] },
             { label: 'ROC 曲线…', action: () => runAnalysis('roc') },
             { label: '分类', sub: [
+              { label: '系统聚类…（层次聚类 + 树状图）', action: () => runAnalysis('hierarchicalCluster') },
               { label: '判别…（Fisher 线性判别）', action: () => setDialog({ kind: 'discriminant' }) },
             ] },
             { label: '生存分析', sub: [
@@ -8512,6 +8573,10 @@ let ITEM_CSV_PENDING = null
               }
               if (built?.missing) {
                 await runMissing(built.missing, spec?.title)
+                return
+              }
+              if (built?.cluster) {
+                await runCluster(built.cluster, built.chart)
                 return
               }
               if (built.chart) {

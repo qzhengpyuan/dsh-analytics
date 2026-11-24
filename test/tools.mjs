@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 25, names.join(' '))
+  assert.equal(names.length, 26, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -168,6 +168,14 @@ await check('pspp_cox fits a survival model and reports the hazard ratio', async
   assert.equal(cox.matrix.length, 2, 'a header plus one covariate')
   assert.equal(cox.matrix[1][6] !== undefined, true, 'the Exp(B) column is filled')
   assert.ok(cox.notes.some((note) => /Breslow/.test(note)), 'the ties method is stated')
+})
+
+await check('pspp_cluster builds the agglomeration schedule and can draw the tree', async () => {
+  const out = await call('pspp_cluster', { variables: ['score'], clusters: 2, chart: true })
+  assert.equal(out.matrix[0][0], '阶段', JSON.stringify(out).slice(0, 200))
+  assert.ok(out.tables.length >= 3, 'schedule, membership and sizes come back')
+  assert.ok(out.model.n >= 3, 'every complete case is clustered')
+  assert.ok(out.chart?.title, 'the dendrogram is drawn on request')
 })
 
 await check('pspp_discriminant fits a discriminant model and classifies the cases', async () => {

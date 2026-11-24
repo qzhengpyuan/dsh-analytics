@@ -2054,6 +2054,28 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   console.log('ok  the menu bar opens from the keyboard and the outline groups runs')
 }
 
+// 系统聚类：PSPP 只做 k-means，所以对话框只交矩阵变换的入参，树在宿主侧算。
+{
+  const specs = hooks.ANALYSIS_SPECS
+  assert.ok(specs?.hierarchicalCluster?.build, 'the hierarchical cluster dialog exists')
+  const built = specs.hierarchicalCluster.build(
+    { variables: ['x', 'y'], clusters: '2' },
+    { clusterOptions: { linkage: 'single', measure: 'cityblock', chart: true } },
+  )
+  assert.deepEqual(built.cluster, { variables: ['x', 'y'], clusters: 2, linkage: 'single', measure: 'cityblock' },
+    `unexpected cluster request: ${JSON.stringify(built.cluster)}`)
+  assert.equal(built.chart, 'dendrogram', 'the checkbox asks for the tree')
+  const defaults = specs.hierarchicalCluster.build({ variables: ['x'] }, {})
+  assert.equal(defaults.cluster.linkage, 'average', 'average linkage is the default')
+  assert.equal(defaults.cluster.measure, 'euclidean', 'and Euclidean distance')
+  assert.equal(defaults.cluster.clusters, 3, 'three groups unless the user says otherwise')
+  assert.equal(defaults.chart, null, 'no tree unless it is asked for')
+  // Ward on plain Euclidean distance would silently change the merge order.
+  const ward = specs.hierarchicalCluster.build({ variables: ['x'] }, { clusterOptions: { linkage: 'ward', measure: 'euclidean' } })
+  assert.match(ward.error, /欧氏距离平方/, `ward should be refused: ${JSON.stringify(ward)}`)
+  assert.match(clientSource, /api\('api\/cluster', \{ sessionId, options \}\)/, 'the runner posts to api/cluster')
+}
+
 // The settings page is what makes the knobs reachable without editing the
 // profile patch, so it has to render the values it read, say where they live,
 // and post a validated patch back.

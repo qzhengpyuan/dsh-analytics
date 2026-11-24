@@ -66,6 +66,7 @@ jobs:
           node test/survival.mjs
           node test/cox.mjs
           node test/discriminant.mjs
+          node test/cluster.mjs
 
       - name: client bundle (jsdom)
         run: node test/client.mjs
