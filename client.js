@@ -6751,14 +6751,16 @@ let ITEM_CSV_PENDING = null
               return
             }
           }
-          if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
           // SPSS 的「查找过程」快捷键。Alt+<字母> 是菜单助记键，所以它得用
-          // 带 Shift 的组合，否则会和「帮助」抢 Alt+H。
-          if (event.ctrlKey && event.shiftKey && String(event.key).toLowerCase() === 'f') {
+          // 带 Shift 的组合，否则会和「帮助」抢 Alt+H。这一支必须排在下面的
+          // Alt 守卫之前 —— 那个守卫会把任何带 Ctrl 的组合直接 return 掉，
+          // 写在它后面就是死代码（0.88.0 的 Ctrl+Shift+F 打不开正是这个原因）。
+          if (event.ctrlKey && event.shiftKey && !event.altKey && String(event.key).toLowerCase() === 'f') {
             event.preventDefault()
             setDialog({ kind: 'commands' })
             return
           }
+          if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
           const wanted = MENU_MNEMONICS[String(event.key).toLowerCase()]
           if (!wanted || !menuButtonLabels().includes(wanted)) return
           event.preventDefault()
@@ -7725,6 +7727,9 @@ let ITEM_CSV_PENDING = null
           if (target instanceof HTMLElement && (target.isContentEditable || target.contentEditable === 'true')) return
           const key = String(event.key).toLowerCase()
           if (key === 'f') {
+            // Ctrl+Shift+F 是「查找过程」，数据「查找」只认不带 Shift 的 Ctrl+F。
+            // 这里不判 shiftKey 会把快捷键抢走（两个处理函数都会响应的坑）。
+            if (event.shiftKey) return
             event.preventDefault()
             setDialog({ kind: 'find', mode: 'find' })
             return

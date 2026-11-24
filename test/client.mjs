@@ -3752,6 +3752,29 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   assert.ok([...workHost.querySelectorAll('.ap-view-tab')].some((tab) => tab.textContent === '语法' && String(tab.className).includes('ap-active')), 'Alt+3 lands on the syntax view')
 
+  // Ctrl+Shift+F 是「查找过程」，不能落到数据「查找」上。两个 keydown 处理
+  // 函数都会响应：菜单栏那个原来被 Alt 守卫挡死，数据网格那个不判 Shift。
+  await act(async () => {
+    workHost.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'f', ctrlKey: true, shiftKey: true, bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+  })
+  const finderModal = [...workHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.equal(finderModal?.querySelector('input[type="search"]') !== null, true, 'Ctrl+Shift+F opens the procedure finder')
+  assert.match(finderModal.textContent, /查找过程/, 'and it is the procedure finder, not the data one')
+  assert.equal(finderModal.textContent.includes('查找内容'), false, 'the data find dialog stays closed')
+  await act(async () => {
+    const cancel = [...finderModal.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+    cancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+  })
+  // 数据「查找」那一支在 jsdom 里跑不起来（它要求 root.offsetParent 非空，
+  // 而 jsdom 对任何元素都返回 null），所以只在源码层面钉住「Shift 不再被抢」。
+  assert.match(
+    clientSource,
+    /if \(key === 'f'\) \{[\s\S]{0,200}?if \(event\.shiftKey\) return/,
+    'the data find dialog ignores Ctrl+Shift+F so the procedure finder keeps it',
+  )
+
   await openMenu('帮助')
   const helpPop = workHost.querySelector('.ap-menu-pop')
   const shortcutsEntry = [...helpPop.querySelectorAll('button')].find((node) => node.textContent === '快捷键一览…')

@@ -5,6 +5,17 @@
 
 计数口径细则（0.72.0 起）：`^ok` 只统计打印 `ok  …` 的断言。`test/stage.mjs`、`test/messages.mjs` 打自己的 `N checks passed` 汇总行（`^ok` 为 0）；`test/build.mjs` 有一行 `ok  …` 写在 `await check(...)` 内部，因此比它自报的 summary 多 1。核对数量只用 `grep -cE '^ok\b'`。
 
+## 0.91.0
+
+**修 Ctrl+Shift+F 打不开「查找过程」**（Win10 0.88.0 报告的 P2）。菜单路径正常，但快捷键按下去出来的是数据「查找」。两个处理函数各堵了一半：
+
+- 菜单栏那个 `keydown` 把「查找过程」的分支写在 `if (!event.altKey || event.ctrlKey || …) return` **之后**，任何带 Ctrl 的组合都在守卫处返回，于是那个分支是死代码。把它移到守卫之前。
+- 数据「查找」那个 `keydown` 只判了 `ctrlKey || metaKey`，没判 `shiftKey`，所以 Ctrl+Shift+F 也落进「查找」。现在先 `if (event.shiftKey) return`，快捷键归「查找过程」。
+
+验证：`test/client.mjs` 在真 React 树里发 `Ctrl+Shift+F`，断言弹出的是带 `input[type="search"]` 的「查找过程」、且不含「查找内容」；数据「查找」那一支在 jsdom 里跑不起来（它要求 `root.offsetParent` 非空，jsdom 对任何元素都返回 `null`），所以另加一条源码断言钉住 `shiftKey` 守卫，避免下次又被改回去。
+
+49 套件 / 733 条 ok（装了 poppler 734），工具 34 个。
+
 ## 0.90.0
 
 **对应分析**（菜单「分析 → 降维 → 对应分析…」）。SPSS 这个入口有，PSPP 2.1.3 的 `CORRESPONDENCE` 没实现，所以整套在插件里算（`lib/correspondence.js`）：两个分类变量的列联表 → 卡方分解 → 标准化残差做奇异值分解 → 行点与列点的主坐标，最后把两组点画在同一张二维图上。
