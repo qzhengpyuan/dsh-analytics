@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 29, names.join(' '))
+  assert.equal(names.length, 30, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -191,6 +191,17 @@ await check('pspp_ordinal fits a proportional-odds model and reports the paralle
   assert.deepEqual(out.categories, [1, 2, 3], 'the sorted values define the order')
   assert.ok(out.parallel && out.parallel.df >= 1, 'the parallel-lines test is computed for three categories')
   assert.ok(out.accuracy >= 0 && out.accuracy <= 1, `accuracy ${out.accuracy}`)
+})
+
+await check('pspp_poisson fits a log-link count model and reports dispersion', async () => {
+  // `tier` (1–3) from the ordinal check is a legitimate count variable, so the
+  // model has something integer to fit without inventing a new column.
+  const out = await call('pspp_poisson', { dependent: 'tier', independents: ['group'] })
+  assert.equal(out.matrix[0][0], '参数', JSON.stringify(out).slice(0, 300))
+  assert.equal(out.tables.length, 3, 'fit information, goodness of fit and parameters')
+  assert.ok(out.cases >= 3, `cases ${out.cases}`)
+  assert.ok(out.dispersion >= 0 && Number.isFinite(out.dispersion), `dispersion ${out.dispersion}`)
+  assert.match(out.notes.join(' '), /log\(预测计数\)/, 'the note prints the fitted equation')
 })
 
 await check('pspp_cluster builds the agglomeration schedule and can draw the tree', async () => {

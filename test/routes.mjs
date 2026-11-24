@@ -1268,10 +1268,11 @@ await call('POST', `${base}/api/close`, { sessionId: 'cox01' })
 let mlrRes = await call('POST', `${base}/api/new`, { sessionId: 'mlr01', cwd: home, variables: [
   { name: 'arm', type: 'string' },
   { name: 'dose', type: 'numeric' },
+  { name: 'counts', type: 'numeric' },
 ] })
 for (let index = 0; index < 60; index += 1) {
   const arm = ['low', 'mid', 'high'][index % 3]
-  mlrRes = await call('POST', `${base}/api/case`, { sessionId: 'mlr01', values: { arm, dose: index / 10 + ((index * 37) % 11) / 10 } })
+  mlrRes = await call('POST', `${base}/api/case`, { sessionId: 'mlr01', values: { arm, dose: index / 10 + ((index * 37) % 11) / 10, counts: 1 + (index % 5) } })
 }
 r = await call('POST', `${base}/api/multinomial`, { sessionId: 'mlr01', options: { dependent: 'arm', independents: ['dose'] } })
 const mlr = r.json()
@@ -1281,6 +1282,15 @@ console.log('multinomial ->', r.code, mlr.result?.matrix?.[0]?.[0], mlr.result?.
 r = await call('POST', `${base}/api/multinomial`, { sessionId: 'mlr01', options: { dependent: 'arm', independents: ['dose'], reference: 'mid' } })
 console.log('multinomial with a reference ->', r.code, r.json().result?.model?.reference,
   r.json().result?.model?.categories?.join(','))
+// Poisson regression: the count model is fitted in the plugin, so the route
+// must produce the three tables without an engine run.
+r = await call('POST', `${base}/api/poisson`, { sessionId: 'mlr01', options: { dependent: 'counts', independents: ['dose'] } })
+const poi = r.json()
+console.log('poisson ->', r.code, poi.result?.matrix?.[0]?.[0], poi.result?.items?.length,
+  Number.isFinite(poi.result?.model?.dispersion), poi.result?.model?.cases > 0,
+  poi.state?.items?.length > 0)
+r = await call('POST', `${base}/api/poisson`, { sessionId: 'mlr01', options: { dependent: 'counts', independents: ['arm'] } })
+console.log('poisson with a text predictor ->', r.code, /文本变量/.test(String(r.json().error)))
 // Ordinal logistic: three ordered levels of the same data, so the
 // parallel-lines test has a degree of freedom.
 r = await call('POST', `${base}/api/ordinal`, { sessionId: 'mlr01', options: { dependent: 'arm', independents: ['dose'] } })

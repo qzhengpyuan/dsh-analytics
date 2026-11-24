@@ -2107,6 +2107,35 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     await new Promise((resolve) => setTimeout(resolve, 40))
   })
   assert.match(clientSource, /api\('api\/ordinal', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/ordinal')
+  // 泊松回归：计数因变量的对数连接模型，同样在宿主侧拟合。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const analysePop5 = menuHost.querySelector('.ap-menu-pop')
+  const regressionGroup3 = [...analysePop5.querySelectorAll('button')].find((node) => node.textContent.startsWith('回归'))
+  await act(async () => {
+    regressionGroup3?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const poissonItem = [...(regressionGroup3?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])].find((node) => node.textContent.startsWith('泊松回归'))
+  assert.ok(poissonItem, 'the regression group lists Poisson regression')
+  await act(async () => {
+    poissonItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const poissonDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.ok(poissonDialog, 'the Poisson dialog opens from the menu')
+  assert.match(poissonDialog.textContent, /泊松回归/, 'the dialog is titled like the procedure')
+  assert.match(poissonDialog.textContent, /离散参数/, 'the hint explains what the dispersion parameter means')
+  const poissonOk = [...poissonDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(poissonOk.disabled, true, 'nothing is fitted until a dependent and a predictor are chosen')
+  const poissonCancel = [...poissonDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    poissonCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.match(clientSource, /api\('api\/poisson', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/poisson')
 
   const outTab = [...menuHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
   await act(async () => {

@@ -1600,6 +1600,27 @@
     "阈值 Y ≤ ": "Threshold Y ≤ ",
     "有序 Logistic 回归至少要一个自变量": "Ordinal Logistic Regression needs at least one independent variable",
     "有序 Logistic 的方程是奇异的：自变量之间完全共线，或者某个自变量在类别里没有变化": "The ordinal logistic equations are singular: the independent variables are perfectly collinear, or one of them does not vary within a level",
-    "还没有打开数据集": "No dataset is open"
+    "还没有打开数据集": "No dataset is open",
+    "泊松回归": "Poisson Regression",
+    "因变量（非负整数计数）": "Dependent variable (non-negative integer counts)",
+    "预测计数 = exp(b0 + b1×x1 + …)；Exp(B) 是自变量每增加一个单位时预测计数乘多少倍。": "Predicted count = exp(b0 + b1×x1 + …); Exp(B) is the factor the predicted count is multiplied by for a one-unit increase in the predictor.",
+    "因变量必须是数出来的次数。如果是「事件数 ÷ 观察量」的比率，把事件数当因变量、观察量取对数当自变量（暴露量）。": "The dependent variable must be a count. For a rate (events ÷ exposure), model the event count and put the log of the exposure in as a predictor.",
+    "Pearson 卡方除以其自由度就是离散参数：明显大于 1 说明数据比泊松允许的更分散，标准误会偏小。": "The Pearson chi-square divided by its degrees of freedom is the dispersion parameter: clearly above one means the data are more variable than Poisson allows, and the standard errors come out too small.",
+    "泊松回归…（计数因变量）": "Poisson Regression… (counts)",
+    "泊松回归：{0} 例，离散参数 {1}": "Poisson regression: {0} cases, dispersion {1}",
+    "泊松回归要先选一个计数因变量": "Poisson Regression needs a count dependent variable",
+    "泊松回归的因变量要求数值变量：{0} 是文本变量": "The dependent variable of Poisson Regression must be numeric: {0} is a text variable",
+    "泊松回归的因变量不能是负数：第 {0} 个个案是 {1}": "The dependent variable of Poisson Regression cannot be negative: case {0} is {1}",
+    "泊松回归的因变量必须是非负整数计数：「{0}」里有 {1} 这样的小数或非数字。如果它是比率（比如每千人发病率），要做成「事件数 + 暴露量」的形式；如果它是连续测量值，请用线性回归或 Logistic 回归": "The dependent variable of Poisson Regression must be a non-negative integer count: {0} contains {1}, which is a fraction or not a number. For a rate (for example cases per thousand), model the event count with the exposure as a predictor; for a continuous measurement use linear or logistic regression",
+    "没有可用的个案：因变量或自变量全部缺失": "No usable cases: the dependent variable or every predictor is missing",
+    "个案太少：{0} 个个案拟合不了 {1} 个参数": "Too few cases: {0} cases cannot fit {1} parameters",
+    "因变量「{0}」的取值全是 0：泊松回归的均值必须大于 0": "The dependent variable {0} is zero in every case: a Poisson mean has to be above zero",
+    "仅截距": "Intercept Only",
+    "最终模型": "Final",
+    "偏差（Deviance）": "Deviance",
+    "Pearson 卡方": "Pearson Chi-Square",
+    "（常数）": "(Constant)",
+    "似然比 χ²": "Likelihood-Ratio χ²",
+    "值/df": "Value/df"
   }
 }

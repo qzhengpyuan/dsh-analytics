@@ -2073,6 +2073,45 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
           h('div', { className: 'ap-hint' }, tr('已选 {0} 个自变量', chosen.length)))))
     }
 
+    function PoissonDialog({ variables, onRun, onClose }) {
+      const numeric = variables.filter((variable) => variable.type === 'numeric')
+      const [dependent, setDependent] = useState(null)
+      const [chosen, setChosen] = useState([])
+      const toggle = (name) => setChosen((current) => (current.includes(name)
+        ? current.filter((entry) => entry !== name)
+        : [...current, name]))
+      const candidates = numeric.filter((variable) => variable.name !== dependent)
+      const ready = Boolean(dependent && chosen.length > 0)
+      return h(Modal, {
+        title: '泊松回归',
+        wide: true,
+        okDisabled: !ready,
+        onCancel: onClose,
+        onOk: () => onRun({ dependent, independents: chosen }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '自变量（数值）'),
+          h('div', { className: 'ap-dlg-list' }, candidates.length
+            ? candidates.map((variable) => h('span', {
+              key: variable.name,
+              className: `ap-chip${chosen.includes(variable.name) ? ' ap-chip-on' : ''}`,
+              onClick: () => toggle(variable.name),
+              translate: false,
+            }, variable.name))
+            : h('div', { className: 'ap-hint' }, '还没有可用的数值自变量（分类自变量要先造哑变量）。'))),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '因变量（非负整数计数）'),
+            h('select', { value: dependent ?? '', onChange: (e) => setDependent(e.target.value || null) },
+              h('option', { value: '' }, '（选一个因变量）'),
+              variables.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-hint' }, '预测计数 = exp(b0 + b1×x1 + …)；Exp(B) 是自变量每增加一个单位时预测计数乘多少倍。'),
+          h('div', { className: 'ap-hint' }, '因变量必须是数出来的次数。如果是「事件数 ÷ 观察量」的比率，把事件数当因变量、观察量取对数当自变量（暴露量）。'),
+          h('div', { className: 'ap-hint' }, 'Pearson 卡方除以其自由度就是离散参数：明显大于 1 说明数据比泊松允许的更分散，标准误会偏小。'),
+          h('div', { className: 'ap-hint' }, tr('已选 {0} 个自变量', chosen.length)))))
+    }
+
     /**
      * Two-way comparison of the groups of one variable.
      *
@@ -7130,6 +7169,22 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId])
 
+      const runPoisson = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/poisson', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const model = value.result?.model ?? {}
+          notify(tr('泊松回归：{0} 例，离散参数 {1}', model.cases ?? 0, (model.dispersion ?? 0).toFixed(2)))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId])
+
       const runPairwise = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -7964,6 +8019,7 @@ let ITEM_CSV_PENDING = null
               { label: '二元 Logistic…', action: () => runAnalysis('logistic') },
               { label: '多项 Logistic…（3 类以上）', action: () => setDialog({ kind: 'multinomial' }) },
               { label: '有序 Logistic…（有先后次序）', action: () => setDialog({ kind: 'ordinal' }) },
+              { label: '泊松回归…（计数因变量）', action: () => setDialog({ kind: 'poisson' }) },
             ] },
             { label: '降维', sub: [
               { label: '因子…', action: () => runAnalysis('factor') },
@@ -9200,6 +9256,13 @@ let ITEM_CSV_PENDING = null
           ? h(MultinomialDialog, {
             variables,
             onRun: (payload) => runMultinomial(payload),
+            onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'poisson'
+          ? h(PoissonDialog, {
+            variables,
+            onRun: (payload) => runPoisson(payload),
             onClose: () => setDialog(null),
           })
           : null,
