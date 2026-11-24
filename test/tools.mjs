@@ -33,7 +33,7 @@ const check = async (name, fn) => {
 
 const dir = mkdtempSync(join(tmpdir(), 'ap-tools-'))
 const csv = join(dir, 'd.csv')
-writeFileSync(csv, 'score,group,grp\n12,1,A\n18,1,A\n23,1,B\n31,2,B\n44,2,A\n15,2,B\n27,1,A\n8,2,B\n')
+writeFileSync(csv, 'score,group,grp,time,event\n12,1,A,2,1\n18,1,A,3,1\n23,1,B,4,1\n31,2,B,5,0\n44,2,A,6,1\n15,2,B,7,0\n27,1,A,8,1\n8,2,B,9,0\n')
 
 const registry = new WorkspaceRegistry({
   engine: resolveEngine(),
@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 23, names.join(' '))
+  assert.equal(names.length, 24, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -85,7 +85,7 @@ await check('pspp_open reads a csv and pspp_variables lists it', async () => {
   assert.equal(opened.cases, 8, JSON.stringify(opened).slice(0, 200))
   const variables = await call('pspp_variables')
   const names = (variables.variables ?? variables).map((entry) => entry.name ?? entry)
-  assert.deepEqual(names, ['score', 'group', 'grp'], names.join(' '))
+  assert.deepEqual(names, ['score', 'group', 'grp', 'time', 'event'], names.join(' '))
 })
 
 await check('pspp_data returns rows and a total', async () => {
@@ -160,6 +160,14 @@ await check('pspp_partial reports partial correlations', async () => {
   const partial = await call('pspp_partial', { variables: ['score', 'twice'], controls: ['group'] })
   assert.ok(partial.matrix.length >= 2, JSON.stringify(partial).slice(0, 300))
   assert.match(partial.matrix[0][0], /变量对/)
+})
+
+await check('pspp_cox fits a survival model and reports the hazard ratio', async () => {
+  const cox = await call('pspp_cox', { time: 'time', event: 'event', covariates: ['group'] })
+  assert.equal(cox.matrix[0][0], '变量', JSON.stringify(cox).slice(0, 300))
+  assert.equal(cox.matrix.length, 2, 'a header plus one covariate')
+  assert.equal(cox.matrix[1][6] !== undefined, true, 'the Exp(B) column is filled')
+  assert.ok(cox.notes.some((note) => /Breslow/.test(note)), 'the ties method is stated')
 })
 
 await check('the export tools write real files', async () => {

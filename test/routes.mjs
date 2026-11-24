@@ -1182,6 +1182,27 @@ console.log('one undo restores both ->', r.code, batchAfterUndo.map((variable) =
 r = await call('POST', `${base}/api/variable`, { sessionId: sid, action: 'updateMany', names: ['nope'], patch: { decimals: 1 } })
 console.log('updateMany with an unknown name ->', r.code, r.json().error ?? r.json().message)
 
+// Cox regression runs inside the plugin (PSPP 2.1.3 has no COXREG), so the
+// route has to work without an engine run: it builds the table from the rows
+// that are already open.
+let coxRes = await call('POST', `${base}/api/new`, { sessionId: 'cox01', cwd: home, variables: [
+  { name: 't', type: 'numeric' },
+  { name: 'e', type: 'numeric' },
+  { name: 'g', type: 'numeric' },
+] })
+for (const values of [[2, 1, 1], [3, 1, 1], [4, 1, 1], [5, 1, 1], [6, 1, 1], [7, 0, 1],
+  [4, 1, 0], [5, 1, 0], [6, 1, 0], [7, 1, 0], [8, 1, 0], [9, 1, 0], [10, 0, 0], [11, 0, 0]]) {
+  coxRes = await call('POST', `${base}/api/case`, { sessionId: 'cox01', values })
+}
+r = await call('POST', `${base}/api/cox`, { sessionId: 'cox01', options: { time: 't', event: 'e', covariates: ['g'] } })
+const cox = r.json()
+console.log('cox ->', r.code, cox.result?.matrix?.[0]?.[0], cox.result?.matrix?.[1]?.[0],
+  Number(cox.result?.matrix?.[1]?.[6]) > 1, cox.result?.notes?.some((note) => /Breslow/.test(note)),
+  cox.state?.items?.length > 0)
+r = await call('POST', `${base}/api/cox`, { sessionId: 'cox01', options: { time: 't', event: 'e', covariates: [] } })
+console.log('cox without covariates ->', r.code, /至少要一个协变量/.test(String(r.json().error)))
+await call('POST', `${base}/api/close`, { sessionId: 'cox01' })
+
 for (const id of ['pivot01', 'pivot02', 'dup01', 'out01', 'ex01', 'cmh01', 'glmc01']) await call('POST', `${base}/api/close`, { sessionId: id })
 
 r = await call('POST', `${base}/api/close`, { sessionId: 'pivot01' })

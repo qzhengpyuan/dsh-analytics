@@ -50,7 +50,7 @@ node scripts/install.mjs web --apply    # 真的装：装进 profile + 把 dsh-a
 | 半边 | 文件 | 职责 |
 | --- | --- | --- |
 | Host | `index.js`、`lib/*.js` | 自带引擎的进程管理、每会话工作区、数据读写、输出解析、`/analytics` HTTP API，并把工作区注册成 `analytics` 服务 |
-| 预设半 | `tools-entry.js` | 23 个 `pspp_*` 工具，只挂在「统计分析」Agent 预设里，别的会话拿不到 |
+| 预设半 | `tools-entry.js` | 24 个 `pspp_*` 工具，只挂在「统计分析」Agent 预设里，别的会话拿不到 |
 | Client | `client.js` | 通过 `ctx.betterSidebar.registerTab()` 注册侧栏页签；所有请求走同一套 API |
 
 面板的设置页（设置 → 统计分析）管个案上限、超时、`--safer` 与表格样式，写 `~/.dsh/analytics/settings.json`，不用改 profile patch；`registerTools` 那一项仍属部署决定，只展示。
@@ -129,9 +129,9 @@ PSPP 2.1.3 的语法差异：`REGRESSION /STATISTICS=TOL`（含 `ALL`）会报�
 
 ## Agent 工具
 
-23 个，**由插件自带的「统计分析」Agent 预设挂载**（`preset-analytics` → `dsh-analytics/tools`）：新建会话时选「统计分析」，这些工具才出现在那个会话里；用别的预设的会话看不到它们，省下的正是这 23 条工具定义每次请求都要占的上下文。宿主半在 `index.js` 里把工作区注册成 `analytics` 服务，预设半据此拿同一个数据集，所以面板和对话永远改的是同一份数据。想让老装法（每个会话都带工具）继续工作，把 `cordis.patch.yml` 里 `analytics` 行的 `registerTools` 改成 `true`。
+24 个，**由插件自带的「统计分析」Agent 预设挂载**（`preset-analytics` → `dsh-analytics/tools`）：新建会话时选「统计分析」，这些工具才出现在那个会话里；用别的预设的会话看不到它们，省下的正是这 24 条工具定义每次请求都要占的上下文。宿主半在 `index.js` 里把工作区注册成 `analytics` 服务，预设半据此拿同一个数据集，所以面板和对话永远改的是同一份数据。想让老装法（每个会话都带工具）继续工作，把 `cordis.patch.yml` 里 `analytics` 行的 `registerTools` 改成 `true`。
 
-23 个：`pspp_status` `pspp_open` `pspp_new` `pspp_add_variable` `pspp_append_cases` `pspp_variables` `pspp_data` `pspp_run` `pspp_run_file` `pspp_convert` `pspp_analyze` `pspp_transform` `pspp_chart` `pspp_publication_table` `pspp_pairwise` `pspp_partial` `pspp_edit_chart` `pspp_save` `pspp_merge` `pspp_export_document` `pspp_export_office` `pspp_export_chart` `pspp_export`
+24 个：`pspp_status` `pspp_open` `pspp_new` `pspp_add_variable` `pspp_append_cases` `pspp_variables` `pspp_data` `pspp_run` `pspp_run_file` `pspp_convert` `pspp_analyze` `pspp_transform` `pspp_chart` `pspp_publication_table` `pspp_pairwise` `pspp_partial` `pspp_cox` `pspp_edit_chart` `pspp_save` `pspp_merge` `pspp_export_document` `pspp_export_office` `pspp_export_chart` `pspp_export`
 
 - `pspp_analyze`：frequencies / descriptives / crosstabs / ttest_independent / ttest_paired / ttest_one_sample / oneway / glm / correlation / regression / logistic / factor / reliability / npar（卡方）/ npar_binomial / npar_ks / npar_runs / npar_wilcoxon / npar_sign / npar_mannwhitney / npar_kruskal / npar_friedman / examine / means / ctables / roc / cluster（npar 子过程与「分析 → 非参数检验」对话框生成同一份语法）
 - `pspp_transform`：compute / recode / sort / aggregate / select / filter / weight / split / rename / delete / sample / count / rank（全部写回数据集）
@@ -149,7 +149,7 @@ PSPP 2.1.3 的语法差异：`REGRESSION /STATISTICS=TOL`（含 `ALL`）会报�
     safer: false
     evictIdle: true      # 关掉后会话数据集常驻内存
     maxIdleMs: 1800000   # 空闲多久释放（毫秒）
-    registerTools: false # true = 回到 0.26 之前的做法：每个会话都挂 23 个 pspp_* 工具
+    registerTools: false # true = 回到 0.26 之前的做法：每个会话都挂 24 个 pspp_* 工具
 ```
 
 `registerTools: false`（默认）时工具只由预设半 `dsh-analytics/tools` 提供，也就是只出现在选了「统计分析」预设的会话里。它会被记进启动日志：`[dsh-analytics] <版本> routes ready (registerTools=false)`。

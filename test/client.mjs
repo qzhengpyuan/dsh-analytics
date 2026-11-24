@@ -1982,6 +1982,36 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   const limits = [...analysePop.querySelectorAll('button')].find((node) => node.textContent.startsWith('受引擎限制的功能'))
   const limitsText = limits?.parentElement?.querySelector('.ap-sub-pop')?.textContent ?? ''
   assert.doesNotMatch(limitsText, /偏相关/, 'partial correlation is no longer listed as an engine limitation')
+  // 生存分析这一组现在有两件：KM 由插件算曲线，Cox 由插件拟合偏似然。
+  const survivalGroup = [...analysePop.querySelectorAll('button')].find((node) => node.textContent.startsWith('生存分析'))
+  await act(async () => {
+    survivalGroup?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const survivalItems = [...(survivalGroup?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])].map((node) => node.textContent)
+  assert.ok(survivalItems.some((text) => text.startsWith('Kaplan–Meier')), `the survival group lists Kaplan–Meier, got ${JSON.stringify(survivalItems)}`)
+  assert.ok(survivalItems.some((text) => text.startsWith('Cox 回归')), `and Cox regression, got ${JSON.stringify(survivalItems)}`)
+  assert.doesNotMatch(limitsText, /生存分析（KM \/ Cox）/, 'survival analysis is no longer advertised as an engine limitation')
+  const coxItem = [...(survivalGroup?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])].find((node) => node.textContent.startsWith('Cox 回归'))
+  await act(async () => {
+    coxItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const coxDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.ok(coxDialog, 'the Cox dialog opens from the menu')
+  assert.match(coxDialog.textContent, /Cox 回归（比例风险）/, 'the dialog is titled like the procedure')
+  assert.match(coxDialog.textContent, /生存时间（必选，数值）/, 'and asks for the survival time')
+  assert.match(coxDialog.textContent, /事件指示（必选：1 = 发生，0 = 删失）/, 'and for the event indicator')
+  const coxOk = [...coxDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(coxOk.disabled, true, 'nothing is fitted until the three choices are made')
+  const coxCancel = [...coxDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    coxCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.equal([...menuHost.querySelectorAll('.ap-modal')].length, 0, 'and it closes again')
+  assert.match(clientSource, /api\('api\/cox', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/cox')
+  assert.match(clientSource, /\{ time, event, covariates: chosen \}/, 'sending exactly the three choices the host needs')
   const outTab = [...menuHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
   await act(async () => {
     outTab.click()

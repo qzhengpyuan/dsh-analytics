@@ -1882,6 +1882,56 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     }
 
     /**
+     * Cox proportional-hazards regression.
+     *
+     * PSPP 2.1.3 has no COXREG, so the dialog only collects the three choices
+     * and the host fits the partial likelihood.
+     */
+    function CoxDialog({ variables, onRun, onClose }) {
+      const numeric = variables.filter((variable) => variable.type === 'numeric')
+      const [time, setTime] = useState(null)
+      const [event, setEvent] = useState(null)
+      const [chosen, setChosen] = useState([])
+      const toggle = (name) => setChosen((current) => (current.includes(name)
+        ? current.filter((entry) => entry !== name)
+        : [...current, name]))
+      const candidates = numeric.filter((variable) => variable.name !== time && variable.name !== event)
+      const ready = Boolean(time && event && chosen.length > 0)
+      return h(Modal, {
+        title: 'Cox 回归（比例风险）',
+        wide: true,
+        okDisabled: !ready,
+        onCancel: onClose,
+        onOk: () => onRun({ time, event, covariates: chosen }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '协变量（数值）'),
+          h('div', { className: 'ap-dlg-list' }, candidates.length
+            ? candidates.map((variable) => h('span', {
+              key: variable.name,
+              className: `ap-chip${chosen.includes(variable.name) ? ' ap-chip-on' : ''}`,
+              onClick: () => toggle(variable.name),
+              translate: false,
+            }, variable.name))
+            : h('div', { className: 'ap-hint' }, '还没有可用的数值变量（分类变量要先造哑变量）。'))),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '生存时间（必选，数值）'),
+            h('select', { value: time ?? '', onChange: (e) => setTime(e.target.value || null) },
+              h('option', { value: '' }, '（选一个时间变量）'),
+              numeric.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '事件指示（必选：1 = 发生，0 = 删失）'),
+            h('select', { value: event ?? '', onChange: (e) => setEvent(e.target.value || null) },
+              h('option', { value: '' }, '（选一个事件变量）'),
+              numeric.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-hint' }, '并列事件时间用 Breslow 近似；协变量在计算时已中心化，不影响 B 与 Exp(B)。'),
+          h('div', { className: 'ap-hint' }, '分类协变量不直接收：先用「转换 → 重新编码成不同变量」造 0/1 哑变量。'),
+          h('div', { className: 'ap-hint' }, tr('已选 {0} 个协变量', chosen.length)))))
+    }
+
+    /**
      * Two-way comparison of the groups of one variable.
      *
      * This is the table a paper needs behind an overall group difference, so it
@@ -6722,6 +6772,22 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId])
 
+      const runCox = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/cox', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const notes = value.result?.notes ?? []
+          notify(tr('已生成：{0}{1}', value.result?.item?.title ?? tr('表格'), notes.length ? tr('（{0} 条提示）', notes.length) : ''))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId])
+
       const runPairwise = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -7588,6 +7654,7 @@ let ITEM_CSV_PENDING = null
             { label: 'ROC 曲线…', action: () => runAnalysis('roc') },
             { label: '生存分析', sub: [
               { label: 'Kaplan–Meier…（生存曲线 + log-rank）', action: () => setDialog({ kind: 'chart', type: 'km' }) },
+              { label: 'Cox 回归…（比例风险）', action: () => setDialog({ kind: 'cox' }) },
             ] },
             { label: '质量控制', sub: [
               { label: '控制图…（X̄–R）', action: () => setDialog({ kind: 'chart', type: 'control' }) },
@@ -7597,14 +7664,14 @@ let ITEM_CSV_PENDING = null
             { label: '缺失值分析…', action: () => runAnalysis('missing') },
             { sep: true },
             { label: '受引擎限制的功能', sub: [
-              { label: '生存分析（KM / Cox）', action: () => notify('PSPP 2.1.3 没有实现生存分析（not yet implemented）。替代：把数据导出 CSV，用 R 的 survival 包（KM 曲线、Cox 回归都在那里）。') },
+              { label: '复杂生存模型（分层 Cox、时依协变量、竞争风险）', action: () => notify('PSPP 2.1.3 没有实现生存分析。插件自己实现了两件：分析 → 生存分析 → Kaplan–Meier（生存曲线 + log-rank）与 Cox 回归（单个偏似然模型，Breslow 并列）。分层 Cox、时依协变量、竞争风险没有做，替代是把数据导出 CSV，用 R 的 survival 包。') },
               { label: '复杂抽样', action: () => notify('PSPP 2.1.3 没有实现复杂抽样（CSDESCRIPTIVES / CSTABULATE）。替代：用「数据 → 加权个案」近似分层权重，或导出后用 R 的 survey 包。') },
               { label: '多重插补', action: () => notify('PSPP 2.1.3 根本不认识 MULTIPLE IMPUTATION（Unknown command）。插件给了两件替代：分析 → 缺失值分析（看缺失集中在哪些变量、哪些模式）与 转换 → 替换缺失值（序列平均值 / 线性趋势 / 临近点）。这两件都不是多重插补，会低估方差，写限制时要说明。') },
               { label: '协方差分析（ANCOVA）', action: () => notify('PSPP 2.1.3 的 GLM 不接受 WITH 协变量子句。替代：用「回归 → 线性」把分组变量当哑变量、协变量当预测变量，等价于 ANCOVA 的模型。') },
               { label: '曲线估计（CURVEFIT）', action: () => notify('PSPP 2.1.3 返回「CURVEFIT 尚未实现」。替代：用「转换 → 计算变量」造 x²、ln(x)、1/x 等项，再跑「回归 → 线性」。') },
               { label: '多选题直接进 CROSSTABS 等过程', action: () => notify('PSPP 不认 $ 变量。替代：多选题的频数与交叉表由本插件自己算——「转换 → 多选题面板」；要进其他过程，先把选项拆成二分变量。') },
               { label: 'Durbin-Watson 残差自相关', action: () => notify('PSPP 的 REGRESSION 没有 /STATISTICS=DURBIN（只支持 COEFF、R、ANOVA、BCOV、CI、TOL）。替代：回归时勾「保存残差」，导出 CSV 后按公式算 DW。') },
-              { label: '决策树 / 报表 / 概率图', action: () => notify('TREE、REPORT、PPLOT 在 PSPP 2.1.3 都没有实现。替代：P-P/Q-Q 图可用「分析 → 探索」里的正态概率图近似；报表用「表 1 / 表 2」或导出 Word。偏相关由插件自己实现，在「相关 → 偏相关…」。') },
+              { label: '决策树 / 报表', action: () => notify('TREE、REPORT、PPLOT 在 PSPP 2.1.3 都没有实现。替代：报表用「表 1 / 表 2」或导出 Word；P-P/Q-Q 图与偏相关由插件自己实现，分别在「图形 → P-P / Q-Q 图」与「相关 → 偏相关…」。') },
             ] },
           ],
         },
@@ -8755,6 +8822,13 @@ let ITEM_CSV_PENDING = null
             value: labelsDialog.text,
             onChange: (event) => setLabelsDialog({ ...labelsDialog, text: event.target.value }),
           }))
+          : null,
+        dialog?.kind === 'cox'
+          ? h(CoxDialog, {
+            variables,
+            onRun: (payload) => runCox(payload),
+            onClose: () => setDialog(null),
+          })
           : null,
         dialog?.kind === 'publication'
           ? h(PublicationDialog, {
