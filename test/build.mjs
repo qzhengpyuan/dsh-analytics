@@ -204,7 +204,7 @@ check('bar refuses two grouping dimensions at once', () => {
     () => computeBar(dataset, { variable: 'score', by: 'gender', cluster: 'group', stack: 'group' }),
     /一次只能有一个分组维度/,
   )
-  assert.throws(() => computeBar(dataset, { variable: 'score', cluster: 'nope' }), /unknown variable: nope/)
+  assert.throws(() => computeBar(dataset, { variable: 'score', cluster: 'nope' }), /没有这个变量：nope/)
   assert.throws(
     () => computeBar(dataset, { variable: 'score', by: 'gender', stack: 'gender' }),
     /类别变量不能同时用作分组或堆叠变量/,
@@ -370,7 +370,7 @@ check('a dual-axis line reads each series against its own scale', () => {
   assert.equal((svg.match(/<polyline/g) ?? []).length, 2, 'one line per axis')
   assert.ok(svg.includes('（左轴）') && svg.includes('（右轴）'))
   assert.throws(() => computeDualLine(dual, { variable: 'n', by: 't' }), /需要第二个变量/)
-  assert.throws(() => computeDualLine(dual, { variable: 'n', by: 't', y2: 'nope' }), /unknown variable: nope/)
+  assert.throws(() => computeDualLine(dual, { variable: 'n', by: 't', y2: 'nope' }), /没有这个变量：nope/)
 })
 
 check('percentage stack fills every bar to exactly 100', () => {
@@ -492,7 +492,7 @@ check('buildChartModel dispatches every kind', () => {
 })
 
 check('chart rejects unknown variable', () => {
-  assert.throws(() => computeBar(dataset, { variable: 'nope' }), /unknown variable/)
+  assert.throws(() => computeBar(dataset, { variable: 'nope' }), /没有这个变量：/)
 })
 
 check('factor uses NOROTATE and prints KMO by default', () => {
@@ -711,7 +711,7 @@ check('frequencies draws the four chart kinds', () => {
   assert.equal(buildAnalysis('frequencies', { variables: ['x'], chart: 'histogram' }), 'FREQUENCIES /VARIABLES=x /HISTOGRAM.')
   assert.equal(buildAnalysis('frequencies', { variables: ['x'], chart: 'histogramNormal' }), 'FREQUENCIES /VARIABLES=x /HISTOGRAM NORMAL.')
   // The old boolean spelling keeps the bar chart it always meant.
-  assert.equal(buildAnalysis('frequencies', { variables: ['x'], chart: true }), 'FREQUENCIES /VARIABLES=x /BARCHART=COUNT.')
+  assert.equal(buildAnalysis('frequencies', { variables: ['x'], chart: true }), 'FREQUENCIES /VARIABLES=x /BARCHART.')
   assert.throws(() => buildAnalysis('frequencies', { variables: ['x'], chart: 'donut' }), /只认 bar、pie、histogram、histogramNormal/)
 })
 

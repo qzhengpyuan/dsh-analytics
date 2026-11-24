@@ -72,7 +72,7 @@ check('an out-of-range position is clamped instead of throwing', () => {
 
 check('an unknown variable is refused', () => {
   const workspace = make()
-  assert.throws(() => workspace.moveVariable('Nope', 1), /unknown variable: Nope/)
+  assert.throws(() => workspace.moveVariable('Nope', 1), /没有这个变量：Nope/)
 })
 
 check('a paste past the last case grows the table', () => {

@@ -2561,22 +2561,38 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   // 生存分析：对话框交时间、事件指示与可选分组，曲线与 log-rank 在插件里算。
   const km = build(hooks.CHART_SPECS.km, { time: 'score', event: 'gender', group: 'gender' }, {}, variables)
   assert.equal(km.chart.kind, 'km', 'the dialog asks for a survival model')
-  assert.equal(km.chart.options.time, 'score')
-  assert.equal(km.chart.options.event, 'gender')
-  assert.equal(km.chart.options.group, 'gender')
-  assert.equal(build(hooks.CHART_SPECS.km, { time: 'score', event: 'gender', group: '' }, {}, variables).chart.options.group, null, 'no grouping means one curve')
+  assert.equal(km.chart.time, 'score')
+  assert.equal(km.chart.event, 'gender')
+  assert.equal(km.chart.group, 'gender')
+  assert.equal(build(hooks.CHART_SPECS.km, { time: 'score', event: 'gender', group: '' }, {}, variables).chart.group, null, 'no grouping means one curve')
   // 控制图：对话框只交变量、子组变量与子组大小，限值与越界判断在图模型里。
   const control = build(hooks.CHART_SPECS.control, { variable: 'score', subgroup: 'gender', size: '4' }, {}, variables)
   assert.equal(control.chart.kind, 'control', 'the dialog asks for a control-chart model')
-  assert.equal(control.chart.options.size, 4, 'the subgroup size travels as a number')
-  assert.equal(control.chart.options.subgroup, 'gender', 'and so does the subgroup variable')
-  assert.equal(build(hooks.CHART_SPECS.control, { variable: 'score', subgroup: '' }, {}, variables).chart.options.subgroup, null, 'an empty subgroup choice means "split by order"')
+  assert.equal(control.chart.size, 4, 'the subgroup size travels as a number')
+  assert.equal(control.chart.subgroup, 'gender', 'and so does the subgroup variable')
+  assert.equal(build(hooks.CHART_SPECS.control, { variable: 'score', subgroup: '' }, {}, variables).chart.subgroup, null, 'an empty subgroup choice means "split by order"')
   // 帕累托图：对话框只发类别变量与两个选项，计数与排序在图表模型里做。
   const pareto = build(hooks.CHART_SPECS.pareto, { variable: 'score', reference: '90', maxCategories: '3' }, {}, variables)
   assert.equal(pareto.chart.kind, 'pareto', 'the pareto dialog asks for a pareto model')
-  assert.equal(pareto.chart.options.reference, 90, 'the reference line travels as a number')
-  assert.equal(pareto.chart.options.maxCategories, 3, 'and so does the category cap')
-  assert.equal(build(hooks.CHART_SPECS.pareto, { variable: 'score' }, {}, variables).chart.options.reference, 80, 'the default reference is 80%')
+  assert.equal(pareto.chart.reference, 90, 'the reference line travels as a number')
+  assert.equal(pareto.chart.maxCategories, 3, 'and so does the category cap')
+  assert.equal(build(hooks.CHART_SPECS.pareto, { variable: 'score' }, {}, variables).chart.reference, 80, 'the default reference is 80%')
+  // 每个图型都必须是扁平的：宿主拿 body.options 当参数，再套一层 options 就
+  // 只剩外壳，变量全是 undefined（Win10 0740 的 P1-4，km/control/pareto 三处）。
+  for (const [name, spec] of Object.entries(hooks.CHART_SPECS)) {
+    const built = spec.build({ variable: 'score', time: 'score', event: 'gender', plot: 'qq' }, {})
+    assert.ok(built?.chart, `${name} builds a chart request`)
+    assert.ok(!('options' in built.chart), `${name} must not nest its options`)
+  }
+  // 字符串分组要加引号，否则 PSPP 把 grp(A B) 当数值范围（P1-3）。
+  const stringMedian = hooks.ANALYSIS_SPECS.nparMedian.build(
+    { variable: 'score', by: 'group', range: 'A B' }, {}, [{ name: 'group', type: 'string' }],
+  )
+  assert.equal(stringMedian.syntax, "NPAR TESTS /MEDIAN=score BY group('A' 'B').", stringMedian.syntax)
+  const numericMedian = hooks.ANALYSIS_SPECS.nparMedian.build(
+    { variable: 'score', by: 'group', range: '1 3' }, {}, [{ name: 'group', type: 'numeric' }],
+  )
+  assert.equal(numericMedian.syntax, 'NPAR TESTS /MEDIAN=score BY group(1 3).', numericMedian.syntax)
   // 调用点本身也要守住：包装器修好而 ChartDialog 又只传两个实参，等于白修。
   assert.match(
     clientSource,
@@ -2617,6 +2633,18 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   const nearby = specs.replaceMissing.build({ variables: ['score'] }, { method: { method: 'nearbyMedian', span: '3' } })
   assert.deepEqual(nearby.missing, { mode: 'replace', variables: ['score'], method: 'nearbyMedian', span: 3 },
     'the nearby methods carry the span, and it travels as a number')
+  // 面板一打开就带默认方法：flags 若是把所有项都当复选框，method 会变 false，
+  // 默认路径的请求体就成了 {"method":"false"}，宿主 400（Win10 0740 的 P1-1）。
+  const dialogDefaults = hooks.freshDialogFlags(specs.replaceMissing)
+  assert.equal(dialogDefaults.method.method, 'mean', `the select keeps its own default, got ${JSON.stringify(dialogDefaults)}`)
+  assert.equal(dialogDefaults.method.span, 2, 'and the number keeps its own default')
+  const checkboxSpec = hooks.ANALYSIS_SPECS.frequencies
+  const boxDefaults = hooks.freshDialogFlags(checkboxSpec)
+  assert.equal(boxDefaults.charts.pie, false, 'a checkbox still starts off unless it says otherwise')
+  // 数字项必须是 number 输入框，不是复选框（P1-2：span 只能 0/1，永远拿不到 2）。
+  assert.match(clientSource, /item\.kind === 'number'/, 'the dialog has a number branch')
+  assert.match(clientSource, /type: 'number'/, 'and renders a number input')
+  assert.equal(specs.replaceMissing.groups[0].items[1].kind, 'number', 'the span field is declared as a number')
   const mean = specs.replaceMissing.build({ variables: ['score'] }, { method: { method: 'mean', span: '3' } })
   assert.ok(!('span' in mean.missing), 'the series mean ignores the span instead of resending it')
   console.log('ok  the missing-value dialogs hand the work to the host, not the engine')

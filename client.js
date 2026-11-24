@@ -1457,6 +1457,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       globalThis.__AP_TEST_HOOKS__.h = h
       globalThis.__AP_TEST_HOOKS__.gridCommand = gridCommand
       globalThis.__AP_TEST_HOOKS__.foreignWriteNotice = foreignWriteNotice
+      globalThis.__AP_TEST_HOOKS__.freshDialogFlags = freshDialogFlags
     }
 
     /**
@@ -2233,18 +2234,31 @@ function normalizeChoices(list) {
       })
     }
 
+    /**
+     * The flags a dialog opens with. Kept at module scope so a panel test can
+     * check the rule without mounting React: only a checkbox is a boolean, a
+     * select keeps its own default, a number keeps its own number. Treating
+     * every item as a checkbox used to send method:false / span:false.
+     */
+    function freshDialogFlags(spec) {
+      const start = {}
+      for (const group of spec?.groups ?? []) {
+        start[group.key] = Object.fromEntries((group.items ?? []).map((item) => {
+          if (item.kind === 'select') return [item.key, item.default ?? normalizeChoices(item.options)[0]?.value]
+          if (item.kind === 'number') return [item.key, item.default ?? '']
+          return [item.key, item.default === true]
+        }))
+      }
+      return start
+    }
+
     function AnalysisDialog({ spec, variables, rows, onRun, onClose, onPaste, initial = null }) {
       const fields = spec.fields ?? []
       const groups = spec.groups ?? []
       // Named factories so 重置 can rebuild exactly what opening the dialog did.
       const freshValues = () => ({ ...(spec.defaults ?? {}), ...(initial ?? {}) })
-      const freshFlags = () => {
-        const start = {}
-        for (const group of groups) {
-          start[group.key] = Object.fromEntries((group.items ?? []).map((item) => [item.key, item.default === true]))
-        }
-        return start
-      }
+      // Same rule as freshDialogFlags, which the panel tests check directly.
+      const freshFlags = () => freshDialogFlags(spec)
       const [values, setValues] = useState(freshValues)
       const [flags, setFlags] = useState(freshFlags)
       const [active, setActive] = useState(fields[0]?.key ?? null)
@@ -2481,6 +2495,19 @@ function normalizeChoices(list) {
                   : current,
                 onChange: (event) => setFlag(sheetGroup.key, item.key, event.target.value),
               }, options.map((option) => h('option', { key: option.value, value: option.value }, option.label))))
+          }
+          if (item.kind === 'number') {
+            return h('label', { key: item.key, className: 'ap-check ap-check-row' },
+              h('span', null, item.label),
+              h('input', {
+                type: 'number',
+                className: 'ap-num',
+                value: current === undefined ? (item.default ?? '') : current,
+                min: item.min,
+                max: item.max,
+                step: item.step ?? 1,
+                onChange: (event) => setFlag(sheetGroup.key, item.key, event.target.value),
+              }))
           }
           return h('label', { key: item.key, className: 'ap-check' },
             h('input', {
@@ -3276,10 +3303,18 @@ function normalizeChoices(list) {
           { key: 'range', kind: 'text', label: '分组值范围（最小 最大）', placeholder: '1 3', required: true },
         ],
         defaults: { range: '1 3' },
-        build: (v) => ({
-          syntax: `NPAR TESTS /MEDIAN=${v.variable} BY ${v.by}(${String(v.range).trim()}).`,
+        build: (v, flags, variables) => {
+          // A string grouping variable needs quoted codes: grp(A B) is a numeric
+          // range, grp('A' 'B') is the string form PSPP accepts.
+          const target = (variables ?? []).find((variable) => variable.name === v.by)
+          const codes = String(v.range ?? '').trim().split(/[\s,，]+/).filter(Boolean)
+            .map((code) => (target?.type === 'string' ? `'${code.replace(/'/g, "''")}'` : code))
+            .join(' ')
+          return {
+          syntax: `NPAR TESTS /MEDIAN=${v.variable} BY ${v.by}(${codes}).`,
           hint: '把所有个案按检验变量的中位数分成两半，再比较各组高出中位数的比例。分组多于两组时它检验的是「各组分布的中心是否相同」，比 Kruskal-Wallis 粗，但对极端值更稳。',
-        }),
+          }
+        },
       },
       nparKendall: {
         title: 'K 个相关样本（Kendall W）',
@@ -5625,6 +5660,9 @@ function normalizeChoices(list) {
         ['pie', '饼图'],
         ['area', '面积图'],
         ['scatterplot', '散点图'],
+        ['ppplot', 'P-P / Q-Q 图'],
+        ['pareto', '帕累托图'],
+        ['control', '控制图'],
       ]
       return h(Modal, {
         title: '重绘为另一种图',
@@ -9243,7 +9281,7 @@ let ITEM_CSV_PENDING = null
           { key: 'event', kind: 'single', label: '事件指示（1 = 事件发生，0 = 删失）', required: true },
           { key: 'group', kind: 'single', label: '分组变量（可选；分组时做 log-rank 检验）' },
         ],
-        build: (v) => ({ chart: { kind: 'km', options: { time: v.time, event: v.event, group: v.group || null } } }),
+        build: (v) => ({ chart: { kind: 'km', time: v.time, event: v.event, group: v.group || null } }),
       },
       control: {
         title: '控制图（X̄–R）',
@@ -9253,7 +9291,7 @@ let ITEM_CSV_PENDING = null
           { key: 'subgroup', kind: 'single', label: '子组变量（可选；不给就按个案顺序每 N 个一组）' },
           { key: 'size', kind: 'number', label: '子组大小（没选子组变量时用）', default: 5 },
         ],
-        build: (v) => ({ chart: { kind: 'control', options: { variable: v.variable, subgroup: v.subgroup || null, size: Number(v.size ?? 5) } } }),
+        build: (v) => ({ chart: { kind: 'control', variable: v.variable, subgroup: v.subgroup || null, size: Number(v.size ?? 5) } }),
       },
       pareto: {
         title: '帕累托图',
@@ -9263,7 +9301,7 @@ let ITEM_CSV_PENDING = null
           { key: 'reference', kind: 'number', label: '参考线（累计百分比）', default: 80 },
           { key: 'maxCategories', kind: 'number', label: '最多画几类（0 = 全部，其余并成「其他」）', default: 0 },
         ],
-        build: (v) => ({ chart: { kind: 'pareto', options: { variable: v.variable, reference: Number(v.reference ?? 80), maxCategories: Number(v.maxCategories ?? 0) } } }),
+        build: (v) => ({ chart: { kind: 'pareto', variable: v.variable, reference: Number(v.reference ?? 80), maxCategories: Number(v.maxCategories ?? 0) } }),
       },
       bar: {
         title: '条形图',

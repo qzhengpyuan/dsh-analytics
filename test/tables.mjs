@@ -140,7 +140,7 @@ check('the group variable has to have at least two values', () => {
   const single = { variables: [{ name: 'g', type: 'numeric' }, { name: 'x', type: 'numeric' }], rows: [[1, 5], [1, 6]] }
   assert.throws(() => buildBaselineTable(single, { group: 'g', variables: ['x'] }), /至少要有两个取值/)
   assert.throws(() => buildBaselineTable(dataset, {}), /需要一个分组变量/)
-  assert.throws(() => buildBaselineTable(dataset, { group: 'arm', variables: ['nope'] }), /unknown variable: nope/)
+  assert.throws(() => buildBaselineTable(dataset, { group: 'arm', variables: ['nope'] }), /没有这个变量：nope/)
 })
 
 

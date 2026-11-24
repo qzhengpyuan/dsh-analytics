@@ -237,6 +237,19 @@ if (redrawResult?.chart?.kind !== 'boxplot') throw new Error('the redrawn model 
 const stillThere = (redrawState?.items ?? []).filter((item) => item.kind === 'image')
 if (stillThere.length < 3) throw new Error('the original chart must stay in the output tree')
 if (redrawResult?.item?.chartSpec?.redrawnFrom !== redrawResult?.redrawnFrom) throw new Error('the new chart records where it came from')
+// 重绘要留住决定图形样子的选项，否则 P-P 重绘回来变成 Q-Q、带拟合线的散点丢线
+// （Win10 0740 的 P2-4）。
+const probChart = await call('POST', `${base}/api/chart`, { sessionId: fitSid, kind: 'ppplot', variable: 'x', plot: 'qq' })
+if (probChart.code !== 200) throw new Error(`api/chart ppplot failed: ${probChart.json().error}`)
+const probId = (probChart.json().state?.items ?? []).filter((item) => item.kind === 'image').at(-1)?.id
+const probRun = Number(String(probId ?? '').replace(/^chart-/, '').split('-')[0])
+const probRedraw = await call('POST', `${base}/api/chart/redraw`, { sessionId: fitSid, runId: probRun, type: 'ppplot' })
+const probSpec = (probRedraw.json().state?.items ?? []).filter((item) => item.kind === 'image').at(-1)?.chartSpec
+console.log('pplot redraw keeps plot ->', probRedraw.code, probSpec?.plot, probRedraw.json().result?.chart?.plot)
+if (probRedraw.code !== 200) throw new Error(`api/chart/redraw ppplot failed: ${probRedraw.json().error}`)
+if (probSpec?.plot !== 'qq') throw new Error('the redrawn chart must keep the P-P/Q-Q choice')
+if (!/Q-Q/.test(String(probRedraw.json().result?.chart?.title ?? ''))) throw new Error('and the model must still be the Q-Q one')
+
 const redrawBad = await call('POST', `${base}/api/chart/redraw`, { sessionId: wizardSid, runId: redrawResult.runId, type: 'nonsense' })
 if (redrawBad.code !== 400) throw new Error('an unknown chart type must be refused')
 

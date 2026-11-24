@@ -4,6 +4,37 @@
 
 计数口径细则（0.72.0 起）：`^ok` 只统计打印 `ok  …` 的断言。`test/stage.mjs`、`test/messages.mjs` 打自己的 `N checks passed` 汇总行（`^ok` 为 0）；`test/build.mjs` 有一行 `ok  …` 写在 `await check(...)` 内部，因此比它自报的 summary 多 1。核对数量只用 `grep -cE '^ok\b'`。
 
+## 0.78.0
+
+修 Windows 侧 `win10-report-0740.md` 的 5 个 P1、5 个 P2，外加自检发现的一处同类缺陷。问题集中在**对话框把用户没碰过的字段送成 `false`**和**图表请求多套一层 `options`**，两条都会让面板在用户什么都没改的情况下 400。
+
+**P1（都会让面板功能直接不可用）**
+
+- **分组项的默认值被当布尔处理**（`client.js` 的 `freshFlags`）：原来一律 `item.default === true`，于是「替换缺失值」的下拉变 `false`、数字框变 `false`，面板默认路径的请求体是 `{"method":"false"}`。改成按 `kind` 取默认：`select` 用 `item.default ?? 第一个选项`、`number` 用 `item.default ?? ''`、其余才是布尔。规则抽成模块级 `freshDialogFlags(spec)` 并挂 `__AP_TEST_HOOKS__`，`AnalysisDialog` 直接复用它（同一份规则，两处不会再漂）。
+- **数字项渲染成复选框**（`client.js` 的 `sheetNode`）：只有 `select` 有特判，其余全渲染 `type="checkbox"`，所以「临近点个数」只能是 0/1。补 `kind === 'number'` 分支，渲染 `input[type=number]`（带 `min`/`max`/`step`）。
+- **中位数检验对字符串分组不加引号**（`nparMedian` spec 的 `build` 只收一个参数）：`grp(A B)` 被引擎当数值范围，报 `Syntax error expecting string.`；工具路径一直是对的（`groupCodes()` 会加引号）。改成 `build(v, flags, variables)`，分组变量是字符串时把每个代码包成 `'A' 'B'`（内部单引号按 PSPP 规则叠成两个）。
+- **图表请求多包一层 `options`**（`control` 与 `pareto` 的 `build`）：`{ chart: { kind, options: {…} } }` 送到宿主后 `body.options ?? body` 取到的是外壳，`variable` 全 `undefined` → `400`。两个 spec 改扁平，和其余 9 个图型一致。
+- **`/BARCHART=COUNT` 不是 PSPP 2.1.3 的语法**（`lib/tools.js` 的 `CHART_WANTED`）：`/BARCHART` 与 `/BARCHART=FREQ|PERCENT` 可以，`=COUNT` 报 `Syntax error expecting MINIMUM, MAXIMUM, FREQ, or PERCENT.`。`true`/`bar` 改映射成 ` /BARCHART`（面板侧一直是这么发的，所以面板对、工具错）。
+
+**P2（锁住了上面的错、或小口子）**
+
+- `test/client.mjs` 把 pareto/control 的双层 `options` 当规格断言 ⇒ 改为扁平，并新增两条常设断言：**`CHART_SPECS` 里任何一个图型的 `build()` 都不许出现 `options` 键**、数字项必须是 `kind === 'number'` 且 `freshDialogFlags` 对 select/number/checkbox 各取各的默认。
+- `test/build.mjs` 的 `/BARCHART=COUNT.` 断言改成 `/BARCHART.`。
+- `pspp_chart` 给不认识的图型时不再只说 `unsupported chart type: qqq`，改成「不认识的图型：qqq（可用：bar、histogram、…）」。
+- 重绘的 `chartSpec` 只留 `{kind, variable, by, redrawnFrom}` ⇒ Q-Q 重绘回 P-P、带拟合线的散点丢线。`lib/workspace.js` 的 `addChart` 与 `redrawChart` 都记 `plot`/`fit`/`group`/`reference`/`maxCategories`/`time`/`event`；`test/routes.mjs` 新增一条（Q-Q 图重绘后 `chartSpec.plot === 'qq'` 且标题仍是 Q-Q）。
+- `RedrawChartDialog` 的类型下拉只有 7 项，补 `ppplot`（P-P / Q-Q 图）、`pareto`（帕累托图）、`control`（控制图）。
+
+**自检多抓的一条**：`km`（Kaplan–Meier）的 spec 也是双层 `options`，0.75.0 起面板点「生存分析 → Kaplan–Meier…」同样会 400（Win10 这轮没验到 0.75–0.77）。一并改扁平，并被上面那条「任何图型都不许嵌套 options」的断言锁住。
+
+**P3**
+
+- `unknown variable: X` 一类宿主报错改中文「没有这个变量：X」，`unsupported chart type` 也一样（`lib/charts.js`、`lib/tables.js`、`lib/workspace.js`、`lib/cox.js`、`lib/survival.js`、`lib/discriminant.js` 共 16 处，`test/` 里 6 条断言跟着改）。英文界面下这些宿主文案仍是中文——属于既有的「93 条 `${}` 拼接报错」那一族，不阻塞。
+- 替换缺失值的「确定」在方法非法时仍可点：默认值修好之后这个状态已经走不到，不再单独加禁用逻辑。
+- `SHA256SUMS` 每版覆盖会让 Win10 无法复核旧版 ⇒ 从本版起同时留 `SHA256SUMS-<版本>`。
+
+- 用例：`test/client.mjs` +4 条（默认值、数字项、图型不嵌套、字符串分组加引号）、`test/charts.mjs` +1 条（未知图型列可用值）、`test/routes.mjs` +2 条（`api/discriminant`、Q-Q 重绘保留 plot）。
+- 计数：**40** 套件 / **655** 条 ok（装了 poppler 656）。
+
 ## 0.77.0
 
 SPSS 的「分析 → 分类」里最常点的一个过程：**判别分析**。PSPP 2.1.3 的 `DISCRIMINANT` 只回 `not yet implemented`，所以整条拟合也在插件里（`lib/discriminant.js`）。

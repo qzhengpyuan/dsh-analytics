@@ -104,7 +104,7 @@ check('a text time or text event variable is refused by name', () => {
     rows: [[1, 'yes']],
   }
   assert.throws(() => computeKaplanMeier(textEvent, { time: 't', event: 'e' }), /事件指示变量要求数值/, 'a text flag is named')
-  assert.throws(() => computeKaplanMeier(text, { time: 'nope', event: 'e' }), /unknown variable/, 'an unknown variable is named')
+  assert.throws(() => computeKaplanMeier(text, { time: 'nope', event: 'e' }), /没有这个变量：nope/, 'an unknown variable is named')
 })
 
 check('the survival figure draws a step curve, the legend and the log-rank line', () => {

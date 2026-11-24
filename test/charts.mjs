@@ -28,6 +28,14 @@ const dataset = (values) => ({
 
 const bar = (extra = {}) => buildChartModel(dataset([3, 5, 8, 2, 6, 7, 4, 9]), 'bar', { variable: 'score', ...extra })
 
+check('an unknown chart kind names the kinds that do exist', () => {
+  // 「只报 unsupported chart type」在中文面板上等于没说下一步（Win10 0740 的 P2-3）。
+  assert.throws(
+    () => buildChartModel(dataset([1, 2, 3]), 'qqq', { variable: 'score' }),
+    (error) => /不认识的图型：qqq/.test(error.message) && /可用：/.test(error.message) && /pareto/.test(error.message),
+  )
+})
+
 check('a subtitle rides under the title, and an empty one removes it', () => {
   const withSub = buildChartModel(dataset([1, 2, 3, 4]), 'bar', { variable: 'score', subtitle: 'N = 4，M = 2.50' })
   assert.equal(withSub.subtitle, 'N = 4，M = 2.50')
@@ -111,7 +119,7 @@ check('a grouped scatter draws one colour per category and a legend', () => {
   assert.match(svg, /fill-opacity="0\.88"/, 'the legend has a plate so it stays readable')
   const single = renderSvg(buildChartModel(grouped, 'scatterplot', { x: 'x', y: 'y' }))
   assert.doesNotMatch(single, /fill-opacity="0\.88"/, 'without a group there is no legend')
-  assert.throws(() => buildChartModel(grouped, 'scatterplot', { x: 'x', y: 'y', group: 'nope' }), /unknown variable/, 'an unknown group variable is refused')
+  assert.throws(() => buildChartModel(grouped, 'scatterplot', { x: 'x', y: 'y', group: 'nope' }), /没有这个变量：/, 'an unknown group variable is refused')
 })
 
 // 分类变量的条形图：柱高是计次，勾百分比就换成占比（SPSS 的「条形图：分类变量」）。
@@ -169,7 +177,7 @@ check('the probability plots refuse what they cannot draw', () => {
     ],
     rows: [[1, 'a'], [2, 'a'], [3, 'b']],
   }
-  assert.throws(() => buildChartModel(ds, 'ppplot', { variable: 'nope' }), /unknown variable/)
+  assert.throws(() => buildChartModel(ds, 'ppplot', { variable: 'nope' }), /没有这个变量：/)
   assert.throws(() => buildChartModel(ds, 'ppplot', { variable: 'g' }), /不是数值变量/)
   assert.throws(() => buildChartModel({ variables: ds.variables, rows: [[1, 'a'], [2, 'a']] }, 'ppplot', { variable: 'x' }), /不足 3 个/)
   assert.throws(
@@ -248,7 +256,7 @@ check('a pareto chart can fold the tail, and refuses a bad reference', () => {
   assert.equal(folded.bars[2].folded, 2, 'and it remembers how many categories it swallowed')
   assert.equal(folded.bars[2].cumulative, 100, 'the folded bar closes the curve')
   assert.throws(() => buildChartModel(dataset, 'pareto', { variable: 'defect', reference: 100 }), /参考线/, 'a reference of 100% is refused')
-  assert.throws(() => buildChartModel(dataset, 'pareto', { variable: 'nope' }), /unknown variable/, 'an unknown variable is named')
+  assert.throws(() => buildChartModel(dataset, 'pareto', { variable: 'nope' }), /没有这个变量：/, 'an unknown variable is named')
 })
 
 check('a pareto chart ignores missing values instead of counting them', () => {
