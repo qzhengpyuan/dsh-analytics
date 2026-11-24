@@ -1564,6 +1564,27 @@
     "趋势系数 β（只对双指数平滑有用）": "Trend coefficient β (double smoothing only)",
     "同时画序列图": "Also draw the series chart",
     "时间序列：{0} 个点参与拟合，平均绝对误差 {1}": "Time series: {0} points fitted, mean absolute error {1}",
-    "模型摘要": "Model Summary"
+    "模型摘要": "Model Summary",
+    "多项 Logistic 回归": "Multinomial Logistic Regression",
+    "多项 Logistic…（3 类以上）": "Multinomial Logistic… (3+ categories)",
+    "自变量（数值）": "Predictors (numeric)",
+    "还没有可用的数值自变量（分类自变量要先造哑变量）。": "No numeric predictors are available yet (a categorical predictor must be recoded into dummies first).",
+    "因变量（分类，3 个或更多类别）": "Dependent variable (categorical, 3 or more categories)",
+    "（选一个因变量）": "(pick a dependent variable)",
+    "参照类别（可留空）": "Reference category (may stay empty)",
+    "留空 = 排序后的最后一个类别": "empty = the last category after sorting",
+    "参照类别的那一组参数按定义是 0，其余每个类别各得一组 B、标准误、Wald 与 Exp(B)。": "The reference category has zero parameters by definition; every other category gets its own B, standard error, Wald and Exp(B).",
+    "PSPP 2.1.3 的 LOGISTIC REGRESSION 只做二分类，所以这里由插件用牛顿法拟合；因变量只有两个类别时结果与二元 Logistic 逐位相同。": "LOGISTIC REGRESSION in PSPP 2.1.3 only fits two categories, so the plugin fits this model with Newton–Raphson; with two categories the coefficients match binary logistic regression exactly.",
+    "已选 {0} 个自变量": "{0} predictors selected",
+    "多项 Logistic：{0} 例，参照「{1}」，正确率 {2}%": "Multinomial Logistic: {0} cases, reference \"{1}\", accuracy {2}%",
+    "多项 Logistic 回归至少要一个自变量": "Multinomial logistic regression needs at least one predictor",
+    "一次最多 10 个自变量：再多就该先做变量筛选": "At most 10 predictors at once: with more, screen the variables first",
+    "自变量要求数值变量：{0} 是文本变量（分类自变量先做成哑变量）": "Predictors must be numeric: {0} is a text variable (recode a categorical predictor into dummies first)",
+    "模型拟合信息": "Model Fitting Information",
+    "拟合优度": "Goodness-of-Fit",
+    "伪 R²": "Pseudo R-Square",
+    "分类结果": "Classification",
+    "参数估计": "Parameter Estimates",
+    "因变量水平": "Dependent level"
   }
 }

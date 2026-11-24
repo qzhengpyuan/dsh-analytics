@@ -7,6 +7,7 @@ import { basename, join } from 'node:path'
 import { resolveEngine, runProcess } from '../lib/engine.js'
 import { Workspace, WorkspaceRegistry, describeFailure } from '../lib/workspace.js'
 import { quoteSyntaxPath } from '../lib/dataset.js'
+import { computeMultinomial } from '../lib/multinomial.js'
 
 const engine = resolveEngine()
 console.log('engine:', engine)
@@ -1166,6 +1167,48 @@ if (process.platform !== 'win32') {
   const values = workspace.dataset.rows.map((row) => row[workspace.dataset.variables.indexOf(band)])
   assert.deepEqual([...new Set(values)].sort(), [1, 2], `the recoded values are the two groups: ${JSON.stringify([...new Set(values)])}`)
   console.log('real engine: the two hand-written templates (aggregate, recode) run')
+}
+
+// Multinomial logistic regression: PSPP only fits two categories, and the
+// two-category case is an ordinary binary logistic regression. The engine is the
+// independent check — its LOGISTIC REGRESSION B is the log odds of y = 1, while
+// the plugin fits the level that is not the reference (y = 0 by default), so the
+// two must be equal and opposite. The engine prints two decimals, hence 0.01.
+{
+  // Column of a named statistic in the engine's parameter table.
+  const cellsIndex = (cells, name) => {
+    const header = equation.table.matrix[0]
+    return Math.max(0, header.indexOf(name))
+  }
+  const mlr = new Workspace({ id: 'smoke-mlr', engine, root: join(root, 'mlr'), config: { timeoutMs: 60000 } })
+  await mlr.init()
+  await mlr.createDataset({
+    variables: [
+      { name: 'y', type: 'numeric', width: 3, decimals: 0 },
+      { name: 'x', type: 'numeric', width: 3, decimals: 0 },
+    ],
+  })
+  const rows = [...Array(12).fill([1, 1]), ...Array(4).fill([0, 1]), ...Array(5).fill([1, 0]), ...Array(9).fill([0, 0])]
+  for (const [y, x] of rows) await mlr.appendCase({ y, x })
+  await mlr.save(join(root, 'mlr.sav'))
+  const engineRun = await mlr.runSyntax('LOGISTIC REGRESSION y WITH x.')
+  const equation = engineRun.items.find((item) => /Variables in the Equation/i.test(item.table?.caption ?? ''))
+  assert.ok(equation, 'the engine prints the logistic coefficients')
+  // The label sits in the second column ('Step 1' is the first), so look for the
+  // variable name in any cell of the row rather than assuming the layout.
+  const row = equation.table.matrix.find((cells) => cells.includes('x'))
+  const engineB = Number(row?.[cellsIndex(row, 'B')])
+  assert.ok(Number.isFinite(engineB), `the engine B for x is a number: ${JSON.stringify(row)}`)
+
+  const fitted = computeMultinomial(mlr.dataset, { dependent: 'y', independents: ['x'] })
+  assert.equal(fitted.model.reference, '1', 'the last category is the reference, as in SPSS')
+  const pluginB = fitted.model.coefficients[0].terms[1].estimate
+  assert.ok(Math.abs(pluginB + engineB) < 0.01, `plugin ${pluginB} vs engine ${engineB}`)
+  const constantRow = equation.table.matrix.find((cells) => cells.some((cell) => /Constant/i.test(cell)))
+  const engineConstant = Number(constantRow?.[cellsIndex(constantRow, 'B')])
+  const pluginIntercept = fitted.model.coefficients[0].terms[0].estimate
+  assert.ok(Math.abs(pluginIntercept + engineConstant) < 0.01, `intercept ${pluginIntercept} vs engine ${engineConstant}`)
+  console.log('real engine: the multinomial two-category fit equals LOGISTIC REGRESSION:', pluginB.toFixed(4), engineB)
 }
 
 // Teardown must not be able to fail the run on its own: on Windows a workspace

@@ -2043,6 +2043,39 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     await new Promise((resolve) => setTimeout(resolve, 40))
   })
   assert.match(clientSource, /api\('api\/discriminant', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/discriminant')
+  // 多项 Logistic：PSPP 只做二分类，拟合在宿主侧，对话框只描述模型形状。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const analysePop3 = menuHost.querySelector('.ap-menu-pop')
+  const regressionGroup = [...analysePop3.querySelectorAll('button')].find((node) => node.textContent.startsWith('回归'))
+  await act(async () => {
+    regressionGroup?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const regressionItems = [...(regressionGroup?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])].map((node) => node.textContent)
+  assert.ok(regressionItems.some((text) => text.startsWith('多项 Logistic')), `the regression group lists multinomial logistic, got ${JSON.stringify(regressionItems)}`)
+  const multinomialItem = [...(regressionGroup?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])].find((node) => node.textContent.startsWith('多项 Logistic'))
+  await act(async () => {
+    multinomialItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const multinomialDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.ok(multinomialDialog, 'the multinomial dialog opens from the menu')
+  assert.match(multinomialDialog.textContent, /多项 Logistic 回归/, 'the dialog is titled like the procedure')
+  assert.match(multinomialDialog.textContent, /参照类别/, 'and offers the reference category')
+  assert.match(multinomialDialog.textContent, /牛顿法/, 'the hint says who fits the model')
+  const multinomialOk = [...multinomialDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(multinomialOk.disabled, true, 'nothing is fitted until a dependent and a predictor are chosen')
+  const multinomialCancel = [...multinomialDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    multinomialCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.match(clientSource, /api\('api\/multinomial', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/multinomial')
+  assert.match(clientSource, /reference: reference\.trim\(\) === '' \? undefined : reference\.trim\(\)/, 'an empty reference box stays out of the request')
+
   const outTab = [...menuHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
   await act(async () => {
     outTab.click()

@@ -1263,6 +1263,26 @@ r = await call('POST', `${base}/api/cox`, { sessionId: 'cox01', options: { time:
 console.log('cox without covariates ->', r.code, /至少要一个协变量/.test(String(r.json().error)))
 await call('POST', `${base}/api/close`, { sessionId: 'cox01' })
 
+// Multinomial logistic regression is fitted in the plugin too (PSPP only fits
+// two categories), so the route must build five tables without an engine run.
+let mlrRes = await call('POST', `${base}/api/new`, { sessionId: 'mlr01', cwd: home, variables: [
+  { name: 'arm', type: 'string' },
+  { name: 'dose', type: 'numeric' },
+] })
+for (let index = 0; index < 60; index += 1) {
+  const arm = ['low', 'mid', 'high'][index % 3]
+  mlrRes = await call('POST', `${base}/api/case`, { sessionId: 'mlr01', values: { arm, dose: index / 10 + ((index * 37) % 11) / 10 } })
+}
+r = await call('POST', `${base}/api/multinomial`, { sessionId: 'mlr01', options: { dependent: 'arm', independents: ['dose'] } })
+const mlr = r.json()
+console.log('multinomial ->', r.code, mlr.result?.matrix?.[0]?.[0], mlr.result?.items?.length,
+  mlr.result?.model?.reference, mlr.result?.model?.categories?.length,
+  mlr.state?.items?.length > 0)
+r = await call('POST', `${base}/api/multinomial`, { sessionId: 'mlr01', options: { dependent: 'arm', independents: ['dose'], reference: 'mid' } })
+console.log('multinomial with a reference ->', r.code, r.json().result?.model?.reference,
+  r.json().result?.model?.categories?.join(','))
+await call('POST', `${base}/api/close`, { sessionId: 'mlr01' })
+
 for (const id of ['pivot01', 'pivot02', 'dup01', 'out01', 'ex01', 'cmh01', 'glmc01']) await call('POST', `${base}/api/close`, { sessionId: id })
 
 r = await call('POST', `${base}/api/close`, { sessionId: 'pivot01' })

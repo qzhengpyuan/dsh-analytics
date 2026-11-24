@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 27, names.join(' '))
+  assert.equal(names.length, 28, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -168,6 +168,14 @@ await check('pspp_cox fits a survival model and reports the hazard ratio', async
   assert.equal(cox.matrix.length, 2, 'a header plus one covariate')
   assert.equal(cox.matrix[1][6] !== undefined, true, 'the Exp(B) column is filled')
   assert.ok(cox.notes.some((note) => /Breslow/.test(note)), 'the ties method is stated')
+})
+
+await check('pspp_multinomial fits a multinomial model and returns every table', async () => {
+  const out = await call('pspp_multinomial', { dependent: 'grp', independents: ['score'] })
+  assert.equal(out.matrix[0][0], '因变量水平', JSON.stringify(out).slice(0, 300))
+  assert.ok(out.tables.length >= 5, 'fit, goodness, pseudo R square, classification and parameters')
+  assert.ok(out.reference, 'the reference category is reported back')
+  assert.ok(out.accuracy >= 0 && out.accuracy <= 1, `accuracy ${out.accuracy}`)
 })
 
 await check('pspp_cluster builds the agglomeration schedule and can draw the tree', async () => {

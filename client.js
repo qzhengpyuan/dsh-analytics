@@ -1980,6 +1980,62 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     }
 
     /**
+     * Multinomial logistic regression: PSPP only fits two levels, so the K−1
+     * logits are fitted by the plugin and this dialog only collects the shape of
+     * the model (dependent, numeric predictors, optional reference category).
+     */
+    function MultinomialDialog({ variables, onRun, onClose }) {
+      const numeric = variables.filter((variable) => variable.type === 'numeric')
+      const [dependent, setDependent] = useState(null)
+      const [chosen, setChosen] = useState([])
+      const [reference, setReference] = useState('')
+      const toggle = (name) => setChosen((current) => (current.includes(name)
+        ? current.filter((entry) => entry !== name)
+        : [...current, name]))
+      const candidates = numeric.filter((variable) => variable.name !== dependent)
+      const ready = Boolean(dependent && chosen.length > 0)
+      return h(Modal, {
+        title: '多项 Logistic 回归',
+        wide: true,
+        okDisabled: !ready,
+        onCancel: onClose,
+        onOk: () => onRun({
+          dependent,
+          independents: chosen,
+          reference: reference.trim() === '' ? undefined : reference.trim(),
+        }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '自变量（数值）'),
+          h('div', { className: 'ap-dlg-list' }, candidates.length
+            ? candidates.map((variable) => h('span', {
+              key: variable.name,
+              className: `ap-chip${chosen.includes(variable.name) ? ' ap-chip-on' : ''}`,
+              onClick: () => toggle(variable.name),
+              translate: false,
+            }, variable.name))
+            : h('div', { className: 'ap-hint' }, '还没有可用的数值自变量（分类自变量要先造哑变量）。'))),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '因变量（分类，3 个或更多类别）'),
+            h('select', { value: dependent ?? '', onChange: (e) => setDependent(e.target.value || null) },
+              h('option', { value: '' }, '（选一个因变量）'),
+              variables.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '参照类别（可留空）'),
+            h('input', {
+              type: 'text',
+              value: reference,
+              placeholder: '留空 = 排序后的最后一个类别',
+              onChange: (e) => setReference(e.target.value),
+            })),
+          h('div', { className: 'ap-hint' }, '参照类别的那一组参数按定义是 0，其余每个类别各得一组 B、标准误、Wald 与 Exp(B)。'),
+          h('div', { className: 'ap-hint' }, 'PSPP 2.1.3 的 LOGISTIC REGRESSION 只做二分类，所以这里由插件用牛顿法拟合；因变量只有两个类别时结果与二元 Logistic 逐位相同。'),
+          h('div', { className: 'ap-hint' }, tr('已选 {0} 个自变量', chosen.length)))))
+    }
+
+    /**
      * Two-way comparison of the groups of one variable.
      *
      * This is the table a paper needs behind an overall group difference, so it
@@ -7004,6 +7060,22 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId])
 
+      const runMultinomial = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/multinomial', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const model = value.result?.model ?? {}
+          notify(tr('多项 Logistic：{0} 例，参照「{1}」，正确率 {2}%', model.cases ?? 0, model.reference ?? '—', ((model.accuracy ?? 0) * 100).toFixed(1)))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId])
+
       const runPairwise = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -7836,6 +7908,7 @@ let ITEM_CSV_PENDING = null
             { label: '回归', sub: [
               { label: '线性…', action: () => runAnalysis('regression') },
               { label: '二元 Logistic…', action: () => runAnalysis('logistic') },
+              { label: '多项 Logistic…（3 类以上）', action: () => setDialog({ kind: 'multinomial' }) },
             ] },
             { label: '降维', sub: [
               { label: '因子…', action: () => runAnalysis('factor') },
@@ -9065,6 +9138,13 @@ let ITEM_CSV_PENDING = null
           ? h(CoxDialog, {
             variables,
             onRun: (payload) => runCox(payload),
+            onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'multinomial'
+          ? h(MultinomialDialog, {
+            variables,
+            onRun: (payload) => runMultinomial(payload),
             onClose: () => setDialog(null),
           })
           : null,

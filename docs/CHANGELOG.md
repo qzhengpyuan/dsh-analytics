@@ -4,6 +4,20 @@
 
 计数口径细则（0.72.0 起）：`^ok` 只统计打印 `ok  …` 的断言。`test/stage.mjs`、`test/messages.mjs` 打自己的 `N checks passed` 汇总行（`^ok` 为 0）；`test/build.mjs` 有一行 `ok  …` 写在 `await check(...)` 内部，因此比它自报的 summary 多 1。核对数量只用 `grep -cE '^ok\b'`。
 
+## 0.82.0
+
+**多项 Logistic 回归**。PSPP 2.1.3 只认两水平的 `LOGISTIC REGRESSION`，`NOMREG` 回「尚未实现」，所以 K−1 个 logit 由插件用牛顿–拉夫逊法在完整对数似然上拟合（`lib/multinomial.js`）。
+
+- **建模口径**：因变量 2–20 个类别，参照类别默认取排序后的最后一个（与 SPSS 相同，也可以指定任意一个）；自变量 1–10 个数值变量（分类自变量要先造哑变量，报错会点名）。参照类别那一组参数按定义是 0，其余每个类别各得一组 B、标准误、Wald、P 与 Exp(B)。
+- **五张表**：模型拟合信息（仅截距 / 最终的 −2 对数似然、似然比 χ²、df、P）、拟合优度（Pearson 与偏差，各带残差自由度）、伪 R²（Cox 和 Snell、Nagelkerke、McFadden）、分类结果（实测 × 预测 + 每行正确率与总计）、参数估计。
+- **分离不再冒充共线**：完全或近似分离时信息矩阵奇异，以前会报「自变量完全共线」把病因说错。现在迭代第 0 步奇异才算共线并直接拒绝；收敛后奇异或最大系数超过 ±15 判为分离，系数照常输出，但标准误、Wald 与 P 记为「—」，表注写清「数据与因变量几乎完全可分，这些量不再可信」。
+- **独立校验**：二分类时就是二元 Logistic 回归 —— `test/multinomial.mjs` 用 2×2 表的闭式解校验（斜率 = 对数优势比，截距 = ln(9/5)，误差 < 1e-9，不依赖另一份实现）；`test/smoke.mjs` 再拿同一份数据跑引擎的 `LOGISTIC REGRESSION`，插件 B = −1.6864 与引擎的 1.69 互为相反数（引擎只有两位小数，故容差 0.01）。
+- **入口**：分析 → 回归 → 多项 Logistic…（选因变量、勾数值自变量、可填参照类别，留空就用最后一个）；`pspp_multinomial`（dependent / independents / reference）；`POST api/multinomial` 一次返回五张表。
+- **边界**：变量不存在点名、自变量为空或超过 10 个、文本自变量拒绝、类别少于 2 个或超过 20 个、个案数不足以拟合、参照类别不在取值里（列出可用值）、缺失值整例剔除并保留原始个案号。
+- 用例：新套件 `test/multinomial.mjs` 7 条；`test/routes.mjs` 加 2 行（60 例三类别建模型出 5 张表；指定 `reference: 'mid'` 后块顺序随之改变）；`test/tools.mjs` 清单 27→28 且真跑一次 `pspp_multinomial`；`test/client.mjs` 走真菜单断言「回归 → 多项 Logistic」打开对话框、确定按钮在选够之前不可点、请求体里空的参照类别不出现（源码正则钉住）；`test/preset.mjs` 27→28。
+
+42 套件 / 681 条 ok（装了 poppler 682），工具 28 个。
+
 ## 0.81.0
 
 修 Windows 10 复验 0.75.0–0.78.0 那一批的一条 P1 与若干 P2/P3。
