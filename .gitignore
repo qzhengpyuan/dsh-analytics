@@ -14,3 +14,4 @@ docs/plan-*.md
 # PSPP 自己写出来的输出（-O format=html 的默认落点），不是源码
 pspp.html
 src*/pspp.html
+SHA256SUMS-0.*
