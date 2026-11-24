@@ -68,6 +68,15 @@ try {
     console.error(`${name} carries a bundle patch that mounts the tools in every session: refusing to call it done`)
     process.exit(1)
   }
+  // 校验和是发布产物，不是源码：工作树根写一份就会被 `git add -A` 带进 tag
+  // 树，复验时三方比对多出无关差异（Win10 0820 的 P3-1）。
+  const listing = execFileSync('tar', ['-tzf', tgz], { encoding: 'utf8' })
+    .split('\n').filter(Boolean)
+  const stray = listing.filter((entry) => /(^|\/)SHA256SUMS/.test(entry))
+  if (stray.length > 0) {
+    console.error(`${name} carries release artefacts: ${stray.join(', ')} — delete them and repack`)
+    process.exit(1)
+  }
   const sha = execFileSync('sha256sum', [tgz], { encoding: 'utf8' }).trim().split(/\s+/)[0]
   console.log(`${name}  ${(size / 1024 / 1024).toFixed(1)} MB${withEngine ? ` (engine: ${platformDir})` : ' (portable: needs npm run engine:fetch)'}`)
   console.log(`sha256  ${sha}`)

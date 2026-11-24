@@ -1,8 +1,20 @@
+<!-- 套件数口径（0.85.0 起）：段尾的「N 套件」数的是 `package.json` 的 `test` 脚本里的测试命令数（`node test/*.mjs` 的条数），不是 `test/` 目录下的文件数 —— `test/zip.mjs` 是库、不进脚本。Win10 0820 的 P3-2 抓到 0.79.0–0.82.0 四段按文件数或漏数写的偏差，已按各 tag 的 `package.json` 实测改正。 -->
 <!-- 计数口径（0.54.98 起）：各段写的「全量 N 条 ok」= `grep -cE '^ok\b'` 的总和，**Linux 与 Windows 相同**（0.54.97 阶段我曾以为 Windows 少 1，Win10 用逐套件表否掉了：Windows 上 568 与 Linux 无 poppler 的 568 相等）。唯一已知偏差：装了 poppler 会多跑 `pdf-notes` 1 条。 -->
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
 计数口径细则（0.72.0 起）：`^ok` 只统计打印 `ok  …` 的断言。`test/stage.mjs`、`test/messages.mjs` 打自己的 `N checks passed` 汇总行（`^ok` 为 0）；`test/build.mjs` 有一行 `ok  …` 写在 `await check(...)` 内部，因此比它自报的 summary 多 1。核对数量只用 `grep -cE '^ok\b'`。
+
+## 0.85.0
+
+**修 Win10 0820 报告的三条 + 补齐它「未能验证」清单里的两条**。这一版没有新功能，只把三个缺陷族收口，再加上两处测试覆盖。
+
+- **P2-1 字符串分组变量在三处非参数检验里都缺引号**（断功能）：0.82.0 只修了中位数检验，`Kruskal-Wallis` 与 `Jonckheere-Terpstra` 的 build 仍是 `(v) =>`，`grp(A B)` 被引擎当成数值范围，回 `Syntax error expecting string.`。修法是把引号规则抽成模块级 `groupRangeCodes(variables, by, range)`（按 `by` 变量的类型决定是否加单引号、内部单引号成对转义），三个 spec 共用；`test/client.mjs` 对三者各钉两条（字符串 `group('A' 'B')`、数值 `group(1 3)`），任一退回去就红。
+- **P3-1 校验和文件混进 tag 树**：`SHA256SUMS-0.78.0` 是上一轮复验在工作树根写的，被 `git add -A` 带进提交。已从索引移除，`.gitignore` 加 `SHA256SUMS` 与 `SHA256SUMS-*`，并在 `scripts/pack.mjs` 打包后列一遍 tarball 目录，发现 `SHA256SUMS*` 直接 `exit(1)` —— 光靠意识守不住，得让打包步骤自己拒。
+- **P3-2 套件口径写错**：0.79.0–0.84.0 六段的「N 套件」混了文件数与命令数。口径现在明确写进 CHANGELOG 头：**数的是 `package.json` 的 `test` 脚本里的测试命令条数**，不是 `test/*.mjs` 的文件数（`test/zip.mjs` 是库、不进脚本）。六段数字已按各 tag 的 `package.json` 实测改正：0.79.0 = 41、0.80.0/0.81.0 = 42、0.82.0 = 43、0.83.0 = 44、0.84.0 = 45。
+- **补齐「未能验证」的两项**：`api/timeseries` 现在对 `ses` 与 `des` 各跑一次真路由（断言 200、两张表、注文里出现对应方法名），不再只有 `ma`；多项 Logistic 的「几乎完全可分」注文分支由 `test/multinomial.mjs` 的完全分离用例覆盖（0.82.0 起就在，报告里说「没触发」是因为面板夹具是部分重叠数据）。
+
+45 套件 / 700 条 ok（装了 poppler 701），工具 30 个 —— 这一版补的断言都在既有的 check 块里、或走 `console.log` 取证，所以 `^ok` 总数不变。
 
 ## 0.84.0
 
@@ -17,7 +29,7 @@
 - **边界**：缺因变量、缺自变量、变量不存在点名、文本因变量/自变量拒绝、负数单独报、小数与非数字点名前三例并解释比率与连续变量该怎么处理、全 0 因变量拒绝、个案数不足以拟合、缺失值整例剔除并记数。
 - 用例：新套件 `test/poisson.mjs` 9 条；`test/routes.mjs` 加 `api/poisson`（整数计数列 `counts`，出 3 张表；文本自变量 400 且文案含「文本变量」）；`test/tools.mjs` 清单 29→30 且真跑一次 `pspp_poisson`；`test/client.mjs` 走真菜单断言「回归 → 泊松回归」打开对话框、含「离散参数」、确定按钮在选够之前不可点、源码正则钉住 `api/poisson`；`test/preset.mjs` 29→30。
 
-44 套件 / 700 条 ok（装了 poppler 701），工具 30 个。
+45 套件 / 700 条 ok（装了 poppler 701），工具 30 个。
 
 ## 0.83.0
 
@@ -34,7 +46,7 @@
 - **边界**：变量不存在点名、自变量为空或超过 10 个、文本自变量拒绝、类别少于 2 个或超过 20 个、个案数不够拟合、阈值不递增、缺失值整例剔除并保留原始个案号。
 - 用例：新套件 `test/ordinal.mjs` 8 条；`test/routes.mjs` 加 `api/ordinal`（60 例三类别出 5 张表、平行线检验 df = 1）；`test/tools.mjs` 清单 28→29 且真跑一次 `pspp_ordinal`（先用 `pspp_run persist:true` 造三档 `tier`）；`test/client.mjs` 走真菜单断言「回归 → 有序 Logistic」打开对话框、含「平行线检验」、**不含「参照类别」**、确定按钮在选够之前不可点；`test/preset.mjs` 28→29；`test/smoke.mjs` 真引擎互校。
 
-43 套件 / 690 条 ok（装了 poppler 691），工具 29 个。
+44 套件 / 690 条 ok（装了 poppler 691），工具 29 个。
 
 ## 0.82.0
 
@@ -48,7 +60,7 @@
 - **边界**：变量不存在点名、自变量为空或超过 10 个、文本自变量拒绝、类别少于 2 个或超过 20 个、个案数不足以拟合、参照类别不在取值里（列出可用值）、缺失值整例剔除并保留原始个案号。
 - 用例：新套件 `test/multinomial.mjs` 7 条；`test/routes.mjs` 加 2 行（60 例三类别建模型出 5 张表；指定 `reference: 'mid'` 后块顺序随之改变）；`test/tools.mjs` 清单 27→28 且真跑一次 `pspp_multinomial`；`test/client.mjs` 走真菜单断言「回归 → 多项 Logistic」打开对话框、确定按钮在选够之前不可点、请求体里空的参照类别不出现（源码正则钉住）；`test/preset.mjs` 27→28。
 
-42 套件 / 681 条 ok（装了 poppler 682），工具 28 个。
+43 套件 / 681 条 ok（装了 poppler 682），工具 28 个。
 
 ## 0.81.0
 
@@ -63,7 +75,7 @@
 - **左侧入口改名**：左栏那一行由「统计分析（数据面板）」改为「统计分析」，与右栏页签同名（两个入口打开的是同一个工作台，后缀只是在解释它落在屏幕哪一半，用户不需要）。
 - 用例：`test/survival.mjs` 8→9 条（图里印中位生存期；从不降到 50% 印 `—` 且 SVG 高度 378）+ `test/routes.mjs` 新增 4 行（真建一张 km 图再 `api/chart/update` 改标题，标题必须落地——这条正是原来的盲区：`test/*.mjs` 从来没有覆盖过 `updateChart`）+ `test/charts.mjs` 的可用值断言收紧。
 
-41 套件 / 673 条 ok（装了 poppler 674），工具 27 个。
+42 套件 / 673 条 ok（装了 poppler 674），工具 27 个。
 
 ## 0.80.0
 
@@ -77,7 +89,7 @@
 
 用例：新套件 `test/timeseries.mjs` 8 条（移动平均逐点与一步预测、简单指数平滑递推、Holt 对直线序列精确还原并外推、摘要表行顺序、序列表前几期留空与预测行编号、图上实测线在末案停止而拟合线继续、缺失值剔除后个案号保留、七类边界文案）+ routes 2 条（`api/timeseries` 回两张表、文本序列被拒）+ tools 1 条（真跑并画图，清单 27）+ client 一组（请求体只带当前方法用得到的参数、默认 ses 与外推 0、`api('api/timeseries')` 调用点）。词典加 16 条，`strings` 1561。
 
-41 套件 / 672 条 ok（装了 poppler 673），工具 27 个。
+42 套件 / 672 条 ok（装了 poppler 673），工具 27 个。
 
 ## 0.79.0
 

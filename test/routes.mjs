@@ -1212,6 +1212,12 @@ console.log('timeseries ->', smoothed.code, smoothing.result?.matrix?.[0]?.[0], 
   smoothing.result?.model?.forecast?.length)
 if (smoothed.code !== 200) throw new Error(`api/timeseries failed: ${smoothing.error}`)
 if (smoothing.result?.items?.length !== 2) throw new Error('the summary and the series table come back')
+for (const method of ['ses', 'des']) {
+  const fitted = await call('POST', `${base}/api/timeseries`, { sessionId: sid, options: { variable: 'score', method, alpha: 0.4, beta: 0.3, periods: 1 } })
+  const label = { ses: '简单指数平滑', des: '双指数平滑' }[method]
+  console.log(`api/timeseries ${method} ->`, fitted.code, fitted.json().result?.items?.length,
+    JSON.stringify(fitted.json().result?.notes ?? []).includes(label))
+}
 const badSeries = await call('POST', `${base}/api/timeseries`, { sessionId: sid, options: { variable: 'gender' } })
 if (badSeries.code !== 400 || !/要求数值变量/.test(String(badSeries.json().error))) throw new Error('a text series must be refused by name')
 

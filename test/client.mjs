@@ -2730,6 +2730,18 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     { variable: 'score', by: 'group', range: '1 3' }, {}, [{ name: 'group', type: 'numeric' }],
   )
   assert.equal(numericMedian.syntax, 'NPAR TESTS /MEDIAN=score BY group(1 3).', numericMedian.syntax)
+  // 同一族的另外两个非参数检验曾漏掉同一个引号规则（Win10 0820 的 P2-1），
+  // 现在三者共用 groupRangeCodes，所以一起钉住。
+  for (const [name, command] of [['nparKruskal', 'KRUSKAL-WALLIS'], ['nparJonckheere', 'JONCKHEERE-TERPSTRA']]) {
+    const quoted = hooks.ANALYSIS_SPECS[name].build(
+      { variable: 'score', by: 'group', range: 'A B' }, {}, [{ name: 'group', type: 'string' }],
+    )
+    assert.equal(quoted.syntax, `NPAR TESTS /${command}=score BY group('A' 'B').`, `${name}: ${quoted.syntax}`)
+    const plain = hooks.ANALYSIS_SPECS[name].build(
+      { variable: 'score', by: 'group', range: '1 3' }, {}, [{ name: 'group', type: 'numeric' }],
+    )
+    assert.equal(plain.syntax, `NPAR TESTS /${command}=score BY group(1 3).`, `${name}: ${plain.syntax}`)
+  }
   // 调用点本身也要守住：包装器修好而 ChartDialog 又只传两个实参，等于白修。
   assert.match(
     clientSource,

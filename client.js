@@ -2368,6 +2368,19 @@ function normalizeChoices(list) {
     }
 
     /**
+     * The codes of a grouping range for NPAR TESTS. A string grouping variable
+     * needs quoted codes — grp(A B) is a numeric range, grp('A' 'B') is the
+     * string form PSPP accepts — and the dialog only knows the variable types
+     * through its third build argument.
+     */
+    function groupRangeCodes(variables, by, range) {
+      const target = (variables ?? []).find((variable) => variable.name === by)
+      return String(range ?? '').trim().split(/[\s,，]+/).filter(Boolean)
+        .map((code) => (target?.type === 'string' ? `'${code.replace(/'/g, "''")}'` : code))
+        .join(' ')
+    }
+
+    /**
      * The flags a dialog opens with. Kept at module scope so a panel test can
      * check the rule without mounting React: only a checkbox is a boolean, a
      * select keeps its own default, a number keeps its own number. Treating
@@ -3385,7 +3398,9 @@ function normalizeChoices(list) {
           { key: 'range', kind: 'text', label: '分组值范围（最小 最大）', placeholder: '1 3', required: true },
         ],
         defaults: { range: '1 3' },
-        build: (v) => ({ syntax: `NPAR TESTS /KRUSKAL-WALLIS=${v.variable} BY ${v.by}(${String(v.range).trim()}).` }),
+        build: (v, flags, variables) => ({
+          syntax: `NPAR TESTS /KRUSKAL-WALLIS=${v.variable} BY ${v.by}(${groupRangeCodes(variables, v.by, v.range)}).`,
+        }),
       },
       nparJonckheere: {
         title: 'K 个独立样本（Jonckheere-Terpstra，有序备择）',
@@ -3395,8 +3410,8 @@ function normalizeChoices(list) {
           { key: 'range', kind: 'text', label: '分组值范围（最小 最大）', placeholder: '1 3', required: true },
         ],
         defaults: { range: '1 3' },
-        build: (v) => ({
-          syntax: `NPAR TESTS /JONCKHEERE-TERPSTRA=${v.variable} BY ${v.by}(${String(v.range).trim()}).`,
+        build: (v, flags, variables) => ({
+          syntax: `NPAR TESTS /JONCKHEERE-TERPSTRA=${v.variable} BY ${v.by}(${groupRangeCodes(variables, v.by, v.range)}).`,
           hint: '组顺序有意义时用它：检验「随组别升高，结局单调变化」。',
         }),
       },
@@ -3511,14 +3526,8 @@ function normalizeChoices(list) {
         ],
         defaults: { range: '1 3' },
         build: (v, flags, variables) => {
-          // A string grouping variable needs quoted codes: grp(A B) is a numeric
-          // range, grp('A' 'B') is the string form PSPP accepts.
-          const target = (variables ?? []).find((variable) => variable.name === v.by)
-          const codes = String(v.range ?? '').trim().split(/[\s,，]+/).filter(Boolean)
-            .map((code) => (target?.type === 'string' ? `'${code.replace(/'/g, "''")}'` : code))
-            .join(' ')
           return {
-          syntax: `NPAR TESTS /MEDIAN=${v.variable} BY ${v.by}(${codes}).`,
+          syntax: `NPAR TESTS /MEDIAN=${v.variable} BY ${v.by}(${groupRangeCodes(variables, v.by, v.range)}).`,
           hint: '把所有个案按检验变量的中位数分成两半，再比较各组高出中位数的比例。分组多于两组时它检验的是「各组分布的中心是否相同」，比 Kruskal-Wallis 粗，但对极端值更稳。',
           }
         },
