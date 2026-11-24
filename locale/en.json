@@ -1585,6 +1585,21 @@
     "伪 R²": "Pseudo R-Square",
     "分类结果": "Classification",
     "参数估计": "Parameter Estimates",
-    "因变量水平": "Dependent level"
+    "因变量水平": "Dependent level",
+    "有序 Logistic 回归": "Ordinal Logistic Regression",
+    "因变量（有序分类，2 个或更多类别）": "Dependent variable (ordered categorical, two or more levels)",
+    "类别的先后按取值大小或字典序排；阈值共有「类别数 − 1」个，自变量系数在所有切点上共用一套。": "The order of the levels follows their values or dictionary order; there are (levels − 1) thresholds, and one set of coefficients is shared by every cut point.",
+    "结果里带平行线检验：它把同一份数据再按无约束的多项 Logistic 拟合一次，P 小于 0.05 说明比例优势假设可疑，该改用多项 Logistic。": "The result includes the parallel-lines test: the same data is refitted as an unrestricted multinomial model, and P below 0.05 means the proportional-odds assumption is doubtful — switch to multinomial logistic regression.",
+    "有序 Logistic…（有先后次序）": "Ordinal Logistic… (ordered levels)",
+    "有序 Logistic：{0} 例，{1} 个类别，正确率 {2}%": "Ordinal logistic: {0} cases, {1} levels, {2}% correctly classified",
+    "平行线检验": "Test of Parallel Lines",
+    "仅阈值": "Threshold only",
+    "无约束（多项）": "Unrestricted (multinomial)",
+    "比例优势": "Proportional odds",
+    "平行线检验不适用": "The parallel-lines test does not apply",
+    "阈值 Y ≤ ": "Threshold Y ≤ ",
+    "有序 Logistic 回归至少要一个自变量": "Ordinal Logistic Regression needs at least one independent variable",
+    "有序 Logistic 的方程是奇异的：自变量之间完全共线，或者某个自变量在类别里没有变化": "The ordinal logistic equations are singular: the independent variables are perfectly collinear, or one of them does not vary within a level",
+    "还没有打开数据集": "No dataset is open"
   }
 }

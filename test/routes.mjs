@@ -1281,6 +1281,13 @@ console.log('multinomial ->', r.code, mlr.result?.matrix?.[0]?.[0], mlr.result?.
 r = await call('POST', `${base}/api/multinomial`, { sessionId: 'mlr01', options: { dependent: 'arm', independents: ['dose'], reference: 'mid' } })
 console.log('multinomial with a reference ->', r.code, r.json().result?.model?.reference,
   r.json().result?.model?.categories?.join(','))
+// Ordinal logistic: three ordered levels of the same data, so the
+// parallel-lines test has a degree of freedom.
+r = await call('POST', `${base}/api/ordinal`, { sessionId: 'mlr01', options: { dependent: 'arm', independents: ['dose'] } })
+const ord = r.json()
+console.log('ordinal ->', r.code, ord.result?.matrix?.[0]?.[0], ord.result?.items?.length,
+  ord.result?.model?.categories?.join(','), ord.result?.model?.parallel?.df,
+  ord.state?.items?.length > 0)
 await call('POST', `${base}/api/close`, { sessionId: 'mlr01' })
 
 for (const id of ['pivot01', 'pivot02', 'dup01', 'out01', 'ex01', 'cmh01', 'glmc01']) await call('POST', `${base}/api/close`, { sessionId: id })

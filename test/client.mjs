@@ -2075,6 +2075,38 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   assert.match(clientSource, /api\('api\/multinomial', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/multinomial')
   assert.match(clientSource, /reference: reference\.trim\(\) === '' \? undefined : reference\.trim\(\)/, 'an empty reference box stays out of the request')
+  // 有序 Logistic：比例优势模型。同一个「回归」组里紧跟着多项 Logistic，
+  // 两者共用牛顿法的骨架，但这里没有参照类别——阈值就是切点。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const analysePop4 = menuHost.querySelector('.ap-menu-pop')
+  const regressionGroup2 = [...analysePop4.querySelectorAll('button')].find((node) => node.textContent.startsWith('回归'))
+  await act(async () => {
+    regressionGroup2?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const ordinalItems = [...(regressionGroup2?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])].map((node) => node.textContent)
+  assert.ok(ordinalItems.some((text) => text.startsWith('有序 Logistic')), `the regression group lists ordinal logistic, got ${JSON.stringify(ordinalItems)}`)
+  const ordinalItem = [...(regressionGroup2?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])].find((node) => node.textContent.startsWith('有序 Logistic'))
+  await act(async () => {
+    ordinalItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const ordinalDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.ok(ordinalDialog, 'the ordinal dialog opens from the menu')
+  assert.match(ordinalDialog.textContent, /有序 Logistic 回归/, 'the dialog is titled like the procedure')
+  assert.match(ordinalDialog.textContent, /平行线检验/, 'and says the parallel-lines test decides whether the assumption holds')
+  assert.doesNotMatch(ordinalDialog.textContent, /参照类别/, 'the proportional-odds model has no reference category')
+  const ordinalOk = [...ordinalDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(ordinalOk.disabled, true, 'nothing is fitted until a dependent and a predictor are chosen')
+  const ordinalCancel = [...ordinalDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    ordinalCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.match(clientSource, /api\('api\/ordinal', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/ordinal')
 
   const outTab = [...menuHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
   await act(async () => {

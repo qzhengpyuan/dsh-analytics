@@ -2035,6 +2035,44 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
           h('div', { className: 'ap-hint' }, tr('已选 {0} 个自变量', chosen.length)))))
     }
 
+    function OrdinalDialog({ variables, onRun, onClose }) {
+      const numeric = variables.filter((variable) => variable.type === 'numeric')
+      const [dependent, setDependent] = useState(null)
+      const [chosen, setChosen] = useState([])
+      const toggle = (name) => setChosen((current) => (current.includes(name)
+        ? current.filter((entry) => entry !== name)
+        : [...current, name]))
+      const candidates = numeric.filter((variable) => variable.name !== dependent)
+      const ready = Boolean(dependent && chosen.length > 0)
+      return h(Modal, {
+        title: '有序 Logistic 回归',
+        wide: true,
+        okDisabled: !ready,
+        onCancel: onClose,
+        onOk: () => onRun({ dependent, independents: chosen }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '自变量（数值）'),
+          h('div', { className: 'ap-dlg-list' }, candidates.length
+            ? candidates.map((variable) => h('span', {
+              key: variable.name,
+              className: `ap-chip${chosen.includes(variable.name) ? ' ap-chip-on' : ''}`,
+              onClick: () => toggle(variable.name),
+              translate: false,
+            }, variable.name))
+            : h('div', { className: 'ap-hint' }, '还没有可用的数值自变量（分类自变量要先造哑变量）。'))),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '因变量（有序分类，2 个或更多类别）'),
+            h('select', { value: dependent ?? '', onChange: (e) => setDependent(e.target.value || null) },
+              h('option', { value: '' }, '（选一个因变量）'),
+              variables.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-hint' }, '类别的先后按取值大小或字典序排；阈值共有「类别数 − 1」个，自变量系数在所有切点上共用一套。'),
+          h('div', { className: 'ap-hint' }, '结果里带平行线检验：它把同一份数据再按无约束的多项 Logistic 拟合一次，P 小于 0.05 说明比例优势假设可疑，该改用多项 Logistic。'),
+          h('div', { className: 'ap-hint' }, tr('已选 {0} 个自变量', chosen.length)))))
+    }
+
     /**
      * Two-way comparison of the groups of one variable.
      *
@@ -7076,6 +7114,22 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId])
 
+      const runOrdinal = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/ordinal', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const model = value.result?.model ?? {}
+          notify(tr('有序 Logistic：{0} 例，{1} 个类别，正确率 {2}%', model.cases ?? 0, model.categories?.length ?? 0, ((model.accuracy ?? 0) * 100).toFixed(1)))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId])
+
       const runPairwise = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -7909,6 +7963,7 @@ let ITEM_CSV_PENDING = null
               { label: '线性…', action: () => runAnalysis('regression') },
               { label: '二元 Logistic…', action: () => runAnalysis('logistic') },
               { label: '多项 Logistic…（3 类以上）', action: () => setDialog({ kind: 'multinomial' }) },
+              { label: '有序 Logistic…（有先后次序）', action: () => setDialog({ kind: 'ordinal' }) },
             ] },
             { label: '降维', sub: [
               { label: '因子…', action: () => runAnalysis('factor') },
@@ -9145,6 +9200,13 @@ let ITEM_CSV_PENDING = null
           ? h(MultinomialDialog, {
             variables,
             onRun: (payload) => runMultinomial(payload),
+            onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'ordinal'
+          ? h(OrdinalDialog, {
+            variables,
+            onRun: (payload) => runOrdinal(payload),
             onClose: () => setDialog(null),
           })
           : null,

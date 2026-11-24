@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 28, names.join(' '))
+  assert.equal(names.length, 29, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -175,6 +175,21 @@ await check('pspp_multinomial fits a multinomial model and returns every table',
   assert.equal(out.matrix[0][0], '因变量水平', JSON.stringify(out).slice(0, 300))
   assert.ok(out.tables.length >= 5, 'fit, goodness, pseudo R square, classification and parameters')
   assert.ok(out.reference, 'the reference category is reported back')
+  assert.ok(out.accuracy >= 0 && out.accuracy <= 1, `accuracy ${out.accuracy}`)
+})
+
+await check('pspp_ordinal fits a proportional-odds model and reports the parallel-lines test', async () => {
+  // Three ordered levels, built from the score so the predictor is not a
+  // restatement of the dependent variable.
+  await call('pspp_run', {
+    syntax: 'COMPUTE tier = 1.\nIF (score >= 20) tier = 2.\nIF (score >= 30) tier = 3.\nEXECUTE.',
+    persist: true,
+  })
+  const out = await call('pspp_ordinal', { dependent: 'tier', independents: ['group'] })
+  assert.equal(out.matrix[0][0], '变量', JSON.stringify(out).slice(0, 300))
+  assert.ok(out.tables.length >= 5, 'fit, parallel lines, pseudo R square, classification and parameters')
+  assert.deepEqual(out.categories, [1, 2, 3], 'the sorted values define the order')
+  assert.ok(out.parallel && out.parallel.df >= 1, 'the parallel-lines test is computed for three categories')
   assert.ok(out.accuracy >= 0 && out.accuracy <= 1, `accuracy ${out.accuracy}`)
 })
 

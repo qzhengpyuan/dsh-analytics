@@ -8,6 +8,7 @@ import { resolveEngine, runProcess } from '../lib/engine.js'
 import { Workspace, WorkspaceRegistry, describeFailure } from '../lib/workspace.js'
 import { quoteSyntaxPath } from '../lib/dataset.js'
 import { computeMultinomial } from '../lib/multinomial.js'
+import { computeOrdinal } from '../lib/ordinal.js'
 
 const engine = resolveEngine()
 console.log('engine:', engine)
@@ -1208,6 +1209,20 @@ if (process.platform !== 'win32') {
   const engineConstant = Number(constantRow?.[cellsIndex(constantRow, 'B')])
   const pluginIntercept = fitted.model.coefficients[0].terms[0].estimate
   assert.ok(Math.abs(pluginIntercept + engineConstant) < 0.01, `intercept ${pluginIntercept} vs engine ${engineConstant}`)
+  // The same equivalence from the ordinal side: with two categories the
+  // proportional-odds model *is* binary logistic regression. The cumulative
+  // logit is logit P(Y ≤ k) = θ − xβ, so P(Y = 0) = expit(θ − xβ), while the
+  // engine fits logit P(Y = 1) = a + bx. Equating the two gives β = b and
+  // θ = −a: the slope keeps its sign and the threshold is the negated constant.
+  // This is the only outside check on the ordinal fit — everything else in
+  // test/ordinal.mjs is a closed form or an internal consistency argument.
+  const ordinalFit = computeOrdinal(mlr.dataset, { dependent: 'y', independents: ['x'] })
+  const ordinalB = ordinalFit.model.coefficients[0]
+  assert.ok(Math.abs(ordinalB - engineB) < 0.01, `ordinal ${ordinalB} vs engine ${engineB}`)
+  const ordinalConstant = ordinalFit.model.thresholds[0]
+  assert.ok(Math.abs(ordinalConstant + engineConstant) < 0.01,
+    `ordinal threshold ${ordinalConstant} vs engine constant ${engineConstant}`)
+  console.log('real engine: the two-category ordinal fit equals LOGISTIC REGRESSION:', ordinalB.toFixed(4), engineB)
   console.log('real engine: the multinomial two-category fit equals LOGISTIC REGRESSION:', pluginB.toFixed(4), engineB)
 }
 

@@ -69,6 +69,7 @@ jobs:
           node test/cluster.mjs
           node test/timeseries.mjs
           node test/multinomial.mjs
+          node test/ordinal.mjs
 
       - name: client bundle (jsdom)
         run: node test/client.mjs

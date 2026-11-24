@@ -161,6 +161,7 @@
 | 2026-11-23 | lead | 0.60.0 发布：重绘（`redrawChart`、`api/chart/redraw`、`pspp_chart.redrawOf`）+ PNG 倍率；Word/Excel 内嵌尺寸不跟倍率，理由写在 §3.4 |
 | 2026-11-24 | lead | 送验 `lead-0740-verify-0120`（0.67–0.74 八版一批，V1–V8 判据 + 全量测试口径） |
 | 2026-11-24 | lead | 0.82.0 发布：多项 Logistic 回归（K−1 个 logit 的牛顿–拉夫逊拟合、五张表、参照类别可指定、分离与共线分开报）、`lib/multinomial.js`、`pspp_multinomial` 与 `POST api/multinomial`、面板「分析 → 回归 → 多项 Logistic…」；二分类与引擎 `LOGISTIC REGRESSION` 互校成立；新套件 `test/multinomial.mjs`（42 套件 / 681 ok） |
+| 2026-11-25 | lead | 0.83.0 发布：有序 Logistic 回归（比例优势模型 `logit P(Y≤k) = θ_k − xβ`、牛顿–拉夫逊 + 数值 Hessian、阈值递增守卫、平行线检验按无约束多项 Logistic 重拟合取 `2Δℓ`、五张表）、`lib/ordinal.js`、`pspp_ordinal` 与 `POST api/ordinal`、面板「分析 → 回归 → 有序 Logistic…」；二分类与引擎 `LOGISTIC REGRESSION` 互校成立（β 同号、阈值 = 常数取反）；新套件 `test/ordinal.mjs`（43 套件 / 690 ok） |
 | 2026-11-24 | lead | 0.81.0 发布：修 Win10 0780 报告的 P1（KM 图能画不能改 —— 抽 `Workspace.chartFor()` 统一三个调用点）+ P2（中位生存期印进图里）+ P3×3（可用值列表、edit 工具描述、Cox ties 口径）（41 套件 / 673 ok） |
 | 2026-11-24 | lead | 0.80.0 发布：时间序列（移动平均 / 简单指数平滑 / 双指数平滑，模型摘要 MAE/RMSE/MAPE + 序列拟合表 + 序列图，可选外推期数）、`lib/timeseries.js`、`pspp_timeseries` 与 `POST api/timeseries`、面板「分析 → 时间序列」；新套件 `test/timeseries.mjs`（41 套件 / 672 ok） |
 | 2026-11-24 | lead | 0.79.0 发布：系统聚类（平均/最长/最短/Ward × 四种距离、Lance–Williams 递推、凝聚状态表 + 聚类成员 + 各组人数）、树状图 `dendrogram`、`pspp_cluster` 与 `POST api/cluster`、面板「分析 → 分类 → 系统聚类…」；新套件 `test/cluster.mjs`（41 套件 / 663 ok） |
