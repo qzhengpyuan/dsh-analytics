@@ -2297,6 +2297,87 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     }
 
     /**
+     * 分布计算器（SPSS 把它散在 CDF.* / IDF.* 函数里，这里给一个对话框）。
+     *
+     * 全部计算在宿主半做（lib/distributions.js），面板只收集参数，这样导出的
+     * 输出表、工具调用与对话框用的是同一份实现。
+     */
+    function DistributionDialog({ onRun, onClose }) {
+      const [distribution, setDistribution] = useState('normal')
+      const [x, setX] = useState('1.96')
+      const [probability, setProbability] = useState('0.975')
+      const [df, setDf] = useState('10')
+      const [df2, setDf2] = useState('10')
+      const [n, setN] = useState('10')
+      const [p, setP] = useState('0.5')
+      const [lambda, setLambda] = useState('2')
+      const needsDf = distribution === 't' || distribution === 'chiSquare' || distribution === 'f'
+      const needsDf2 = distribution === 'f'
+      const ready = x.trim() !== ''
+      return h(Modal, {
+        title: '分布计算器',
+        wide: true,
+        okDisabled: !ready,
+        onCancel: onClose,
+        onOk: () => onRun({
+          distribution,
+          x: Number(x),
+          probability: probability.trim() === '' ? undefined : Number(probability),
+          df1: needsDf ? Number(df) : undefined,
+          df2: needsDf2 ? Number(df2) : undefined,
+          n: distribution === 'binomial' ? Number(n) : undefined,
+          p: distribution === 'binomial' ? Number(p) : undefined,
+          lambda: distribution === 'poisson' ? Number(lambda) : undefined,
+        }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '分布'),
+          h('select', {
+            value: distribution,
+            onChange: (event) => setDistribution(event.target.value),
+          },
+          h('option', { value: 'normal' }, '正态（z）'),
+          h('option', { value: 't' }, 't'),
+          h('option', { value: 'chiSquare' }, '卡方'),
+          h('option', { value: 'f' }, 'F'),
+          h('option', { value: 'binomial' }, '二项'),
+          h('option', { value: 'poisson' }, '泊松')),
+          h('div', { className: 'ap-hint' }, '真实分布不需要自由度；二项要试验次数与成功概率，泊松要均值。')),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '点 x（统计量或计数）'),
+            h('input', { value: x, onChange: (event) => setX(event.target.value) })),
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '累积概率（可选，用来反查分位数）'),
+            h('input', { value: probability, onChange: (event) => setProbability(event.target.value) })),
+          needsDf
+            ? h('div', { className: 'ap-dlg-box' },
+              h('div', { className: 'ap-dlg-caption' }, needsDf2 ? '分子自由度 df1' : '自由度 df'),
+              h('input', { value: df, onChange: (event) => setDf(event.target.value) }))
+            : null,
+          needsDf2
+            ? h('div', { className: 'ap-dlg-box' },
+              h('div', { className: 'ap-dlg-caption' }, '分母自由度 df2'),
+              h('input', { value: df2, onChange: (event) => setDf2(event.target.value) }))
+            : null,
+          distribution === 'binomial'
+            ? h('div', { className: 'ap-dlg-box' },
+              h('div', { className: 'ap-dlg-caption' }, '试验次数 n'),
+              h('input', { value: n, onChange: (event) => setN(event.target.value) }),
+              h('div', { className: 'ap-dlg-caption' }, '成功概率 p'),
+              h('input', { value: p, onChange: (event) => setP(event.target.value) }))
+            : null,
+          distribution === 'poisson'
+            ? h('div', { className: 'ap-dlg-box' },
+              h('div', { className: 'ap-dlg-caption' }, '均值 λ'),
+              h('input', { value: lambda, onChange: (event) => setLambda(event.target.value) }))
+            : null,
+          h('div', { className: 'ap-hint' }, '结果写进输出：密度或概率质量、累积概率、上尾、双侧概率与分位数。'),
+          h('div', { className: 'ap-hint' }, '离散分布的上尾按累积函数算，P(X ≥ x) 与 P(X > x) 差一个点概率。'))))
+    }
+
+    /**
      * Two-way comparison of the groups of one variable.
      *
      * This is the table a paper needs behind an overall group difference, so it
@@ -7433,6 +7514,22 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId, notify, setSt, setView, setDialog])
 
+      const runDistribution = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/distribution', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const result = value.result?.result ?? {}
+          notify(tr('分布计算器：{0}，累积概率 {1}', result.label ?? '', Number(result.cdf ?? 0).toFixed(4)))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId, notify, setSt, setView, setDialog])
+
       const runPoisson = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -8375,6 +8472,8 @@ let ITEM_CSV_PENDING = null
         {
           label: '实用程序', items: [
             { label: '运行语法', action: () => run(syntax, false, '语法') },
+            { sep: true },
+            { label: '分布计算器…', action: () => setDialog({ kind: 'distribution' }) },
             { label: '清除输出', action: async () => { await api('api/clear', { sessionId }); await refresh() } },
           ],
         },
@@ -9546,6 +9645,12 @@ let ITEM_CSV_PENDING = null
           ? h(WlsDialog, {
             variables,
             onRun: (payload) => runWls(payload),
+            onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'distribution'
+          ? h(DistributionDialog, {
+            onRun: (payload) => runDistribution(payload),
             onClose: () => setDialog(null),
           })
           : null,

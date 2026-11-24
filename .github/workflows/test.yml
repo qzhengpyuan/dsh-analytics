@@ -70,6 +70,7 @@ jobs:
           node test/timeseries.mjs
           node test/multinomial.mjs
           node test/ordinal.mjs
+          node test/distributions.mjs
           node test/poisson.mjs
           node test/wls.mjs
           node test/twosls.mjs

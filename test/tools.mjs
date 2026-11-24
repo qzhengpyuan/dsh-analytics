@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 32, names.join(' '))
+  assert.equal(names.length, 33, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -352,6 +352,16 @@ await check('pspp_new and pspp_add_variable start an empty dataset', async () =>
   const variables = await call('pspp_variables')
   const names = (variables.variables ?? variables).map((entry) => entry.name ?? entry)
   assert.ok(names.includes('y'), names.join(' '))
+})
+
+await check('pspp_distribution evaluates a distribution and returns a quantile', async () => {
+  const out = await call('pspp_distribution', { distribution: 'normal', x: 1.959963985, probability: 0.975 })
+  assert.equal(out.matrix[0][0], '项目')
+  assert.ok(Math.abs(out.cdf - 0.975) < 1e-9, `cdf ${out.cdf}`)
+  assert.ok(Math.abs(out.quantile - 1.959963985) < 1e-8, `quantile ${out.quantile}`)
+  // 离散分布：泊松在 λ=2、x=3 处的累积概率是教科书值。
+  const poisson = await call('pspp_distribution', { distribution: 'poisson', x: 3, lambda: 2 })
+  assert.ok(Math.abs(poisson.cdf - 0.8571234605) < 1e-6, `poisson cdf ${poisson.cdf}`)
 })
 
 await check('every tool has been exercised by this suite', () => {

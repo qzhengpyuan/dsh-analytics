@@ -2165,6 +2165,40 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     await new Promise((resolve) => setTimeout(resolve, 40))
   })
   assert.match(clientSource, /api\('api\/wls', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/wls')
+  // 分布计算器：在「实用程序」里（不依赖数据集，所以不像分析过程那样在分析菜单）。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const utilityButton = [...menuHost.querySelectorAll('.ap-menu-button')]
+    .find((node) => node.textContent.startsWith('实用程序'))
+  assert.ok(utilityButton, 'the menu bar has a utility menu')
+  await act(async () => {
+    utilityButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const utilityPop = menuHost.querySelector('.ap-menu-pop')
+  const distributionItem = [...utilityPop.querySelectorAll('button')].find((node) => node.textContent.startsWith('分布计算器'))
+  assert.ok(distributionItem, 'the utility menu lists the distribution calculator')
+  await act(async () => {
+    distributionItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const distributionDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.match(distributionDialog?.textContent ?? '', /分布计算器/, 'the dialog is titled like the procedure')
+  assert.match(distributionDialog.textContent, /点 x/, 'and asks for the point to evaluate')
+  assert.match(distributionDialog.textContent, /累积概率/, 'and offers the quantile lookup')
+  assert.match(distributionDialog.textContent, /正态（z）/, 'the normal distribution is the starting choice')
+  assert.match(distributionDialog.textContent, /真实分布不需要自由度/, 'the hint says which distributions need parameters')
+  const distributionOk = [...distributionDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(distributionOk.disabled, false, 'a point with a default value is enough to run')
+  const distributionCancel = [...distributionDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    distributionCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.match(clientSource, /api\('api\/distribution', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/distribution')
+
 
   // 二阶段最小二乘：工具数不足时确定按钮不可点（识别不足是代数问题）。
   await act(async () => {

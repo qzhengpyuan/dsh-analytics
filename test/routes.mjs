@@ -1289,6 +1289,14 @@ r = await call('POST', `${base}/api/multinomial`, { sessionId: 'mlr01', options:
 console.log('multinomial with a reference ->', r.code, r.json().result?.model?.reference,
   r.json().result?.model?.categories?.join(','))
 // Two-stage least squares: instruments that are no weaker than the endogenous set.
+// The distribution calculator needs no dataset at all.
+r = await call('POST', `${base}/api/distribution`, { sessionId: 'mlr01', options: { distribution: 'chiSquare', x: 7.814727903, df1: 3, probability: 0.95 } })
+const dist = r.json()
+console.log('distribution ->', r.code, dist.result?.matrix?.[0]?.[0], Number(dist.result?.result?.cdf).toFixed(4),
+  Number(dist.result?.result?.quantile).toFixed(4), dist.result?.items?.length)
+r = await call('POST', `${base}/api/distribution`, { sessionId: 'mlr01', options: { distribution: 'cauchy', x: 1 } })
+console.log('distribution unknown ->', r.code, /不认识的分布/.test(String(r.json().error)))
+
 r = await call('POST', `${base}/api/twostage`, { sessionId: 'mlr01', options: { dependent: 'dose', endogenous: ['counts'], instruments: ['counts'] } })
 const tsls = r.json()
 console.log('twostage ->', r.code, tsls.result?.matrix?.[0]?.[0], tsls.result?.items?.length,
