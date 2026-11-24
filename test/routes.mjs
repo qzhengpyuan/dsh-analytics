@@ -1289,6 +1289,14 @@ r = await call('POST', `${base}/api/multinomial`, { sessionId: 'mlr01', options:
 console.log('multinomial with a reference ->', r.code, r.json().result?.model?.reference,
   r.json().result?.model?.categories?.join(','))
 // Two-stage least squares: instruments that are no weaker than the endogenous set.
+// Correspondence analysis: chi-square decomposition plus a biplot.
+r = await call('POST', `${base}/api/correspondence`, { sessionId: 'mlr01', options: { row: 'arm', column: 'counts' } })
+const ca = r.json()
+console.log('correspondence ->', r.code, ca.result?.tables?.length, Number(ca.result?.model?.chiSquare).toFixed(2),
+  ca.result?.model?.rows?.length, ca.result?.model?.columns?.length, Boolean(ca.state?.items?.some((item) => item.kind === 'image')))
+r = await call('POST', `${base}/api/correspondence`, { sessionId: 'mlr01', options: { row: 'arm', column: 'arm' } })
+console.log('correspondence same variable ->', r.code, /不能是同一个变量/.test(String(r.json().error)))
+
 // The distribution calculator needs no dataset at all.
 r = await call('POST', `${base}/api/distribution`, { sessionId: 'mlr01', options: { distribution: 'chiSquare', x: 7.814727903, df1: 3, probability: 0.95 } })
 const dist = r.json()

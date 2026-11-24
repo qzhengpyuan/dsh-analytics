@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 33, names.join(' '))
+  assert.equal(names.length, 34, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -362,6 +362,15 @@ await check('pspp_distribution evaluates a distribution and returns a quantile',
   // 离散分布：泊松在 λ=2、x=3 处的累积概率是教科书值。
   const poisson = await call('pspp_distribution', { distribution: 'poisson', x: 3, lambda: 2 })
   assert.ok(Math.abs(poisson.cdf - 0.8571234605) < 1e-6, `poisson cdf ${poisson.cdf}`)
+})
+
+await check('pspp_correspondence maps two categorical variables', async () => {
+  // pspp_new 在上一段把数据集换成了空白表，这里重新打开夹具 CSV。
+  await open()
+  const out = await call('pspp_correspondence', { row: 'grp', column: 'group' })
+  assert.equal(out.matrix[0][0], '维')
+  assert.ok(Number.isFinite(out.chiSquare) && out.chiSquare >= 0, `chi-square ${out.chiSquare}`)
+  assert.ok(out.rows.length >= 2 && out.columns.length >= 2, `${out.rows.length}x${out.columns.length}`)
 })
 
 await check('every tool has been exercised by this suite', () => {

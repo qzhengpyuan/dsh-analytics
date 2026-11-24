@@ -2198,6 +2198,38 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     await new Promise((resolve) => setTimeout(resolve, 40))
   })
   assert.match(clientSource, /api\('api\/distribution', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/distribution')
+  // 对应分析：在「分析 → 降维」里，与因子、快速聚类同一组。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const analysePopCa = menuHost.querySelector('.ap-menu-pop')
+  const dimensionGroup = [...analysePopCa.querySelectorAll('button')].find((node) => node.textContent.startsWith('降维'))
+  await act(async () => {
+    dimensionGroup?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const correspondenceItem = [...(dimensionGroup?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])]
+    .find((node) => node.textContent.startsWith('对应分析'))
+  assert.ok(correspondenceItem, 'the dimension group lists correspondence analysis')
+  await act(async () => {
+    correspondenceItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const correspondenceDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.match(correspondenceDialog?.textContent ?? '', /对应分析/, 'the dialog is titled like the procedure')
+  assert.match(correspondenceDialog.textContent, /行变量/, 'and asks for the row variable')
+  assert.match(correspondenceDialog.textContent, /列变量/, 'and for the column variable')
+  assert.match(correspondenceDialog.textContent, /惯量 = 卡方 \/ 个案数/, 'and explains what inertia is')
+  const correspondenceOk = [...correspondenceDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(correspondenceOk.disabled, true, 'two variables are required before it can run')
+  const correspondenceCancel = [...correspondenceDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    correspondenceCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.match(clientSource, /api\('api\/correspondence', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/correspondence')
+
 
 
   // 二阶段最小二乘：工具数不足时确定按钮不可点（识别不足是代数问题）。

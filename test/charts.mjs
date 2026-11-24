@@ -321,4 +321,28 @@ check('an X̄–R chart splits the cases in order when no subgroup variable is g
   assert.deepEqual(model.points.map((point) => point.range), [4, 4])
 })
 
+check('a biplot draws both sets of points with their labels', () => {
+  const svg = renderSvg({
+    kind: 'biplot',
+    title: '对应分析',
+    xLabel: '维 1（80.0%）',
+    yLabel: '维 2（20.0%）',
+    rowName: 'r',
+    columnName: 'c',
+    rows: [{ label: '甲', x: 0.4, y: 0.1 }, { label: '乙', x: -0.3, y: -0.2 }],
+    columns: [{ label: 'X', x: 0.35, y: -0.15 }, { label: 'Y', x: -0.25, y: 0.18 }],
+  })
+  assert.match(svg, />甲</, 'the row point label is drawn')
+  assert.match(svg, />X</, 'the column point label is drawn')
+  assert.match(svg, /<circle cx=/, 'row points are circles')
+  assert.match(svg, /<rect x=/, 'column points are squares')
+  assert.match(svg, /stroke-dasharray="4 4"/, 'the origin crosshair is drawn when zero is inside the range')
+  assert.match(svg, /行点：r/, 'the legend names the row variable')
+  // 全正坐标时不画原点十字（画了也在框外）。
+  const positive = renderSvg({
+    kind: 'biplot', title: 't', rows: [{ label: 'A', x: 1, y: 2 }], columns: [{ label: 'B', x: 1.5, y: 2.5 }],
+  })
+  assert.doesNotMatch(positive, /stroke-dasharray="4 4"/, 'no crosshair when zero is outside the range')
+})
+
 console.log(`${checks} checks passed`)

@@ -2297,6 +2297,44 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     }
 
     /**
+     * 对应分析：两个分类变量，出坐标表与双标图。
+     */
+    function CorrespondenceDialog({ variables, onRun, onClose }) {
+      const [row, setRow] = useState(null)
+      const [column, setColumn] = useState(null)
+      const [dimensions, setDimensions] = useState('2')
+      const ready = Boolean(row && column && row !== column)
+      const categories = variables.filter((variable) => variable.type === 'string' || variable.type === 'numeric')
+      return h(Modal, {
+        title: '对应分析',
+        wide: true,
+        okDisabled: !ready,
+        onCancel: onClose,
+        onOk: () => onRun({ row, column, dimensions: Number(dimensions) || 2 }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '行变量'),
+          h('select', { value: row ?? '', onChange: (event) => setRow(event.target.value || null) },
+            h('option', { value: '' }, '（选一个分类变量）'),
+            categories.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name))),
+          h('div', { className: 'ap-dlg-caption' }, '列变量'),
+          h('select', { value: column ?? '', onChange: (event) => setColumn(event.target.value || null) },
+            h('option', { value: '' }, '（选一个分类变量）'),
+            categories.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name))),
+          h('div', { className: 'ap-dlg-caption' }, '维数'),
+          h('select', { value: dimensions, onChange: (event) => setDimensions(event.target.value) },
+            h('option', { value: '1' }, '1'),
+            h('option', { value: '2' }, '2'),
+            h('option', { value: '3' }, '3'))),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-hint' }, '对应分析把两个分类变量的取值画在同一张二维图上：靠得近的行类别与列类别关联强。'),
+          h('div', { className: 'ap-hint' }, '惯量 = 卡方 / 个案数，所以不同规模的表之间可以直接比。'),
+          h('div', { className: 'ap-hint' }, '行点之间的距离、列点之间的距离有意义；行点到列点的距离只作定性参考。'),
+          h('div', { className: 'ap-hint' }, '至少各两个类别；有类别一个个案都没有时会被拒绝，先合并或剔除。'))))
+    }
+
+    /**
      * 分布计算器（SPSS 把它散在 CDF.* / IDF.* 函数里，这里给一个对话框）。
      *
      * 全部计算在宿主半做（lib/distributions.js），面板只收集参数，这样导出的
@@ -7514,6 +7552,22 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId, notify, setSt, setView, setDialog])
 
+      const runCorrespondence = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/correspondence', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const model = value.result?.model ?? {}
+          notify(tr('对应分析：{0} × {1}，卡方 {2}，惯量 {3}', model.rows?.length ?? 0, model.columns?.length ?? 0, Number(model.chiSquare ?? 0).toFixed(2), Number(model.inertia ?? 0).toFixed(4)))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId, notify, setSt, setView, setDialog])
+
       const runDistribution = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -8386,6 +8440,7 @@ let ITEM_CSV_PENDING = null
             ] },
             { label: '降维', sub: [
               { label: '因子…', action: () => runAnalysis('factor') },
+              { label: '对应分析…', action: () => setDialog({ kind: 'correspondence' }) },
               { label: '快速聚类…', action: () => runAnalysis('cluster') },
             ] },
             { label: '刻度', sub: [
@@ -9645,6 +9700,13 @@ let ITEM_CSV_PENDING = null
           ? h(WlsDialog, {
             variables,
             onRun: (payload) => runWls(payload),
+            onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'correspondence'
+          ? h(CorrespondenceDialog, {
+            variables,
+            onRun: (payload) => runCorrespondence(payload),
             onClose: () => setDialog(null),
           })
           : null,
