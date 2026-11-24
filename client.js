@@ -9225,6 +9225,16 @@ let ITEM_CSV_PENDING = null
     // dialogs' build() directly instead of driving six clicks per chart type.
     if (typeof globalThis !== 'undefined' && globalThis.__AP_TEST_HOOKS__) globalThis.__AP_TEST_HOOKS__.CHART_SPECS = CHART_SPECS
 
+    // 图表对话框在 spec 之后追加一个「归属表」下拉。包装时三个参数必须原样往
+    // 下传：条形图的 spec 靠第三个参数 variables 判断文本变量（0.65.0 起），
+    // 只传两个时它对分类变量照发 MEAN，被引擎以 400 拒绝。0.72.0 前就是这样。
+    function buildChartRequest(spec, values, flags, variables) {
+      const built = spec.build(values, flags, variables)
+      const chart = built.chart ? { ...built.chart, tableId: values.tableId || null } : built.chart
+      return { ...built, chart }
+    }
+    if (typeof globalThis !== 'undefined' && globalThis.__AP_TEST_HOOKS__) globalThis.__AP_TEST_HOOKS__.buildChartRequest = buildChartRequest
+
     /** Merge another .sav: ADD FILES (append cases) or MATCH FILES /BY (join variables). */
     function MergeDialog({ mode, variables, initial, onBrowse, onRun, onClose }) {
       const [path, setPath] = useState(initial?.path ?? '')
@@ -9414,10 +9424,7 @@ let ITEM_CSV_PENDING = null
             hint: '选一张输出表：导出的 Word/Excel 里这张图嵌在那张表里；留空按来源自动配对',
           },
         ],
-        build: (values, flags) => {
-          const built = spec.build(values, flags)
-          return { ...built, chart: { ...built.chart, tableId: values.tableId || null } }
-        },
+        build: (values, flags, variables) => buildChartRequest(spec, values, flags, variables),
       }
       return h(AnalysisDialog, { spec: withTarget, variables, rows, onClose, onRun: (built) => onChart(built.chart) })
     }

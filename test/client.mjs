@@ -2480,6 +2480,32 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   console.log('ok  the frequency charts and the scatter fit line are wired to the request')
 }
 
+// 图表对话框的包装器必须把 variables 传到 spec：0.65.0 起条形图靠它判断
+// 文本变量，两个实参就会对分类变量发 MEAN，引擎 400（Win10 0660 报告的 P1）。
+{
+  const build = hooks.buildChartRequest
+  assert.ok(build, 'the chart request wrapper is exported for the panel tests')
+  const variables = [
+    { name: 'gender', type: 'string', label: '性别' },
+    { name: 'score', type: 'numeric', label: '得分' },
+  ]
+  const textual = build(hooks.CHART_SPECS.bar, { variable: 'gender' }, {}, variables)
+  assert.equal(textual.chart.statistic, 'COUNT', 'a text variable is counted, not averaged')
+  const percent = build(hooks.CHART_SPECS.bar, { variable: 'gender' }, { barOptions: { percent: true } }, variables)
+  assert.equal(percent.chart.percent, true, 'and the percent option survives the wrapper')
+  const numeric = build(hooks.CHART_SPECS.bar, { variable: 'score' }, {}, variables)
+  assert.equal(numeric.chart.statistic, 'MEAN', 'a numeric variable is still averaged')
+  assert.equal(textual.chart.tableId, null, 'the table id defaults to null')
+  assert.equal(build(hooks.CHART_SPECS.bar, { variable: 'score', tableId: 'run-1-0' }, {}, variables).chart.tableId, 'run-1-0', 'and travels when chosen')
+  // 调用点本身也要守住：包装器修好而 ChartDialog 又只传两个实参，等于白修。
+  assert.match(
+    clientSource,
+    /build: \(values, flags, variables\) => buildChartRequest\(spec, values, flags, variables\)/,
+    'ChartDialog hands the variables to the wrapper',
+  )
+  console.log('ok  the chart wrapper passes variables through, so text variables are counted')
+}
+
 // 转置：FLIP 引擎支持（探过），所以对话框只负责拼对语法并标记持久化。
 {
   const spec = hooks.ANALYSIS_SPECS.transpose

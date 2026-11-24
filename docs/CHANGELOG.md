@@ -2,6 +2,18 @@
 
 历史小节保留当时的文本，包括后来被改掉的措辞；判断某句话现在是否还在用，看最新小节与 `docs/FEATURES.md`。
 
+计数口径细则（0.72.0 起）：`^ok` 只统计打印 `ok  …` 的断言。`test/stage.mjs`、`test/messages.mjs` 打自己的 `N checks passed` 汇总行（`^ok` 为 0）；`test/build.mjs` 有一行 `ok  …` 写在 `await check(...)` 内部，因此比它自报的 summary 多 1。核对数量只用 `grep -cE '^ok\b'`。
+
+## 0.72.0
+
+按 Windows 复验报告（`win10-report-0660.md`，0.64–0.66 那一批：P0 = 0、P1 = 1、P2 = 1、P3 = 2）逐条修。
+
+- **P1-1 面板条形图对文本变量恒发 `MEAN`**：`ChartDialog` 给 spec 追加「归属表」下拉时，包装器写成 `(values, flags) => spec.build(values, flags)`，把第三个参数 `variables` 丢掉。条形图的 spec 从 0.65.0 起靠它判断文本变量，于是面板选一个字符串变量画条形图，请求体里永远是 `statistic:"MEAN"`，被引擎 400 顶回来——0.65.0 的「分类变量条形图」只有工具与直连 API 能用。现在包装器抽成模块级 `buildChartRequest(spec, values, flags, variables)` 并把四个参数原样往下传，`ChartDialog` 的调用点也一并改全。
+- **P2-1 测试盲区**：`test/client.mjs` 新增一条——用真实变量表（`gender` 文本、`score` 数值）走 `buildChartRequest`，断言文本变量得到 `statistic: 'COUNT'`、`percent` 选项能穿过去、数值变量仍是 `MEAN`、`tableId` 默认 `null` 且选中时随请求走；再加一条源码断言钉住调用点 `build: (values, flags, variables) => buildChartRequest(spec, values, flags, variables)`，否则包装器修好了而调用点又退回去，等于白修。两条都做过删除式变异：把调用点改回两个实参，`node test/client.mjs` 立即红。
+- **P3-1 计数偏差**：0.63.0–0.66.0 四段写的 `^ok` 都比实测多 1（Win10 在两棵树上各跑一遍全量：0.63.0 = 609、0.64.0 = 610、0.65.0 = 611、0.66.0 = 611，装 poppler 各 +1）。四行已按实测改正，本段起继续按本机全量实测填写。
+- **P3-2 计数口径**：文件头的口径注释补全——`^ok` 只统计打印 `ok  …` 的断言；`test/stage.mjs` 与 `test/messages.mjs` 打自己的 summary（`^ok` 为 0），`test/build.mjs` 有一行 `ok  …` 打在 `await check(...)` 内部所以比它自报的 summary 多 1。判断「够不够数」只用 `grep -cE '^ok\b'`，不看自报 summary。
+- 计数：**37** 套件 / **625** 条 ok（装了 poppler 626）。
+
 ## 0.71.0
 
 补上 SPSS 的「数据 → 转置」。PSPP 2.1.3 其实有 `FLIP`，只是插件一直没有入口——老规矩，先拿真引擎探清行为再接线。
@@ -70,7 +82,7 @@
 - **P3-5 导入预览出错时旧表还在**：跳过行数超量以前只弹 toast，预览区仍是上一次成功的表格，看起来像「设置生效了」。现在同时清空预览并在原位显示错误。
 - 用例：`test/smoke.mjs` 断言 `state.engine.version` 是引擎自己的版本行；`test/routes.mjs` 加 `api/chart/options` 回读、局部 patch 不清掉其它项、未知 run 被拒；`test/client.mjs` 断言编辑器回填、未触碰项不发、悬空运算符被拦。
 - 计数口径（P3-1）：本文件里的 `^ok` 数字固定指「**没装 pdftotext 时 `npm test` 打印的 `ok` 行数**」；`stage`、`messages` 两个套件走自定义 summary（不打印 `ok` 行），因此新增它们的断言不会改变这个数。
-- 计数：**37** 套件 / **612** 条 ok（装了 poppler 613）。
+- 计数：**37** 套件 / **611** 条 ok（装了 poppler 612）。
 
 ## 0.65.0
 
@@ -80,7 +92,7 @@
 - 文本变量不另选类别轴（它自己就是类别轴），要分组/堆叠仍用「分组（并列）」「堆叠」两个变量；数值变量被误喂给计次以外统计量时会明确报「是文本变量，只能画『个案数』或『百分比』条形图」。
 - `pspp_chart` 新增 `percent` 参数；`statistic: COUNT` 对文本变量生效。
 - 用例：`test/charts.mjs` 加「文本变量按取值计次、空值不计、百分比合计 100、抽查一组占比、平均文本变量被拒」。
-- 计数：**37** 套件 / **612** 条 ok（装了 poppler 613）。
+- 计数：**37** 套件 / **611** 条 ok（装了 poppler 612）。
 
 ## 0.64.0
 
@@ -90,7 +102,7 @@
 - 着色只是视觉分组，坐标范围仍覆盖全部个案，所以两组点的高低不会被各自缩放骗人；同样受 1500 点抽样上限约束，避免 SVG 变大。
 - `pspp_chart` 新增 `group` 参数；`chartSpec` 记下 `group`，所以「重绘成其它类型」时分组信息还在。
 - 用例：`test/charts.mjs` 加「每类一个系列、颜色不同、图例有底板、不给 group 就没有图例、未知 group 变量被拒」。
-- 计数：**37** 套件 / **611** 条 ok（装了 poppler 612）。
+- 计数：**37** 套件 / **610** 条 ok（装了 poppler 611）。
 
 ## 0.63.0
 
@@ -101,7 +113,7 @@
 - **帮助 → 关于 PSPP 分析** 从一行 toast 变成对话框：版本、引擎版本与来源（内置 / 系统）、数据目录、许可证与「与 IBM SPSS 无关」的说明。
 - **三个入口不再同名**：左栏行改「统计分析（数据面板）」，打开的 csv/sav 文件页签是「统计分析 · 数据文件」，右栏工作台仍是「统计分析」——以前三处都叫「统计分析」，分不清点哪个。
 - 顺带把 `docs/PLAN.md` 里过期的勾补上：§3.5 的交叉表统计量（卡方/Phi/列联系数/Lambda/UC/Gamma/tau-b/tau-c/Somers' d/Eta/相关/风险估计/Kappa/精确检验/CMH）与 §3.6 的「值标签批量编辑」**在 0.4x–0.5x 就已经做完**，之前一直挂着未勾，容易重复劳动。证据：`client.js` 的 `crosstabs` spec、`lib/risk.js`、`lib/cmh.js`、`parseValueLabelLines`。
-- 计数：**37** 套件 / **610** 条 ok（装了 poppler 611）。
+- 计数：**37** 套件 / **609** 条 ok（装了 poppler 610）。
 
 ## 0.62.0
 
