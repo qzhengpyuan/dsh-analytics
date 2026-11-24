@@ -2136,6 +2136,58 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     await new Promise((resolve) => setTimeout(resolve, 40))
   })
   assert.match(clientSource, /api\('api\/poisson', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/poisson')
+  // 「查找过程」：整条菜单路径可搜，选中即执行。路径是唯一的区分手段，
+  // 所以断言里连「分析 → 回归 →」这一段也要对。
+  const commands = hooks.flattenCommands([
+    { label: '分析', items: [
+      { label: '回归', sub: [
+        { label: '线性…', action: () => {} },
+        { label: '泊松回归…（计数因变量）', action: () => {} },
+      ] },
+      { sep: true },
+      { label: '描述统计', sub: [{ label: '频率…', action: () => {} }] },
+    ] },
+    { label: '帮助', items: [{ label: '关于', action: () => {}, disabled: true }] },
+  ])
+  assert.equal(commands.length, 4, JSON.stringify(commands.map((entry) => entry.path)))
+  assert.equal(commands[1].path, '分析 → 回归 → 泊松回归…（计数因变量）', commands[1].path)
+  assert.equal(commands[3].disabled, true, 'a disabled entry stays disabled')
+  const helpButton = [...menuHost.querySelectorAll('.ap-menu-button')].find((button) => button.textContent.startsWith('帮助'))
+  assert.ok(helpButton, `help menu button: ${[...menuHost.querySelectorAll('.ap-menu-button')].map((b) => b.textContent).join('|')}`)
+  await act(async () => {
+    helpButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const helpPop = [...menuHost.querySelectorAll('.ap-menu-pop')].at(-1)
+  const finderItem = [...helpPop.querySelectorAll('button')].find((node) => node.textContent.startsWith('查找过程'))
+  assert.ok(finderItem, 'the help menu lists the procedure finder')
+  await act(async () => {
+    finderItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const finder = [...menuHost.querySelectorAll('.ap-finder')].at(-1)
+  assert.ok(finder, 'the finder dialog opens')
+  const finderInput = finder.querySelector('.ap-finder-input')
+  assert.ok(finderInput, 'the finder has a search box')
+  const typeInto = (node, text) => {
+    const proto = node.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype
+    Object.getOwnPropertyDescriptor(proto, 'value').set.call(node, text)
+    node.dispatchEvent(new window.Event('input', { bubbles: true }))
+  }
+  await act(async () => {
+    typeInto(finderInput, '泊松')
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const finderLive = [...menuHost.querySelectorAll('.ap-finder')].at(-1)
+  const paths = [...finderLive.querySelectorAll('.ap-finder-row')].map((node) => node.textContent)
+  assert.ok(paths.length >= 1 && paths.every((path) => path.includes('泊松')), JSON.stringify(paths))
+  assert.match(paths[0], /分析 → 回归 → 泊松回归/, paths[0])
+  await act(async () => {
+    finderLive.querySelector('.ap-finder-row').dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const afterFinder = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.match(afterFinder?.textContent ?? '', /泊松回归/, 'running a found command opens its dialog')
 
   const outTab = [...menuHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
   await act(async () => {

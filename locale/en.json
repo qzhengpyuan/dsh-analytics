@@ -1621,6 +1621,11 @@
     "Pearson 卡方": "Pearson Chi-Square",
     "（常数）": "(Constant)",
     "似然比 χ²": "Likelihood-Ratio χ²",
-    "值/df": "Value/df"
+    "值/df": "Value/df",
+    "查找过程": "Search the Menus",
+    "查找过程…（Ctrl+Shift+F）": "Search the Menus… (Ctrl+Shift+F)",
+    "输入过程名或菜单路径里的字，比如「泊松」「T 检验」": "Type part of a procedure or a menu path, for example “Poisson” or “t-test”",
+    "{0} 条可用命令": "{0} commands",
+    "没有匹配的过程": "No procedure matches"
   }
 }

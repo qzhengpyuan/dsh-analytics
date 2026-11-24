@@ -29,8 +29,70 @@ window.__ModuleLoader__.load({
     const RECURSIVE_TEMPLATES = new Set(['{0}：不可估（{1}）'])
     // Help → 快捷键一览. Only what the panel really binds: a help page that lists
     // keys nobody implemented is worse than none.
-    const SHORTCUTS = [
-      { title: '菜单', rows: [['Alt+F / E / V / D / T / A / G / U / S / H', '打开对应菜单'], ['↑ ↓ / ← →', '在菜单项之间移动'], ['Esc', '关闭菜单']] },
+    /**
+ * 「查找过程」——SPSS 的 Search for a Procedure。输入框过滤整条菜单路径，
+ * 上下键选、回车执行；结果里保留完整路径，因为同名条目（比如三个
+ * 「导出输出为…」）只有路径能区分。
+ */
+function CommandFinderDialog({ commands, onRun, onClose }) {
+  const [query, setQuery] = React.useState('')
+  const [active, setActive] = React.useState(0)
+  const needle = query.trim().toLowerCase()
+  const matches = needle
+    ? commands.filter((entry) => entry.path.toLowerCase().includes(needle))
+    : commands
+  const shown = matches.slice(0, 40)
+  const chosen = shown[Math.min(active, Math.max(0, shown.length - 1))]
+  const run = (entry) => {
+    if (!entry || entry.disabled) return
+    onRun(entry.action)
+  }
+  return h(Modal, {
+    title: '查找过程',
+    wide: true,
+    onCancel: onClose,
+    okText: '运行',
+    okDisabled: !chosen || chosen.disabled === true,
+    onOk: () => run(chosen),
+  },
+  h('div', { className: 'ap-finder' },
+    h('input', {
+      className: 'ap-finder-input',
+      type: 'search',
+      placeholder: tr('输入过程名或菜单路径里的字，比如「泊松」「T 检验」'),
+      value: query,
+      autoFocus: true,
+      onChange: (event) => { setQuery(event.target.value); setActive(0) },
+      onKeyDown: (event) => {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault()
+          setActive((current) => Math.min(current + 1, shown.length - 1))
+        } else if (event.key === 'ArrowUp') {
+          event.preventDefault()
+          setActive((current) => Math.max(current - 1, 0))
+        } else if (event.key === 'Enter') {
+          event.preventDefault()
+          run(chosen)
+        }
+      },
+    }),
+    h('div', { className: 'ap-finder-count' }, tr('{0} 条可用命令', matches.length)),
+    h('div', { className: 'ap-finder-list' },
+      shown.length === 0
+        ? h('div', { className: 'ap-finder-empty' }, tr('没有匹配的过程'))
+        : shown.map((entry, index) => h('button', {
+          key: `${entry.path}-${index}`,
+          type: 'button',
+          className: `ap-finder-row${index === active ? ' is-active' : ''}${entry.disabled ? ' is-disabled' : ''}`,
+          title: entry.path,
+          onMouseEnter: () => setActive(index),
+          onClick: () => run(entry),
+        }, h('span', { className: 'ap-finder-path' }, entry.path)))),
+  ))
+}
+
+const SHORTCUTS = [
+      { title: '菜单', rows: [['Alt+F / E / V / D / T / A / G / U / S / H', '打开对应菜单'], ['↑ ↓ / ← →', '在菜单项之间移动'], ['Esc', '关闭菜单'], ['Ctrl+Shift+F', '查找过程（按菜单路径搜索）']] },
       { title: '语法编辑器', rows: [['Ctrl+Space', '打开补全列表'], ['Enter / Tab', '接受选中的补全'], ['↑ ↓', '在补全列表里移动'], ['Esc', '关闭补全列表']] },
       { title: '数据视图', rows: [['Ctrl+C / Ctrl+X / Ctrl+V', '复制 / 剪切 / 粘贴单元格'], ['Delete', '清除选中的单元格'], ['Ctrl+Z / Ctrl+Y', '撤销 / 重做'], ['方向键 / Tab / Enter', '在单元格之间移动']] },
       { title: '变量视图', rows: [['Shift 点击', '连选一段变量'], ['Ctrl 点击', '加选或取消一个变量'], ['右键', '批量修改、移动、删除']] },
@@ -796,6 +858,18 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-keys-row { display:flex; gap:10px; align-items:baseline; }
 .ap-keys-key { font-family:var(--ap-mono, monospace); font-size:11px; color:var(--ap-text-2); min-width:230px; }
 .ap-keys-what { color:var(--ap-text); }
+.ap-finder { display:flex; flex-direction:column; gap:6px; min-width:420px; }
+.ap-finder-input { width:100%; box-sizing:border-box; padding:4px 6px; font:inherit; font-size:12px;
+  background:var(--ap-field); color:var(--ap-text); border:1px solid var(--ap-line-2); border-radius:3px; }
+.ap-finder-count { color:var(--ap-text-3); font-size:11px; }
+.ap-finder-list { display:flex; flex-direction:column; max-height:300px; overflow-y:auto;
+  border:1px solid var(--ap-line-2); border-radius:3px; background:var(--ap-field); }
+.ap-finder-row { text-align:left; padding:4px 8px; font:inherit; font-size:12px; background:transparent;
+  color:var(--ap-text); border:0; border-bottom:1px solid var(--ap-line); cursor:pointer; }
+.ap-finder-row:last-child { border-bottom:0; }
+.ap-finder-row:hover, .ap-finder-row.is-active { background:var(--ap-hover); }
+.ap-finder-row.is-disabled { color:var(--ap-text-3); cursor:default; }
+.ap-finder-empty { padding:8px; color:var(--ap-text-3); font-size:11px; }
 .ap-about { display:flex; flex-direction:column; gap:5px; }
 .ap-about-name { font-weight:600; font-size:14px; }
 .ap-about-line { color:var(--ap-text-2); }
@@ -1456,6 +1530,7 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       globalThis.__AP_TEST_HOOKS__.setDictionary = setDictionary
       globalThis.__AP_TEST_HOOKS__.h = h
       globalThis.__AP_TEST_HOOKS__.gridCommand = gridCommand
+      globalThis.__AP_TEST_HOOKS__.flattenCommands = flattenCommands
       globalThis.__AP_TEST_HOOKS__.foreignWriteNotice = foreignWriteNotice
       globalThis.__AP_TEST_HOOKS__.freshDialogFlags = freshDialogFlags
     }
@@ -2378,6 +2453,38 @@ function normalizeChoices(list) {
       return String(range ?? '').trim().split(/[\s,，]+/).filter(Boolean)
         .map((code) => (target?.type === 'string' ? `'${code.replace(/'/g, "''")}'` : code))
         .join(' ')
+    }
+
+    /**
+     * Every command reachable from the menu bar, with the path a user would
+     * read out loud. The menu tree is a plain array of arrays, so the flattening
+     * is cheap enough to redo on each render; it exists so 「查找过程」 can offer
+     * SPSS's Search-for-a-procedure without a second registry to keep in sync.
+     */
+    // 菜单树只在菜单栏那一段 render 里存在，而对话框在另一个组件里渲染，
+    // 所以把最近一次渲染的菜单树留在模块作用域，供「查找过程」读取。
+    let MENU_SOURCE = []
+
+    function flattenCommands(menus, top = '', parent = '') {
+      const found = []
+      for (const menu of menus ?? []) {
+        const section = top || menu.label
+        for (const item of menu.items ?? []) {
+          if (item.sep) continue
+          // 子菜单的键是 `sub`（菜单栏的渲染器读的就是它）；`items` 只出现在
+          // 顶层菜单和测试夹具里，两种都认。
+          const children = item.sub ?? item.items
+          if (children) {
+            found.push(...flattenCommands([{ label: item.label, items: children }],
+              section, parent ? `${parent} → ${item.label}` : item.label))
+            continue
+          }
+          if (typeof item.action !== 'function') continue
+          const path = [section, parent, item.label.replace(/^[✓▸▾]\s*/, '')].filter(Boolean).join(' → ')
+          found.push({ path, label: item.label, action: item.action, disabled: item.disabled === true })
+        }
+      }
+      return found
     }
 
     /**
@@ -6417,6 +6524,13 @@ let ITEM_CSV_PENDING = null
             }
           }
           if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+          // SPSS 的「查找过程」快捷键。Alt+<字母> 是菜单助记键，所以它得用
+          // 带 Shift 的组合，否则会和「帮助」抢 Alt+H。
+          if (event.ctrlKey && event.shiftKey && String(event.key).toLowerCase() === 'f') {
+            event.preventDefault()
+            setDialog({ kind: 'commands' })
+            return
+          }
           const wanted = MENU_MNEMONICS[String(event.key).toLowerCase()]
           if (!wanted || !menuButtonLabels().includes(wanted)) return
           event.preventDefault()
@@ -8130,12 +8244,15 @@ let ITEM_CSV_PENDING = null
         },
         {
           label: '帮助', items: [
+            { label: '查找过程…（Ctrl+Shift+F）', action: () => setDialog({ kind: 'commands' }) },
             { label: '快捷键一览…', action: () => setDialog({ kind: 'shortcuts' }) },
             { label: '检查更新…', action: () => { void checkForUpdate() } },
             { label: '关于 PSPP 分析', action: () => setDialog({ kind: 'about' }) },
           ],
         },
       ])
+
+      MENU_SOURCE = menus
 
       const variables = st?.dataset?.variables ?? []
       const allItems = st?.items ?? []
@@ -9038,6 +9155,13 @@ let ITEM_CSV_PENDING = null
                 notify(tr('已定义多选题 {0}', setDefinition.name))
               } catch (error) { notify(error.message) }
             },
+          })
+          : null,
+        dialog?.kind === 'commands'
+          ? h(CommandFinderDialog, {
+            commands: flattenCommands(MENU_SOURCE),
+            onRun: (action) => { setDialog(null); void action() },
+            onClose: () => setDialog(null),
           })
           : null,
         dialog?.kind === 'shortcuts'
