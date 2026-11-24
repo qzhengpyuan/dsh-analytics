@@ -160,6 +160,7 @@
 | 2026-11-23 | lead | 0.59.0 发布：副标题 + 拼版（`composeChartGrid`、`api/chartGrid`、`pspp_chart.grid`）；不做「图表构建器」对话框，理由写在 §3.3；评审 `V-i` 的宽高比判据按实测改成像素尺寸 |
 | 2026-11-23 | lead | 0.60.0 发布：重绘（`redrawChart`、`api/chart/redraw`、`pspp_chart.redrawOf`）+ PNG 倍率；Word/Excel 内嵌尺寸不跟倍率，理由写在 §3.4 |
 | 2026-11-24 | lead | 送验 `lead-0740-verify-0120`（0.67–0.74 八版一批，V1–V8 判据 + 全量测试口径） |
+| 2026-11-24 | lead | 0.81.0 发布：修 Win10 0780 报告的 P1（KM 图能画不能改 —— 抽 `Workspace.chartFor()` 统一三个调用点）+ P2（中位生存期印进图里）+ P3×3（可用值列表、edit 工具描述、Cox ties 口径）（41 套件 / 673 ok） |
 | 2026-11-24 | lead | 0.80.0 发布：时间序列（移动平均 / 简单指数平滑 / 双指数平滑，模型摘要 MAE/RMSE/MAPE + 序列拟合表 + 序列图，可选外推期数）、`lib/timeseries.js`、`pspp_timeseries` 与 `POST api/timeseries`、面板「分析 → 时间序列」；新套件 `test/timeseries.mjs`（41 套件 / 672 ok） |
 | 2026-11-24 | lead | 0.79.0 发布：系统聚类（平均/最长/最短/Ward × 四种距离、Lance–Williams 递推、凝聚状态表 + 聚类成员 + 各组人数）、树状图 `dendrogram`、`pspp_cluster` 与 `POST api/cluster`、面板「分析 → 分类 → 系统聚类…」；新套件 `test/cluster.mjs`（41 套件 / 663 ok） |
 | 2026-11-24 | lead | 0.78.0 发布：修 Win10 0740 报告的 P1×5 + P2×5（分组项默认值、数字输入框、中位数检验字符串引号、图表请求扁平化、`/BARCHART`），自检抓出 `km` 同一处双层 `options`；重绘保留 plot/fit；宿主报错中文化；`SHA256SUMS-<版本>` 留档 |

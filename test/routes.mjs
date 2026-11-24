@@ -1215,6 +1215,23 @@ if (smoothing.result?.items?.length !== 2) throw new Error('the summary and the 
 const badSeries = await call('POST', `${base}/api/timeseries`, { sessionId: sid, options: { variable: 'gender' } })
 if (badSeries.code !== 400 || !/要求数值变量/.test(String(badSeries.json().error))) throw new Error('a text series must be refused by name')
 
+// A Kaplan–Meier figure has to be editable like any other chart, which means the
+// factory that draws it must be the same one updateChart asks for. It was not:
+// the figure drew fine and every edit answered "unknown chart type: km".
+await seed('km01', [
+  { g: 'M', wave: 1, score: 1 }, { g: 'M', wave: 2, score: 1 },
+  { g: 'F', wave: 1, score: 1 }, { g: 'F', wave: 3, score: 1 },
+])
+const survival = await call('POST', `${base}/api/chart`, { sessionId: 'km01', kind: 'km', options: { time: 'wave', event: 'score', group: 'g' } })
+const survivalChart = survival.json()
+console.log('km chart ->', survival.code, survivalChart.result?.chart?.kind, survivalChart.result?.chart?.groups?.length)
+if (survival.code !== 200) throw new Error(`api/chart km failed: ${survivalChart.error}`)
+const kmEdited = await call('POST', `${base}/api/chart/update`, { sessionId: 'km01', runId: survivalChart.result.runId, title: '甲乙两组的生存曲线' })
+const kmEditedChart = kmEdited.json()
+console.log('km chart is editable ->', kmEdited.code, kmEditedChart.result?.chart?.title)
+if (kmEdited.code !== 200) throw new Error(`a km chart must be editable: ${kmEditedChart.error}`)
+if (kmEditedChart.result?.chart?.title !== '甲乙两组的生存曲线') throw new Error('the new title did not stick')
+
 // Discriminant analysis is fitted in the plugin as well (PSPP has no
 // DISCRIMINANT), so the route has to build four tables from the open rows.
 r = await call('POST', `${base}/api/discriminant`, { sessionId: sid, options: { group: 'gender', variables: ['score'] } })

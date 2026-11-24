@@ -4,6 +4,20 @@
 
 计数口径细则（0.72.0 起）：`^ok` 只统计打印 `ok  …` 的断言。`test/stage.mjs`、`test/messages.mjs` 打自己的 `N checks passed` 汇总行（`^ok` 为 0）；`test/build.mjs` 有一行 `ok  …` 写在 `await check(...)` 内部，因此比它自报的 summary 多 1。核对数量只用 `grep -cE '^ok\b'`。
 
+## 0.81.0
+
+修 Windows 10 复验 0.75.0–0.78.0 那一批的一条 P1 与若干 P2/P3。
+
+- **P1（产品级）：Kaplan–Meier 图能画不能改**。`updateChart()` 直接调 `buildChartModel()`，而那张图由 `lib/survival.js` 的专用工厂生成 ⇒ 面板「编辑图表」与 `pspp_edit_chart` 对 KM 图一律 400「不认识的图型：km」。修法不是补一个 if：抽出 `Workspace.chartFor(kind, options)`，`addChart` / `redrawChart` / `updateChart` 三个调用点全部走它，专用图型（km、dendrogram、timeseries）都从这里出图；编辑对话框发来的 title/subtitle/xLabel/yLabel/accent 对专用图型也在这个工厂里落到模型上（`computeKaplanMeier` 现在认 `options.title` 与 `options.xLabel`）。
+- **P2：中位生存期此前只活在模型里**。文档承诺「从不降到 50% 报 `—`」，但 SVG 里连「中位」二字都没有，输出树也没有表注。现在图里横轴下方印 `中位生存期：A = 10，B = 5`（单组写 `中位生存期 = 2`，无中位数写 `—`），KM 图高度从 360 增到 378 给这行文字留位置。
+- **P3-1：`buildChartModel` 的可用值列表自相矛盾**（列了 `km` 却又不认识它）⇒ 列表只留它真正能画的 11 种，并补一句「生存曲线、树状图与时间序列由宿主的专用工厂画」；用例断言报错文本的可用值里不再出现 `km`。
+- **P3-2：`pspp_edit_chart` 的描述说明支持范围**（含 km、树状图、时间序列；分类排序只对 bar/pie/pareto/area 有意义）。
+- **P3-3：Cox 交叉校验写清适用条件** —— 单二分类协变量**且事件时间无并列**时得分检验与 log-rank 逐字相等；有并列时因 ties 处理不同（超几何 vs Breslow）允许不等。
+
+用例：`test/survival.mjs` 8→9 条（图里印中位生存期；从不降到 50% 印 `—` 且 SVG 高度 378）+ `test/routes.mjs` 新增 4 行（真建一张 km 图再 `api/chart/update` 改标题，标题必须落地——这条正是原来的盲区：`test/*.mjs` 从来没有覆盖过 `updateChart`）+ `test/charts.mjs` 的可用值断言收紧。
+
+41 套件 / 673 条 ok（装了 poppler 674），工具 27 个。
+
 ## 0.80.0
 
 **时间序列：移动平均与指数平滑**。PSPP 2.1.3 对 `TSLINE` 回 `Unknown command`，也没有任何指数平滑过程，所以拟合、误差与序列图都在插件里算（`lib/timeseries.js`）。

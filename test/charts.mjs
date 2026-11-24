@@ -32,7 +32,8 @@ check('an unknown chart kind names the kinds that do exist', () => {
   // 「只报 unsupported chart type」在中文面板上等于没说下一步（Win10 0740 的 P2-3）。
   assert.throws(
     () => buildChartModel(dataset([1, 2, 3]), 'qqq', { variable: 'score' }),
-    (error) => /不认识的图型：qqq/.test(error.message) && /可用：/.test(error.message) && /pareto/.test(error.message),
+    (error) => /不认识的图型：qqq/.test(error.message) && /可用：/.test(error.message) && /pareto/.test(error.message)
+      && !/可用：[^）]*km/.test(error.message),
   )
 })
 

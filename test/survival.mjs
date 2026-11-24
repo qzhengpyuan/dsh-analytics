@@ -114,6 +114,19 @@ check('the survival figure draws a step curve, the legend and the log-rank line'
   assert.match(svg, /50%/, 'the y axis is in survival percentages')
   assert.match(svg, /A \(n=2, 事件 2\)/, 'the legend carries the group size')
   assert.match(svg, /随访时间（t）/, 'the x axis says which variable it is')
+  // The median survival is what a paper quotes next to the curve; a group that
+  // never reaches 50% has to say so instead of printing a zero.
+  assert.match(svg, /中位生存期：A = 1，B = 1/, 'the medians are printed under the axis')
+})
+
+check('a group that never falls to 50% prints a dash as its median', () => {
+  // Five cases, one event: S bottoms out at 0.8, so no median exists.
+  const rows = [[1, 1], [2, 0], [3, 0], [4, 0], [5, 0]]
+  const model = computeKaplanMeier(dataset(rows, false), { time: 't', event: 'e' })
+  assert.equal(model.groups[0].median, null, 'the model says the median is unknown')
+  const svg = renderSvg(model)
+  assert.match(svg, /中位生存期 = —/, 'and the figure says so with a dash')
+  assert.match(svg, /height="378"/, 'the extra text line gets its own room')
 })
 
 console.log(`${checks} checks passed`)
