@@ -1182,6 +1182,16 @@ console.log('one undo restores both ->', r.code, batchAfterUndo.map((variable) =
 r = await call('POST', `${base}/api/variable`, { sessionId: sid, action: 'updateMany', names: ['nope'], patch: { decimals: 1 } })
 console.log('updateMany with an unknown name ->', r.code, r.json().error ?? r.json().message)
 
+// Discriminant analysis is fitted in the plugin as well (PSPP has no
+// DISCRIMINANT), so the route has to build four tables from the open rows.
+r = await call('POST', `${base}/api/discriminant`, { sessionId: sid, options: { group: 'gender', variables: ['score'] } })
+const discrimination = r.json()
+console.log('discriminant ->', r.code, discrimination.result?.matrix?.[0]?.[0],
+  discrimination.result?.items?.length, discrimination.result?.model?.groups?.length,
+  discrimination.state?.items?.length > 0)
+r = await call('POST', `${base}/api/discriminant`, { sessionId: sid, options: { group: 'gender', variables: [] } })
+console.log('discriminant without variables ->', r.code, /至少需要一个判别变量/.test(String(r.json().error)))
+
 // Cox regression runs inside the plugin (PSPP 2.1.3 has no COXREG), so the
 // route has to work without an engine run: it builds the table from the rows
 // that are already open.

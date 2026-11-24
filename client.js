@@ -1882,6 +1882,53 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     }
 
     /**
+     * Discriminant analysis: PSPP has no DISCRIMINANT, so the dialog collects
+     * the grouping variable, the numeric predictors and the prior rule.
+     */
+    function DiscriminantDialog({ variables, onRun, onClose }) {
+      const numeric = variables.filter((variable) => variable.type === 'numeric')
+      const [group, setGroup] = useState(null)
+      const [chosen, setChosen] = useState([])
+      const [priors, setPriors] = useState('equal')
+      const toggle = (name) => setChosen((current) => (current.includes(name)
+        ? current.filter((entry) => entry !== name)
+        : [...current, name]))
+      const candidates = numeric.filter((variable) => variable.name !== group)
+      const ready = Boolean(group && chosen.length > 0)
+      return h(Modal, {
+        title: '判别分析',
+        wide: true,
+        okDisabled: !ready,
+        onCancel: onClose,
+        onOk: () => onRun({ group, variables: chosen, priors }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '判别变量（数值）'),
+          h('div', { className: 'ap-dlg-list' }, candidates.length
+            ? candidates.map((variable) => h('span', {
+              key: variable.name,
+              className: `ap-chip${chosen.includes(variable.name) ? ' ap-chip-on' : ''}`,
+              onClick: () => toggle(variable.name),
+              translate: false,
+            }, variable.name))
+            : h('div', { className: 'ap-hint' }, '还没有可用的数值变量。'))),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '分组变量（必选，两到二十组）'),
+            h('select', { value: group ?? '', onChange: (e) => setGroup(e.target.value || null) },
+              h('option', { value: '' }, '（选一个分组变量）'),
+              variables.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '先验概率'),
+            h('select', { value: priors, onChange: (e) => setPriors(e.target.value) },
+              h('option', { value: 'equal' }, '各组相等'),
+              h('option', { value: 'size' }, '按各组个案数'))),
+          h('div', { className: 'ap-hint' }, '输出四张表：分类结果（实际组 × 预测组、各组正确率）、特征值、Wilks 的 Lambda、Fisher 线性判别函数系数。'),
+          h('div', { className: 'ap-hint' }, tr('已选 {0} 个判别变量', chosen.length)))))
+    }
+
+    /**
      * Cox proportional-hazards regression.
      *
      * PSPP 2.1.3 has no COXREG, so the dialog only collects the three choices
@@ -6772,6 +6819,22 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId])
 
+      const runDiscriminant = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/discriminant', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const model = value.result?.model ?? {}
+          notify(tr('判别分析：{0} 组，正确率 {1}%', model.groups?.length ?? 0, ((model.accuracy ?? 0) * 100).toFixed(1)))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId])
+
       const runCox = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -7652,6 +7715,9 @@ let ITEM_CSV_PENDING = null
               { label: '表 2：组间比较…', action: () => setDialog({ kind: 'publication', tableKind: 'compare' }) },
             ] },
             { label: 'ROC 曲线…', action: () => runAnalysis('roc') },
+            { label: '分类', sub: [
+              { label: '判别…（Fisher 线性判别）', action: () => setDialog({ kind: 'discriminant' }) },
+            ] },
             { label: '生存分析', sub: [
               { label: 'Kaplan–Meier…（生存曲线 + log-rank）', action: () => setDialog({ kind: 'chart', type: 'km' }) },
               { label: 'Cox 回归…（比例风险）', action: () => setDialog({ kind: 'cox' }) },
@@ -8822,6 +8888,13 @@ let ITEM_CSV_PENDING = null
             value: labelsDialog.text,
             onChange: (event) => setLabelsDialog({ ...labelsDialog, text: event.target.value }),
           }))
+          : null,
+        dialog?.kind === 'discriminant'
+          ? h(DiscriminantDialog, {
+            variables,
+            onRun: (payload) => runDiscriminant(payload),
+            onClose: () => setDialog(null),
+          })
           : null,
         dialog?.kind === 'cox'
           ? h(CoxDialog, {

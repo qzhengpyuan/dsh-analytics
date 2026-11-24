@@ -2,7 +2,7 @@
   "meta": {
     "title": "Analytics",
     "description": "dsh-analytics: an SPSS-style statistics workbench backed by a bundled GNU PSPP engine — data view, variable view, syntax, output viewer, analysis dialogs, and agent-readable datasets.",
-    "count": 1514
+    "count": 1526
   },
   "strings": {
     " 个个案": " cases",
@@ -1518,6 +1518,18 @@
     "复杂生存模型（分层 Cox、时依协变量、竞争风险）": "Advanced survival models (stratified Cox, time-dependent covariates, competing risks)",
     "PSPP 2.1.3 没有实现生存分析。插件自己实现了两件：分析 → 生存分析 → Kaplan–Meier（生存曲线 + log-rank）与 Cox 回归（单个偏似然模型，Breslow 并列）。分层 Cox、时依协变量、竞争风险没有做，替代是把数据导出 CSV，用 R 的 survival 包。": "PSPP 2.1.3 does not implement survival analysis. The plugin implements two pieces itself: Analyze → Survival → Kaplan–Meier (curve + log-rank) and Cox regression (one partial-likelihood model, Breslow ties). Stratified Cox, time-dependent covariates and competing risks are not implemented; export CSV and use the survival package in R instead.",
     "决策树 / 报表": "Decision trees / reports",
-    "TREE、REPORT、PPLOT 在 PSPP 2.1.3 都没有实现。替代：报表用「表 1 / 表 2」或导出 Word；P-P/Q-Q 图与偏相关由插件自己实现，分别在「图形 → P-P / Q-Q 图」与「相关 → 偏相关…」。": "TREE, REPORT and PPLOT are not implemented in PSPP 2.1.3. Instead: reports via Table 1 / Table 2 or a Word export; the P-P/Q-Q plot and partial correlations are computed by the plugin, under Graphs → P-P / Q-Q Plot and Correlate → Partial…."
+    "TREE、REPORT、PPLOT 在 PSPP 2.1.3 都没有实现。替代：报表用「表 1 / 表 2」或导出 Word；P-P/Q-Q 图与偏相关由插件自己实现，分别在「图形 → P-P / Q-Q 图」与「相关 → 偏相关…」。": "TREE, REPORT and PPLOT are not implemented in PSPP 2.1.3. Instead: reports via Table 1 / Table 2 or a Word export; the P-P/Q-Q plot and partial correlations are computed by the plugin, under Graphs → P-P / Q-Q Plot and Correlate → Partial….",
+    "判别分析": "Discriminant Analysis",
+    "判别…（Fisher 线性判别）": "Discriminant… (Fisher linear discriminant)",
+    "分类": "Classify",
+    "判别变量（数值）": "Discriminant variables (numeric)",
+    "还没有可用的数值变量。": "No numeric variables available yet.",
+    "分组变量（必选，两到二十组）": "Grouping variable (required, two to twenty groups)",
+    "先验概率": "Prior probabilities",
+    "各组相等": "All groups equal",
+    "按各组个案数": "Compute from group sizes",
+    "输出四张表：分类结果（实际组 × 预测组、各组正确率）、特征值、Wilks 的 Lambda、Fisher 线性判别函数系数。": "Four tables: classification (actual × predicted, per-group hit rates), eigenvalues, Wilks' lambda, and the Fisher linear discriminant coefficients.",
+    "已选 {0} 个判别变量": "{0} discriminant variables selected",
+    "判别分析：{0} 组，正确率 {1}%": "Discriminant analysis: {0} groups, {1}% correctly classified"
   }
 }

@@ -160,6 +160,7 @@
 | 2026-11-23 | lead | 0.59.0 发布：副标题 + 拼版（`composeChartGrid`、`api/chartGrid`、`pspp_chart.grid`）；不做「图表构建器」对话框，理由写在 §3.3；评审 `V-i` 的宽高比判据按实测改成像素尺寸 |
 | 2026-11-23 | lead | 0.60.0 发布：重绘（`redrawChart`、`api/chart/redraw`、`pspp_chart.redrawOf`）+ PNG 倍率；Word/Excel 内嵌尺寸不跟倍率，理由写在 §3.4 |
 | 2026-11-24 | lead | 送验 `lead-0740-verify-0120`（0.67–0.74 八版一批，V1–V8 判据 + 全量测试口径） |
+| 2026-11-24 | lead | 0.77.0 发布：判别分析（Fisher 线性判别 + 混淆矩阵 + 特征值/典型相关 + Wilks 检验）、`pspp_discriminant` 与 `POST api/discriminant`、面板「分析 → 分类 → 判别…」；求逆/行列式抽成 `lib/linalg.js`；新套件 `test/discriminant.mjs`（40 套件 / 654 ok） |
 | 2026-11-24 | lead | 0.76.0 发布：Cox 比例风险回归（Newton–Raphson 偏似然、Breslow 并列、Exp(B) + 95% CI）、`pspp_cox` 与 `POST api/cox`、面板「生存分析 → Cox 回归…」；得分检验与 log-rank 对账成立；新套件 `test/cox.mjs`（39 套件 / 646 ok） |
 | 2026-11-24 | lead | 0.75.0 发布：Kaplan–Meier（乘积极限 + Greenwood CI + 中位生存 + 完整矩阵 log-rank）+ 生存分析菜单与 `pspp_chart.km`；新套件 `test/survival.mjs` |
 | 2026-11-24 | lead | 0.74.0 发布：X̄–R 控制图（两栏 SVG、A2/D3/D4 限值、越界标注）+ 分析菜单「质量控制」组 |

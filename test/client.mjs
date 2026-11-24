@@ -2012,6 +2012,37 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.equal([...menuHost.querySelectorAll('.ap-modal')].length, 0, 'and it closes again')
   assert.match(clientSource, /api\('api\/cox', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/cox')
   assert.match(clientSource, /\{ time, event, covariates: chosen \}/, 'sending exactly the three choices the host needs')
+  // 判别分析：PSPP 没有 DISCRIMINANT，四张表由插件拟合，菜单位置对标 SPSS 的分类。
+  // 关掉对话框之后菜单是重新渲染的，早先抓到的 pop 已经脱开文档，得再点开一次。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const analysePop2 = menuHost.querySelector('.ap-menu-pop')
+  const classifyGroup = [...analysePop2.querySelectorAll('button')].find((node) => node.textContent.startsWith('分类'))
+  await act(async () => {
+    classifyGroup?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const classifyItems = [...(classifyGroup?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])].map((node) => node.textContent)
+  assert.ok(classifyItems.some((text) => text.startsWith('判别')), `the classify group lists discriminant analysis, got ${JSON.stringify(classifyItems)}`)
+  const discriminantItem = [...(classifyGroup?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])].find((node) => node.textContent.startsWith('判别'))
+  await act(async () => {
+    discriminantItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const discriminantDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.ok(discriminantDialog, 'the discriminant dialog opens from the menu')
+  assert.match(discriminantDialog.textContent, /判别分析/, 'the dialog is titled like the procedure')
+  assert.match(discriminantDialog.textContent, /先验概率/, 'and offers the prior rule')
+  const discriminantOk = [...discriminantDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(discriminantOk.disabled, true, 'nothing is fitted until a group and a variable are chosen')
+  const discriminantCancel = [...discriminantDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    discriminantCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.match(clientSource, /api\('api\/discriminant', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/discriminant')
   const outTab = [...menuHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === '输出')
   await act(async () => {
     outTab.click()

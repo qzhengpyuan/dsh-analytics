@@ -4,6 +4,19 @@
 
 计数口径细则（0.72.0 起）：`^ok` 只统计打印 `ok  …` 的断言。`test/stage.mjs`、`test/messages.mjs` 打自己的 `N checks passed` 汇总行（`^ok` 为 0）；`test/build.mjs` 有一行 `ok  …` 写在 `await check(...)` 内部，因此比它自报的 summary 多 1。核对数量只用 `grep -cE '^ok\b'`。
 
+## 0.77.0
+
+SPSS 的「分析 → 分类」里最常点的一个过程：**判别分析**。PSPP 2.1.3 的 `DISCRIMINANT` 只回 `not yet implemented`，所以整条拟合也在插件里（`lib/discriminant.js`）。
+
+- **模型**：合并组内协方差矩阵（每组的离均差平方和除以 `n − 组数`），求逆后得到 Fisher 线性判别函数——每组的系数是 `S⁻¹·均值`，常数项带上先验（`-½·均值ᵀS⁻¹均值 + ln π_g`），个案代入后取分数最大的组。先验可选「各组相等」或「按各组个案数」。
+- **四张表**：分类结果（实际组 × 预测组的混淆矩阵，每组带正确数与正确率，末行汇总）、特征值（函数号、特征值、方差百分比、累积百分比、典型相关）、Wilks 的 Lambda（Bartlett 卡方近似 + df + P）、Fisher 线性判别函数系数（一行一个变量、一列一组）。
+- **特征值怎么来的**：`W⁻¹B` 的幂迭代 + 收缩（deflation）求前 `min(组数 − 1, 变量数)` 个特征值，典型相关 `√(λ/(1+λ))`。**独立校验**：Wilks 的 Lambda 等于 `Π 1/(1+λᵢ)`，这是恒等式而不是近似——`test/discriminant.mjs` 用三组数据把两边对上（0.0336 对 0.033642，差异只来自特征值各自取四位小数）。
+- **边界**：判别变量必须是数值（文本变量点名拒绝）；分组变量两到二十组（超过二十组时函数个数失控，先合并稀有组）；`n − 组数 ≥ 变量数` 才拟合，否则报「组内协方差矩阵没有自由度」；组内协方差矩阵奇异（两个判别变量完全相关）直接报错并建议去掉一个；缺失值整例剔除。
+- **入口**：分析 → 分类 → 判别…；对话侧 `pspp_discriminant`（`group` / `variables` / `priors`）；`POST api/discriminant`；`workspace.discriminantTable()` 一次 `appendItems` 四张表（导出成册时一并带走），日志记「组数 + 正确率」。顺带把 Cox 与判别共用的求逆/行列式抽成 `lib/linalg.js`（`solve`/`invert`/`determinant`），`lib/cox.js` 改为引用，行为不变（原 Cox 用例全绿）。
+- 用例：新套件 `test/discriminant.mjs` 7 条（完全分离时正确率 100%、Wilks = Π1/(1+λ) 恒等式、混淆矩阵逐格求和与正确率列、值标签进表头、先验规则只进注文不改系数、五类拒绝、缺失整例剔除）、`test/routes.mjs` 两条（`api/discriminant` 出四张表 + `400` 文案）、`test/client.mjs` 一组（「分类」子菜单列出判别、对话框标题与先验选择、「确定」在选择齐之前禁用、调用点正则钉 `api('api/discriminant', …)`）、`test/tools.mjs` 两条（`pspp_discriminant` 真跑 + 清单 25）。
+- 词典：13 条英文（对话框、字段、两条提示、菜单、通知模板），`strings` 1526 条。
+- 计数：**40** 套件 / **654** 条 ok（装了 poppler 655）。
+
 ## 0.76.0
 
 上一版把 Kaplan–Meier 自己算出来了，这一版补上它旁边的另一半：**Cox 比例风险回归**。PSPP 2.1.3 的 `COXREG` 同样只回 `not yet implemented`，所以偏似然也在插件里拟合（`lib/cox.js`）。

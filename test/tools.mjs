@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 24, names.join(' '))
+  assert.equal(names.length, 25, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -168,6 +168,14 @@ await check('pspp_cox fits a survival model and reports the hazard ratio', async
   assert.equal(cox.matrix.length, 2, 'a header plus one covariate')
   assert.equal(cox.matrix[1][6] !== undefined, true, 'the Exp(B) column is filled')
   assert.ok(cox.notes.some((note) => /Breslow/.test(note)), 'the ties method is stated')
+})
+
+await check('pspp_discriminant fits a discriminant model and classifies the cases', async () => {
+  const out = await call('pspp_discriminant', { group: 'group', variables: ['score'] })
+  assert.equal(out.matrix[0][0], '实际组', JSON.stringify(out).slice(0, 300))
+  assert.ok(out.tables.length >= 4, 'four tables come back')
+  assert.ok(out.model.wilks > 0 && out.model.wilks <= 1, `Wilks ${out.model.wilks}`)
+  assert.ok(out.model.groups.length >= 2, 'both groups are present')
 })
 
 await check('the export tools write real files', async () => {
