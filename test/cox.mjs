@@ -227,6 +227,94 @@ check('the partial likelihood of a distinct-time fit matches the closed form', (
   assert.ok(out.model.likelihoodRatio >= 0, `似然比 χ² 不能是负的（实测 ${out.model.likelihoodRatio}）`)
 })
 
+// 时依协变量（counting process）：每一行是区间 (start, stop]，风险集只收「区间
+// 盖住这个时刻」的行。手算的偏似然在下面独立写一遍，用黄金分割找极值点。
+const timed = [
+  [0, 2, 0, 0], [2, 5, 1, 1],
+  [0, 5, 0, 0],
+  [0, 3, 1, 1],
+  [0, 6, 0, 0],
+  [0, 4, 1, 0],
+  [0, 7, 0, 1],
+  [0, 8, 0, 0],
+  // 这两行的区间从 3 与 5 才开始：它们不能进更早的风险集。没有这两行，
+  // 把 risk set 的判据改成只看 stop 也看不出差别（变异复验抓到过）。
+  [3, 8, 0, 1],
+  [5, 9, 0, 0],
+]
+const timedDataset = (rows) => ({
+  variables: [
+    { name: 's', type: 'numeric' },
+    { name: 't', type: 'numeric' },
+    { name: 'e', type: 'numeric' },
+    { name: 'x', type: 'numeric' },
+  ],
+  rows,
+})
+
+check('a time-dependent covariate matches the counting-process partial likelihood', () => {
+  const out = computeCox(timedDataset(timed), { start: 's', time: 't', event: 'e', covariates: ['x'] })
+  const data = timed.map(([s, t, e, x]) => ({ s, t, e, x }))
+  const logLikelihood = (beta) => {
+    const times = [...new Set(data.filter((row) => row.e).map((row) => row.t))].sort((left, right) => left - right)
+    let total = 0
+    for (const time of times) {
+      const risk = data.filter((row) => row.s < time && row.t >= time)
+      const deaths = data.filter((row) => row.t === time && row.e)
+      const s0 = risk.reduce((sum, row) => sum + Math.exp(beta * row.x), 0)
+      total += deaths.reduce((sum, row) => sum + beta * row.x, 0) - deaths.length * Math.log(s0)
+    }
+    return total
+  }
+  let low = -5
+  let high = 5
+  for (let step = 0; step < 200; step += 1) {
+    const left = low + (high - low) / 3
+    const right = high - (high - low) / 3
+    if (logLikelihood(left) < logLikelihood(right)) low = left
+    else high = right
+  }
+  const beta = (low + high) / 2
+  assert.ok(Math.abs(Number(out.matrix[1][1]) - beta) < 5e-4, `β：${out.matrix[1][1]} vs ${beta}`)
+  assert.ok(Math.abs(out.model.logLikelihood - logLikelihood(beta)) < 5e-3, `对数似然：${out.model.logLikelihood} vs ${logLikelihood(beta)}`)
+  assert.equal(out.model.start, 's', 'the model records the start variable')
+  assert.equal(out.model.rows, 10, 'and counts rows, not subjects')
+})
+
+check('a start column of zeros reduces to the fixed-covariate fit', () => {
+  const zeroed = timed.map(([s, t, e, x]) => [0, t, e, x])
+  const withStart = computeCox(timedDataset(zeroed), { start: 's', time: 't', event: 'e', covariates: ['x'] })
+  const plainDataset = {
+    variables: [{ name: 't', type: 'numeric' }, { name: 'e', type: 'numeric' }, { name: 'x', type: 'numeric' }],
+    rows: timed.map(([, t, e, x]) => [t, e, x]),
+  }
+  const plain = computeCox(plainDataset, { time: 't', event: 'e', covariates: ['x'] })
+  assert.equal(withStart.matrix[1][1], plain.matrix[1][1], 'β is identical')
+  assert.ok(Math.abs(withStart.model.logLikelihood - plain.model.logLikelihood) < 1e-9, 'and so is the log-likelihood')
+})
+
+check('time-dependent input refusals name the variable', () => {
+  assert.throws(
+    () => computeCox(timedDataset(timed), { start: 'nope', time: 't', event: 'e', covariates: ['x'] }),
+    /没有这个变量：nope/,
+  )
+  const textStart = timed.map(([s, t, e, x]) => [String(s), t, e, x])
+  const textDataset = timedDataset(textStart)
+  textDataset.variables[0] = { name: 's', type: 'string' }
+  assert.throws(
+    () => computeCox(textDataset, { start: 's', time: 't', event: 'e', covariates: ['x'] }),
+    /起始时间要是数值变量/,
+  )
+  // 区间必须非空（start < stop）：空区间与倒挂的区间直接丢，不进似然。
+  const broken = [
+    [2, 2, 1, 1],
+    [5, 3, 1, 1],
+    ...timed,
+  ]
+  const out = computeCox(timedDataset(broken), { start: 's', time: 't', event: 'e', covariates: ['x'] })
+  assert.equal(out.model.rows, 10, 'empty and reversed intervals are dropped')
+})
+
 check('tied event times count every death in the Breslow log-likelihood', () => {
   // 上面那条用互不相同的事件时间 —— 那样每个时间点只有一例，deaths 因子乘 1，
   // 把因子丢掉也看不出来（变异复验正是这样漏掉的）。这里刻意造并列事件时间：

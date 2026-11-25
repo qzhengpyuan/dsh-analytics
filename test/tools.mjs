@@ -33,7 +33,8 @@ const check = async (name, fn) => {
 
 const dir = mkdtempSync(join(tmpdir(), 'ap-tools-'))
 const csv = join(dir, 'd.csv')
-writeFileSync(csv, 'score,group,grp,time,event\n12,1,A,2,1\n18,1,A,3,1\n23,1,B,4,1\n31,2,B,5,0\n44,2,A,6,1\n15,2,B,7,0\n27,1,A,8,1\n8,2,B,9,0\n')
+// start 列全 0：时依协变量的入口要能跑通（start 全 0 时与固定协变量逐位相同）。
+writeFileSync(csv, 'score,group,grp,time,event,start\n12,1,A,2,1,0\n18,1,A,3,1,0\n23,1,B,4,1,0\n31,2,B,5,0,0\n44,2,A,6,1,0\n15,2,B,7,0,0\n27,1,A,8,1,0\n8,2,B,9,0,0\n')
 
 const registry = new WorkspaceRegistry({
   engine: resolveEngine(),
@@ -85,7 +86,7 @@ await check('pspp_open reads a csv and pspp_variables lists it', async () => {
   assert.equal(opened.cases, 8, JSON.stringify(opened).slice(0, 200))
   const variables = await call('pspp_variables')
   const names = (variables.variables ?? variables).map((entry) => entry.name ?? entry)
-  assert.deepEqual(names, ['score', 'group', 'grp', 'time', 'event'], names.join(' '))
+  assert.deepEqual(names, ['score', 'group', 'grp', 'time', 'event', 'start'], names.join(' '))
 })
 
 await check('pspp_data returns rows and a total', async () => {
@@ -174,6 +175,10 @@ await check('pspp_cox fits a survival model and reports the hazard ratio', async
   assert.ok(stratified.strata.length >= 2, 'with at least one stratum plus the total')
   assert.match(stratified.notes[0], /分了 \d+ 层/, 'the note says how many strata')
   assert.equal(stratified.strataVariable, 'grp')
+  // 时依协变量：夹具里 time 是 stop，「start」列给每行一个区间。
+  const timed = await call('pspp_cox', { time: 'time', event: 'event', covariates: ['group'], start: 'start' })
+  assert.equal(timed.matrix[0][0], '变量', JSON.stringify(timed).slice(0, 300))
+  assert.ok(timed.notes.some((note) => /计数过程/.test(note)), 'the counting-process wording comes back')
 })
 
 await check('pspp_competing reports cumulative incidence and a cause-specific log-rank', async () => {

@@ -2,7 +2,7 @@
   "meta": {
     "title": "Analytics",
     "description": "dsh-analytics: an SPSS-style statistics workbench backed by a bundled GNU PSPP engine — data view, variable view, syntax, output viewer, analysis dialogs, and agent-readable datasets.",
-    "count": 1952
+    "count": 1955
   },
   "strings": {
     " 个个案": " cases",
@@ -1956,6 +1956,9 @@
     "截尾时间": "Truncation Time",
     "25%": "25%",
     "生存时间": "Survival Time",
-    "事件指示": "Event Indicator"
+    "事件指示": "Event Indicator",
+    "起始时间（可留空，时依协变量）": "Interval start (optional, time-dependent covariate)",
+    "（固定协变量）": "(fixed covariates)",
+    "给了起始时间，每一行就是区间（起始时间, 生存时间】：风险集只收盖住这个时刻的行，同一个个案可以占多行、每行给不同的协变量取值。起始时间 ≥ 生存时间的行会被丢掉。": "With an interval start every row is the interval (start, survival time]: the risk set at a time holds only the rows whose interval covers it, so one case may occupy several rows with different covariate values. Rows whose start is not before the survival time are dropped."
   }
 }

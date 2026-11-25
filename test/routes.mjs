@@ -1292,6 +1292,28 @@ assert.equal(stratified.result?.strata?.[0]?.[0], '分层', 'and it is labelled'
 assert.equal(stratified.result?.model?.strataVariable, 's')
 r = await call('POST', `${base}/api/cox`, { sessionId: 'cox02', options: { time: 't', event: 'e', covariates: ['x'], strata: 'nope' } })
 assert.equal(r.code, 400, 'an unknown strata variable is refused')
+// Time-dependent Cox: every row is the interval (start, stop], so the route has to
+// pass start through and report rows (not subjects) as the observation count.
+let timedRes = await call('POST', `${base}/api/new`, { sessionId: 'cox03', cwd: home, variables: [
+  { name: 'st', type: 'numeric' },
+  { name: 't', type: 'numeric' },
+  { name: 'e', type: 'numeric' },
+  { name: 'x', type: 'numeric' },
+] })
+for (const [st, t2, e, x] of [[0, 2, 0, 0], [2, 5, 1, 1], [0, 5, 0, 0], [0, 3, 1, 1], [0, 6, 0, 0],
+  [0, 4, 1, 0], [0, 7, 0, 1], [0, 8, 0, 0], [3, 8, 0, 1], [5, 9, 0, 0]]) {
+  timedRes = await call('POST', `${base}/api/case`, { sessionId: 'cox03', values: { st, t: t2, e, x } })
+}
+r = await call('POST', `${base}/api/cox`, { sessionId: 'cox03', options: { start: 'st', time: 't', event: 'e', covariates: ['x'] } })
+const timed = r.json()
+console.log('time-dependent cox ->', r.code, timed.result?.model?.start, timed.result?.model?.rows,
+  timed.result?.notes?.some((note) => /计数过程/.test(note)))
+assert.equal(r.code, 200, 'api/cox answers with a start variable')
+assert.equal(timed.result?.model?.start, 'st', 'the start variable is reported')
+assert.equal(timed.result?.model?.rows, 10, 'and the observation count is rows')
+assert.ok(timed.result?.notes?.some((note) => /计数过程/.test(note)), 'the counting-process wording is present')
+r = await call('POST', `${base}/api/cox`, { sessionId: 'cox03', options: { start: 'nope', time: 't', event: 'e', covariates: ['x'] } })
+assert.equal(r.code, 400, 'an unknown start variable is refused')
 // Competing risks: three tables without a grouping variable (counts, incidence,
 // and no group test), one more with it. The engine is not involved at all.
 let competingRes = await call('POST', `${base}/api/new`, { sessionId: 'cr01', cwd: home, variables: [

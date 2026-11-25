@@ -2014,7 +2014,8 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   assert.equal([...menuHost.querySelectorAll('.ap-modal')].length, 0, 'and it closes again')
   assert.match(clientSource, /api\('api\/cox', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/cox')
-  assert.match(clientSource, /\{ time, event, covariates: chosen, \.\.\.\(strata \? \{ strata \} : \{\}\) \}/, 'sending the three choices plus the optional strata')
+  assert.match(clientSource, /covariates: chosen,[\s\S]{0,200}\.\.\.\(strata \? \{ strata \} : \{\}\)/, 'sending the three choices plus the optional strata')
+  assert.match(clientSource, /\.\.\.\(start \? \{ start \} : \{\}\)/, 'and the optional interval start')
   // 竞争风险：同一组里第三件。状态变量用 0 表示删失，所以只要时间、状态与可选分组。
   await act(async () => {
     analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
@@ -2123,6 +2124,35 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   assert.equal([...menuHost.querySelectorAll('.ap-modal')].length, 0, 'and it closes again')
   assert.match(clientSource, /api\('api\/survivalMeans', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/survivalMeans')
+  // Cox 的起始时间下拉：给了就是时依协变量，每行一个区间。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const coxIntervalPop = menuHost.querySelector('.ap-menu-pop')
+  const coxIntervalGroup = [...coxIntervalPop.querySelectorAll('button')].find((node) => node.textContent.startsWith('生存分析'))
+  await act(async () => {
+    coxIntervalGroup?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const coxIntervalItem = [...(coxIntervalGroup?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])]
+    .find((node) => node.textContent.startsWith('Cox 回归'))
+  assert.ok(coxIntervalItem, 'the survival group lists Cox regression')
+  await act(async () => {
+    coxIntervalItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const coxIntervalDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.ok(coxIntervalDialog, 'the Cox dialog opens from the menu')
+  assert.match(coxIntervalDialog.textContent, /起始时间（可留空，时依协变量）/, 'and offers the interval start')
+  assert.match(coxIntervalDialog.textContent, /（固定协变量）/, 'whose empty choice says fixed covariates')
+  assert.match(coxIntervalDialog.textContent, /每一行就是区间（起始时间, 生存时间】/, 'and explains the counting process')
+  const coxIntervalCancel = [...coxIntervalDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    coxIntervalCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.equal([...menuHost.querySelectorAll('.ap-modal')].length, 0, 'and it closes again')
   // 判别分析：PSPP 没有 DISCRIMINANT，四张表由插件拟合，菜单位置对标 SPSS 的分类。
   // 关掉对话框之后菜单是重新渲染的，早先抓到的 pop 已经脱开文档，得再点开一次。
   await act(async () => {

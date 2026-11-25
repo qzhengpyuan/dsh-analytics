@@ -2043,13 +2043,20 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         : [...current, name]))
       const candidates = numeric.filter((variable) => variable.name !== time && variable.name !== event)
       const [strata, setStrata] = useState('')
+      const [start, setStart] = useState('')
       const ready = Boolean(time && event && chosen.length > 0)
       return h(Modal, {
         title: 'Cox 回归（比例风险）',
         wide: true,
         okDisabled: !ready,
         onCancel: onClose,
-        onOk: () => onRun({ time, event, covariates: chosen, ...(strata ? { strata } : {}) }),
+        onOk: () => onRun({
+          time,
+          event,
+          covariates: chosen,
+          ...(strata ? { strata } : {}),
+          ...(start ? { start } : {}),
+        }),
       },
       h('div', { className: 'ap-dlg' },
         h('div', { className: 'ap-dlg-left' },
@@ -2079,6 +2086,12 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
               h('option', { value: '' }, '（不分层）'),
               variables.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
           h('div', { className: 'ap-hint' }, '分层让每一层有自己的基线风险，B（Exp(B)）在各层之间共享；把分层变量当协变量塞进模型是另一个假设，通常不对。'),
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '起始时间（可留空，时依协变量）'),
+            h('select', { value: start, onChange: (e) => setStart(e.target.value) },
+              h('option', { value: '' }, '（固定协变量）'),
+              numeric.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-hint' }, '给了起始时间，每一行就是区间（起始时间, 生存时间】：风险集只收盖住这个时刻的行，同一个个案可以占多行、每行给不同的协变量取值。起始时间 ≥ 生存时间的行会被丢掉。'),
           h('div', { className: 'ap-hint' }, '并列事件时间用 Breslow 近似；协变量在计算时已中心化，不影响 B 与 Exp(B)。'),
           h('div', { className: 'ap-hint' }, '分类协变量不直接收：先用「转换 → 重新编码成不同变量」造 0/1 哑变量。'),
           h('div', { className: 'ap-hint' }, tr('已选 {0} 个协变量', chosen.length)))))
