@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 34, names.join(' '))
+  assert.equal(names.length, 35, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -371,6 +371,26 @@ await check('pspp_correspondence maps two categorical variables', async () => {
   assert.equal(out.matrix[0][0], '维')
   assert.ok(Number.isFinite(out.chiSquare) && out.chiSquare >= 0, `chi-square ${out.chiSquare}`)
   assert.ok(out.rows.length >= 2 && out.columns.length >= 2, `${out.rows.length}x${out.columns.length}`)
+})
+
+await check('pspp_mca maps the categories of several variables', async () => {
+  // 自带一个两类变量的夹具：多重对应分析只收名义/有序变量，而 pspp_new 能
+  // 直接把它们声明成 string，省得先改 measure。
+  const pairs = [['甲', 'X'], ['甲', 'Y'], ['乙', 'X'], ['乙', 'Y']]
+  const rows = []
+  for (let index = 0; index < 12; index += 1) rows.push({ v1: pairs[index % 4][0], v2: pairs[index % 4][1] })
+  await call('pspp_new', {
+    variables: [
+      { name: 'v1', type: 'string', measure: 'nominal' },
+      { name: 'v2', type: 'string', measure: 'nominal' },
+    ],
+    rows,
+  })
+  const out = await call('pspp_mca', { variables: ['v1', 'v2'] })
+  assert.equal(out.matrix[0][0], '维')
+  assert.ok(out.categories >= 4, `categories ${out.categories}`)
+  assert.ok(Number.isFinite(out.inertia) && out.inertia > 0, `inertia ${out.inertia}`)
+  assert.equal(out.tables.length, 3)
 })
 
 await check('every tool has been exercised by this suite', () => {

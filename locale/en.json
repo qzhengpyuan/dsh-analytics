@@ -1699,6 +1699,19 @@
     "维 2": "Dimension 2",
     "维 3": "Dimension 3",
     "行点：{0}": "Row points: {0}",
-    "列点：{0}": "Column points: {0}"
+    "列点：{0}": "Column points: {0}",
+    "多重对应分析": "Multiple Correspondence Analysis",
+    "判别度量": "Discriminations",
+    "类别坐标": "Category Coordinates",
+    "分类变量（两个起）": "Categorical variables (two or more)",
+    "Cronbach's α": "Cronbach's Alpha",
+    "多重对应分析把多个分类变量的取值画在同一张二维图上，用来看哪些类别常常一起出现。": "Multiple correspondence analysis puts the categories of several variables on one two-dimensional map, so you can see which categories tend to occur together.",
+    "惯量合计 =（类别数 − 变量数）/ 变量数；判别度量说明每个变量在某维上出了多少力。": "Total inertia = (categories - variables) / variables; the discrimination measures show how much each variable contributes to a dimension.",
+    "同一变量的两个类别之间距离有意义；不同变量的类别之间只作定性参考。": "Distances between two categories of the same variable are meaningful; across variables they are only qualitative.",
+    "任一变量的取值缺失时整例剔除；有类别一个个案都没有会被拒绝。": "A case missing any of the chosen variables is dropped whole, and a category with no cases is refused.",
+    "多重对应分析：{0} 例，{1} 个类别，前两维解释 {2}%": "Multiple correspondence analysis: {0} cases, {1} categories, the first two dimensions explain {2}%",
+    "多重对应分析：{0}、{1}": "Multiple correspondence analysis: {0}, {1}",
+    "变量 = 类别": "Variable = Category",
+    "多重对应分析…": "Multiple Correspondence Analysis…"
   }
 }

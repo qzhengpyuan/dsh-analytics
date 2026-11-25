@@ -2335,6 +2335,48 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     }
 
     /**
+     * 多重对应分析（SPSS 的「分析 → 降维 → 最优尺度 → 多重对应分析」）。
+     * 勾两个以上分类变量即可，没有参照类别之类的选项。
+     */
+    function McaDialog({ variables, onRun, onClose }) {
+      const [chosen, setChosen] = useState([])
+      const categories = variables.filter((variable) => variable.type === 'string' || variable.type === 'numeric')
+      const [dimensions, setDimensions] = useState('2')
+      const toggle = (name) => setChosen((current) => (current.includes(name)
+        ? current.filter((entry) => entry !== name)
+        : [...current, name]))
+      return h(Modal, {
+        title: '多重对应分析',
+        wide: true,
+        okDisabled: chosen.length < 2,
+        onCancel: onClose,
+        onOk: () => onRun({ variables: chosen, dimensions: Number(dimensions) || 2 }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '分类变量（两个起）'),
+          h('div', { className: 'ap-chips' },
+            categories.map((variable) => h('button', {
+              key: variable.name,
+              type: 'button',
+              className: `ap-chip${chosen.includes(variable.name) ? ' ap-chip-on' : ''}`,
+              onClick: () => toggle(variable.name),
+              translate: false,
+            }, variable.name))),
+          h('div', { className: 'ap-dlg-caption' }, '维数'),
+          h('select', { value: dimensions, onChange: (event) => setDimensions(event.target.value) },
+            h('option', { value: '1' }, '1'),
+            h('option', { value: '2' }, '2'),
+            h('option', { value: '3' }, '3'))),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-hint' }, `已选 ${chosen.length} 个变量`),
+          h('div', { className: 'ap-hint' }, '多重对应分析把多个分类变量的取值画在同一张二维图上，用来看哪些类别常常一起出现。'),
+          h('div', { className: 'ap-hint' }, '惯量合计 =（类别数 − 变量数）/ 变量数；判别度量说明每个变量在某维上出了多少力。'),
+          h('div', { className: 'ap-hint' }, '同一变量的两个类别之间距离有意义；不同变量的类别之间只作定性参考。'),
+          h('div', { className: 'ap-hint' }, '任一变量的取值缺失时整例剔除；有类别一个个案都没有会被拒绝。'))))
+    }
+
+    /**
      * 分布计算器（SPSS 把它散在 CDF.* / IDF.* 函数里，这里给一个对话框）。
      *
      * 全部计算在宿主半做（lib/distributions.js），面板只收集参数，这样导出的
@@ -7570,6 +7612,23 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId, notify, setSt, setView, setDialog])
 
+      const runMca = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/mca', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const model = value.result?.model ?? {}
+          notify(tr('多重对应分析：{0} 例，{1} 个类别，前两维解释 {2}%', model.cases ?? 0, model.categories ?? 0,
+            (100 * (((model.explained ?? [])[0] ?? 0) + ((model.explained ?? [])[1] ?? 0))).toFixed(1)))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId, notify, setSt, setView, setDialog])
+
       const runDistribution = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -8446,6 +8505,7 @@ let ITEM_CSV_PENDING = null
             { label: '降维', sub: [
               { label: '因子…', action: () => runAnalysis('factor') },
               { label: '对应分析…', action: () => setDialog({ kind: 'correspondence' }) },
+              { label: '多重对应分析…', action: () => setDialog({ kind: 'mca' }) },
               { label: '快速聚类…', action: () => runAnalysis('cluster') },
             ] },
             { label: '刻度', sub: [
@@ -9705,6 +9765,13 @@ let ITEM_CSV_PENDING = null
           ? h(WlsDialog, {
             variables,
             onRun: (payload) => runWls(payload),
+            onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'mca'
+          ? h(McaDialog, {
+            variables,
+            onRun: (payload) => runMca(payload),
             onClose: () => setDialog(null),
           })
           : null,

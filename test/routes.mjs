@@ -1,4 +1,5 @@
 // Exercises the HTTP handler without the host's browser-auth fence.
+import assert from 'node:assert/strict'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
@@ -1289,6 +1290,23 @@ r = await call('POST', `${base}/api/multinomial`, { sessionId: 'mlr01', options:
 console.log('multinomial with a reference ->', r.code, r.json().result?.model?.reference,
   r.json().result?.model?.categories?.join(','))
 // Two-stage least squares: instruments that are no weaker than the endogenous set.
+// Multiple correspondence analysis: an indicator matrix on top of the same core.
+// counts 是数值变量：按 SPSS 的规矩（只有名义/有序变量能进多重对应分析）先在
+// 变量视图里改成名义变量。
+await call('POST', `${base}/api/variable`, { sessionId: 'mlr01', action: 'updateMany', names: ['counts'], patch: { measure: 'nominal' } })
+r = await call('POST', `${base}/api/mca`, { sessionId: 'mlr01', options: { variables: ['arm', 'counts'] } })
+const mca = r.json()
+console.log('mca ->', r.code, mca.result?.matrices?.length, mca.result?.model?.categories,
+  Number(mca.result?.model?.inertia ?? 0).toFixed(4), Boolean(mca.state?.items?.some((item) => item.kind === 'image')))
+// 总惯量必须等于 (类别数 − 变量数) / 变量数：8 个类别、2 个变量 ⇒ 3。
+const mcaCategories = mca.result?.model?.categories ?? 0
+assert.ok(Math.abs((mca.result?.model?.inertia ?? 0) - (mcaCategories - 2) / 2) < 1e-6,
+  `inertia ${mca.result?.model?.inertia} should be (${mcaCategories} - 2) / 2`)
+assert.equal(mca.result?.matrices?.length, 3, 'three tables')
+assert.ok(mca.state?.items?.some((item) => item.kind === 'image'), 'and a category map')
+r = await call('POST', `${base}/api/mca`, { sessionId: 'mlr01', options: { variables: ['arm'] } })
+console.log('mca with one variable ->', r.code, /至少要两个分类变量/.test(String(r.json().error)))
+
 // Correspondence analysis: chi-square decomposition plus a biplot.
 r = await call('POST', `${base}/api/correspondence`, { sessionId: 'mlr01', options: { row: 'arm', column: 'counts' } })
 const ca = r.json()

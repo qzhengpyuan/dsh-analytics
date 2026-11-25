@@ -2230,6 +2230,50 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   assert.match(clientSource, /api\('api\/correspondence', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/correspondence')
 
+  // 多重对应分析：同一组「降维」菜单里，勾两个以上分类变量才能确定。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const analysePopMca = menuHost.querySelector('.ap-menu-pop')
+  const dimensionGroupMca = [...analysePopMca.querySelectorAll('button')].find((node) => node.textContent.startsWith('降维'))
+  await act(async () => {
+    dimensionGroupMca?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const mcaItem = [...(dimensionGroupMca?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])]
+    .find((node) => node.textContent.startsWith('多重对应分析'))
+  assert.ok(mcaItem, 'the dimension group lists multiple correspondence analysis')
+  await act(async () => {
+    mcaItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const mcaDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.match(mcaDialog?.textContent ?? '', /多重对应分析/, 'the dialog is titled like the procedure')
+  assert.match(mcaDialog.textContent, /分类变量（两个起）/, 'and asks for two or more categorical variables')
+  assert.match(mcaDialog.textContent, /已选 0 个变量/, 'and counts what has been picked')
+  const mcaOk = [...mcaDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(mcaOk.disabled, true, 'one variable is not enough')
+  const chips = [...mcaDialog.querySelectorAll('.ap-chip')]
+  assert.ok(chips.length >= 2, 'the dialog offers the categorical variables as chips')
+  await act(async () => {
+    chips[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  assert.equal(mcaOk.disabled, true, 'still not enough with one chip')
+  await act(async () => {
+    chips[1].dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+  assert.equal(mcaOk.disabled, false, 'two variables enable the run button')
+  assert.match(mcaDialog.textContent, /已选 2 个变量/, 'and the counter agrees')
+  const mcaCancel = [...mcaDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    mcaCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.match(clientSource, /api\('api\/mca', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/mca')
+
 
 
   // 二阶段最小二乘：工具数不足时确定按钮不可点（识别不足是代数问题）。
