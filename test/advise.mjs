@@ -199,4 +199,70 @@ check('survival data is not offered a mean test or a plain regression', () => {
   assert.ok(result.notes.some((note) => /删失/.test(note)), result.notes.join(' | '))
 })
 
+check('a binary outcome never gets GLM, even with a numeric nominal factor', () => {
+  const data = makeDataset({
+    event: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+    trt: [1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2],
+    age: [40, 44, 51, 55, 60, 63, 47, 49, 66, 70, 52, 58],
+  })
+  const result = adviseDataset(data, { outcome: 'event' })
+  const analyses = analysesOf(result).join(' | ')
+  assert.ok(!/GLM/.test(analyses), `二分结局不该推 GLM：${analyses}`)
+})
+
+check('a multi-level outcome only offers a multinomial fit with numeric predictors', () => {
+  const data = makeDataset({
+    dx: ['a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c'],
+    trt: ['x', 'y', 'x', 'y', 'x', 'y', 'x', 'y', 'x', 'y', 'x', 'y'],
+    age: [40, 44, 51, 55, 60, 63, 47, 49, 66, 70, 52, 58],
+  })
+  const result = adviseDataset(data, { outcome: 'dx' })
+  for (const entry of result.recommendations) {
+    if (entry.how.tool !== 'pspp_multinomial') continue
+    for (const name of entry.how.params.independents) {
+      const column = result.variables.find((item) => item.name === name)
+      assert.ok(column && column.kind === 'numeric', `多项 Logistic 的自变量必须是数值：${name}`)
+    }
+  }
+})
+
+check('a skewed censored outcome is not offered a rank test on the event column', () => {
+  const cases = []
+  for (let index = 0; index < 40; index += 1) cases.push(3 ** (index % 6), index % 3 === 0 ? 1 : 0, 40 + index)
+  const data = {
+    variables: [
+      { name: 'followup_time', type: 'numeric' },
+      { name: 'event', type: 'numeric' },
+      { name: 'arm', type: 'numeric' },
+    ],
+    rows: Array.from({ length: 40 }, (_, index) => [cases[index * 3], cases[index * 3 + 1], cases[index * 3 + 2] % 2 + 1]),
+  }
+  const result = adviseDataset(data, {})
+  const analyses = analysesOf(result).join(' | ')
+  assert.ok(!/Mann-Whitney|Kruskal/.test(analyses), `带删失不该推秩检验：${analyses}`)
+  const cox = result.recommendations.find((entry) => entry.how.tool === 'pspp_cox')
+  if (cox) {
+    assert.ok(!cox.how.params.covariates.includes('event'), `Cox 的协变量不能是事件列自己：${cox.how.params.covariates}`)
+    assert.ok(!cox.how.params.covariates.includes('followup_time'), `Cox 的协变量不能是时间列自己：${cox.how.params.covariates}`)
+  }
+})
+
+check('an ID column is never handed to a regression as a predictor', () => {
+  const rowsById = []
+  for (let index = 0; index < 20; index += 1) rowsById.push([index + 1, 10 + (index % 5), index % 2 === 0 ? 1 : 0])
+  const data = {
+    variables: [
+      { name: 'id', type: 'numeric' },
+      { name: 'score', type: 'numeric' },
+      { name: 'grp', type: 'numeric' },
+    ],
+    rows: rowsById,
+  }
+  const result = adviseDataset(data, {})
+  for (const entry of result.recommendations) {
+    const listed = [...(entry.how.params.independents ?? []), ...(entry.how.params.covariates ?? []), ...(entry.how.params.variables ?? [])]
+    assert.ok(!listed.includes('id'), `${entry.analysis} 把 ID 列当成了变量：${JSON.stringify(entry.how.params)}`)
+  }
+})
+
 console.log(`\nadvise: ${checks} checks passed`)

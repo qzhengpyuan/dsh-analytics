@@ -79,7 +79,8 @@ await check('each run in the bundle carries when it ran and what it was', async 
   const dictionary = JSON.parse(readFileSync(join(root, 'bundle', 'dataset.json'), 'utf8'))
   const entry = dictionary.runs.find((item) => item.runId === runId)
   assert.ok(entry, '这次运行应该出现在 dataset.json 里')
-  assert.ok(Number.isFinite(Number(entry.at)), `运行时间不该是 null：${JSON.stringify(entry)}`)
+  // Number(null) 是 0，只用 isFinite(Number(...)) 会让 null 悄悄过关。
+  assert.ok(entry.at !== null && Number.isFinite(entry.at), `运行时间不该是 null：${JSON.stringify(entry)}`)
   assert.ok(entry.title, `运行标题不该是 null：${JSON.stringify(entry)}`)
 })
 

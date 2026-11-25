@@ -1111,6 +1111,62 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   delete globalThis.__updateAnswer
 }
 
+// View → 结果句子…: the panel has to show the sentences the tool would produce,
+// and each one has to be copyable. The interesting failure is "the dialog opens
+// and stays empty", which a source-level assertion would not catch.
+{
+  const sentHost = window.document.createElement('div')
+  window.document.body.appendChild(sentHost)
+  const sentRoot = createRoot(sentHost)
+  window.fetch = async (url) => {
+    const target = String(url)
+    if (target.includes('api/sentences')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          ok: true,
+          result: {
+            language: 'zh',
+            sentences: [
+              { kind: 'descriptives', table: 'Descriptive Statistics', values: { variable: 'y', n: 20, mean: 19.5 }, text: 'y：n = 20，M = 19.5000，SD = 5.77。' },
+              { kind: 'ttest-independent', table: 'Independent Samples Test', values: { t: -2.83, p: 0.106 }, text: '独立样本 t 检验（y）：差异不显著，t(2.00) = -2.83，p = 0.106。' },
+            ],
+            skipped: ['Ranks'],
+          },
+        }),
+      }
+    }
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true, state: { id: 'session-s', version: '0.110.0', engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true }, dataset: null, items: [], log: [], history: { undo: 0, redo: 0 }, locale: 'zh' } }),
+    }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    sentRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const view = [...sentHost.querySelectorAll('.ap-menu-button')].find((node) => node.textContent.trim() === '视图')
+  assert.ok(view, 'the menu bar has a 视图 menu')
+  await act(async () => { view.click(); await new Promise((resolve) => setTimeout(resolve, 20)) })
+  const entry = [...sentHost.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.trim() === '结果句子…')
+  assert.ok(entry, 'the view menu offers 结果句子…')
+  await act(async () => { entry.click(); await new Promise((resolve) => setTimeout(resolve, 80)) })
+  const rows = [...sentHost.querySelectorAll('.ap-sent-row')]
+  assert.equal(rows.length, 2, `每句一行：${sentHost.textContent.slice(0, 200)}`)
+  assert.match(sentHost.textContent, /独立样本 t 检验/, '句子正文要真的渲染出来')
+  assert.match(sentHost.textContent, /还有 1 张表认不出来/, '认不出的表要列出来')
+  const copyButtons = [...sentHost.querySelectorAll('.ap-sent-copy')]
+  assert.ok(copyButtons.length >= 3, `全部复制 + 每句一个复制：${copyButtons.length}`)
+  const close = [...sentHost.querySelectorAll('.ap-modal button')].find((node) => node.textContent.trim() === '关闭')
+  assert.ok(close, 'the dialog closes with 关闭')
+  await act(async () => { close.click(); await new Promise((resolve) => setTimeout(resolve, 40)) })
+  assert.equal(sentHost.querySelectorAll('.ap-sent-row').length, 0, '关闭之后对话框要消失')
+  await act(async () => { sentRoot.unmount() })
+}
+
 // Provenance chip and the import-rename list: the panel has to say which data a
 // table came from, and keep the rename notes after the toast is gone.
 {

@@ -30,6 +30,65 @@ window.__ModuleLoader__.load({
     // Help → 快捷键一览. Only what the panel really binds: a help page that lists
     // keys nobody implemented is worse than none.
     /**
+ * 「结果句子」：把最近一次运行的表换成能直接粘进稿子的句子。
+ *
+ * 与工具 `pspp_sentences` 同一套判断（Levene 选行、`.000` → `p < 0.001`、
+ * 认不出的表进 skipped），区别只是这里给人看、能逐句复制。
+ */
+function SentencesDialog({ sessionId, language, onClose }) {
+  const [state, setState] = React.useState({ loading: true, sentences: [], skipped: [], error: null })
+  React.useEffect(() => {
+    let alive = true
+    void (async () => {
+      try {
+        const value = await api('api/sentences', { sessionId, language })
+        // 这个接口回 {ok, result}，不是 {ok, state}：早先按 stateOf() 解，
+        // 面板永远显示 0 句（jsdom 断言抓到）。
+        const payload = value?.result ?? value ?? {}
+        if (!alive) return
+        setState({ loading: false, sentences: payload.sentences ?? [], skipped: payload.skipped ?? [], error: null })
+      } catch (error) {
+        if (alive) setState({ loading: false, sentences: [], skipped: [], error: error.message })
+      }
+    })()
+    return () => { alive = false }
+  }, [sessionId, language])
+  const copy = (text) => {
+    try { void navigator.clipboard?.writeText(text) } catch { /* 剪贴板不可用时只能选中手工复制 */ }
+  }
+  const all = state.sentences.map((entry) => entry.text).join('\n')
+  return h(Modal, {
+    title: '结果句子',
+    wide: true,
+    onCancel: onClose,
+    okText: '关闭',
+    onOk: onClose,
+  }, h('div', { className: 'ap-sent' },
+    h('div', { className: 'ap-sent-head' },
+      h('span', { className: 'ap-sent-count' }, state.loading
+        ? tr('正在读取…')
+        : tr('{0} 句，来源：最近一次运行', String(state.sentences.length))),
+      h('button', {
+        className: 'ap-sent-copy',
+        disabled: state.loading || state.sentences.length === 0,
+        onClick: () => copy(all),
+      }, tr('全部复制'))),
+    state.error
+      ? h('div', { className: 'ap-sent-empty' }, state.error)
+      : null,
+    !state.loading && !state.error && state.sentences.length === 0
+      ? h('div', { className: 'ap-sent-empty' }, tr('这次运行的表格还认不出来：先跑一次描述统计、t 检验或回归再来看'))
+      : null,
+    h('div', { className: 'ap-sent-list' },
+      state.sentences.map((entry, index) => h('div', { key: `${entry.kind}:${index}`, className: 'ap-sent-row' },
+        h('span', { className: 'ap-sent-text' }, entry.text),
+        h('button', { className: 'ap-sent-copy', onClick: () => copy(entry.text) }, tr('复制'))))),
+    state.skipped.length > 0
+      ? h('div', { className: 'ap-sent-empty' }, tr('还有 {0} 张表认不出来：{1}', String(state.skipped.length), state.skipped.join('、')))
+      : null))
+}
+
+/**
  * 「查找过程」——SPSS 的 Search for a Procedure。输入框过滤整条菜单路径，
  * 上下键选、回车执行；结果里保留完整路径，因为同名条目（比如三个
  * 「导出输出为…」）只有路径能区分。
@@ -870,6 +929,17 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-finder-row:hover, .ap-finder-row.is-active { background:var(--ap-hover); }
 .ap-finder-row.is-disabled { color:var(--ap-text-3); cursor:default; }
 .ap-finder-empty { padding:8px; color:var(--ap-text-3); font-size:11px; }
+.ap-sent { display:flex; flex-direction:column; gap:6px; min-width:520px; max-height:420px; }
+.ap-sent-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.ap-sent-count { color:var(--ap-text-3); font-size:11px; }
+.ap-sent-list { display:flex; flex-direction:column; gap:6px; overflow-y:auto; }
+.ap-sent-row { display:flex; gap:8px; align-items:flex-start; padding:4px 6px; background:var(--ap-field);
+  border:1px solid var(--ap-line); border-radius:3px; }
+.ap-sent-text { flex:1; color:var(--ap-text); }
+.ap-sent-copy { border:1px solid var(--ap-line-2); background:var(--ap-panel); color:var(--ap-text-2);
+  font:inherit; font-size:11px; padding:1px 6px; border-radius:2px; cursor:pointer; }
+.ap-sent-copy:hover { background:var(--ap-hover); }
+.ap-sent-empty { color:var(--ap-text-3); padding:8px; }
 .ap-about { display:flex; flex-direction:column; gap:5px; }
 .ap-about-name { font-weight:600; font-size:14px; }
 .ap-about-line { color:var(--ap-text-2); }
@@ -8910,6 +8980,7 @@ let ITEM_CSV_PENDING = null
             { label: '跳转到个案…', action: () => setDialog({ kind: 'goto', value: String((selected?.row ?? 0) + 1) }) },
             { sep: true },
             { label: '在输出中查找…', action: () => setDialog({ kind: 'outputSearch', value: outputQuery }) },
+            { label: '结果句子…', action: () => setDialog({ kind: 'sentences' }) },
             { label: '输出表格样式', sub: [
               { label: `${styleOverride === null ? '✓ ' : ''}${tr('{0}（{1}）', tr('跟随设置'), tr(settingStyle === 'grid' ? '全框线' : '三线表'))}`, action: () => chooseTableStyle(null) },
               { label: `${tableStyle === 'default' ? '✓ ' : ''}引擎原样（不套样式）`, action: () => chooseTableStyle('default') },
@@ -10034,6 +10105,13 @@ let ITEM_CSV_PENDING = null
                 notify(tr('已定义多选题 {0}', setDefinition.name))
               } catch (error) { notify(error.message) }
             },
+          })
+          : null,
+        dialog?.kind === 'sentences'
+          ? h(SentencesDialog, {
+            sessionId,
+            language: st?.locale ?? 'zh',
+            onClose: () => setDialog(null),
           })
           : null,
         dialog?.kind === 'commands'

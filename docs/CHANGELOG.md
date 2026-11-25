@@ -5,6 +5,23 @@
 
 计数口径细则（0.72.0 起）：`^ok` 只统计打印 `ok  …` 的断言。`test/stage.mjs`、`test/messages.mjs` 打自己的 `N checks passed` 汇总行（`^ok` 为 0）；`test/build.mjs` 有一行 `ok  …` 写在 `await check(...)` 内部，因此比它自报的 summary 多 1。核对数量只用 `grep -cE '^ok\b'`。
 
+## 0.110.0
+
+**句子认的表多了三类（Logistic 的优势比、Mann-Whitney / Kruskal-Wallis、Cronbach's α），面板自带「结果句子」对话框；同时修掉 0.109.0 那批复验的 4 条 P1 与 5 条 P2。**
+
+- **三种新句子**：`Variables in the Equation` 逐个自变量给「OR = 1.02，95% CI .82 ~ 1.25（B = .02，SE = .11），p = 0.873」（跳过 `Constant`/`Step` 行；B 或 OR 不是有限数的行直接跳过，分离时不会印出 `NaN`）；`Test Statistics` 认两种 PSPP 版式 —— Mann-Whitney 那种「一行一变量」与 Kruskal-Wallis 那种「转置成行」的；`Reliability Statistics` 给「2 个题项：Cronbach's α = .04」。`Ranks` 是同一检验的附带表，不再列进 `skipped`。真引擎逐条核对：`LOGISTIC REGRESSION … /PRINT=CI(95) SUMMARY.`、`NPAR TESTS /MANN-WHITNEY`、`/KRUSKAL-WALLIS`、`RELIABILITY`。
+- **科学计数法**：引擎偶尔印 `-3.30E-018` 这种数（标准化残差的舍入残渣），句子照抄没法读；新增 `readableNumber()` 把它换成 `0.000` 或定点小数。
+- **面板「视图 → 结果句子…」**：一次读完最近一次运行的全部句子，头部写「N 句，来源：最近一次运行」，有「全部复制」，每句一个「复制」，认不出的表在下面列出来。这是给人看的入口，和 `pspp_sentences` 是同一套判断。
+- **复验 P1（0.109.0）**：
+  - 复现包的 `runs[].at` 恒 null、`title` 也常是 null —— 原来读的是产物上并不存在的 `createdAt`，真字段是 `at`；不产表的运行（导入数据）退回 `runs/<seq>/run.sps` 的 mtime，标题从脚本第一条实际命令推断（`GET DATA` → 「导入数据」、`SAVE TRANSLATE` → 「导出数据」、`DISPLAY DICTIONARY` → 「查看变量字典」）。复现包里的文件名保持 ASCII（`001-import-data.sps`）。
+  - 二分结局 + 数值编码的 `nominal` 因子仍推 GLM：GLM 分支补上 `!outcome.binary`。
+  - 纯文本分类数据推多项 Logistic，而引擎只收数值自变量（`自变量要求数值变量：trt 是文本变量`）：多项 Logistic 只在有数值自变量时给，否则改一条注文「先做哑变量」。
+  - 带删失且随访时间强右偏时推 `npar_mannwhitney`、而且 `by` 选的是事件列（用事件分组比随访时间 = 循环论证）：非参数分支补 `!censored`，结局像随访时间时分组候选先排除 0/1 列。
+- **复验 P2（0.109.0）**：Cox 的 `covariates` 不再包含时间列与事件列自己；二分结局的 Logistic 在只有数值自变量时也不会丢掉分组列（`predictorNames` 就是「数值自变量 + 分组」去重）；编号列不再进任何回归（并给一条注文）；多因变量句子的 `values.variable` 去掉「（全部）」后缀，和方差分析那句对得上；`test/repro.mjs` 的 `at` 断言改成 `entry.at !== null && Number.isFinite(entry.at)`（`Number(null)` 是 0，旧写法假绿）。
+- 用例：`test/advise.mjs` 15 → 19（二分不推 GLM、多项 Logistic 自变量必须全数值、删失不推秩检验、Cox 协变量不含时间/事件列、编号不进回归）、`test/sentences.mjs` 20 → 24（logistic OR 与 CI、分离时 NaN 不造句、两种非参数版式、α；另加一条变量名一致）、`test/client.mjs` 新增「结果句子」对话框一段（菜单可达、两行句子渲染、认不出的表列出来、复制按钮、关得掉 —— 它还抓到对话框按 `stateOf()` 解 `{ok, result}` 导致永远 0 句）。
+
+全量 943 条 ok（装 poppler 944）、64 套件、0 FAIL。工具数不变（47），词典 1977 → 1984。
+
 ## 0.109.0
 
 **修 0.107.0 那批的复验结论（PASS 42 / FAIL 7 / 风险 4），并把「建议必须能照抄执行」变成用例。** 复验在 `v0.107.0` 的干净副本上用真引擎跑，七条 FAIL 全部落在「建议写得像那么回事、照抄就报错」和「句子漏表」这两个面上。

@@ -2,7 +2,7 @@
   "meta": {
     "title": "Analytics",
     "description": "dsh-analytics: an SPSS-style statistics workbench backed by a bundled GNU PSPP engine — data view, variable view, syntax, output viewer, analysis dialogs, and agent-readable datasets.",
-    "count": 1977
+    "count": 1984
   },
   "strings": {
     " 个个案": " cases",
@@ -1981,6 +1981,13 @@
     "配对 t 检验": "Paired t test",
     "Pearson 相关": "Pearson correlation",
     "两独立比例": "Two independent proportions",
-    "卡方拟合优度": "Chi-square goodness of fit"
+    "卡方拟合优度": "Chi-square goodness of fit",
+    "结果句子": "Result sentences",
+    "{0} 句，来源：最近一次运行": "{0} sentences, from the most recent run",
+    "全部复制": "Copy all",
+    "复制": "Copy",
+    "这次运行的表格还认不出来：先跑一次描述统计、t 检验或回归再来看": "None of the tables in this run can be turned into a sentence yet: run a descriptives, t test or regression first",
+    "还有 {0} 张表认不出来：{1}": "{0} more tables could not be read: {1}",
+    "结果句子…": "Result sentences…"
   }
 }

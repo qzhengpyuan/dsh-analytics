@@ -302,6 +302,10 @@ check('several dependent variables each get their own sentence', () => {
   const texts = out.sentences.map((entry) => entry.text)
   assert.equal(texts.filter((text) => /得分一（全部）/.test(text)).length, 1, texts.join(' | '))
   assert.equal(texts.filter((text) => /得分二（全部）/.test(text)).length, 1, texts.join(' | '))
+  // values.variable 不带「（全部）」后缀：同一批句子里方差分析报「得分一」，
+  // 按变量配对的下游（报告、复现包）才对得上（复验 P2-4）。
+  const listed = out.sentences.filter((entry) => entry.kind === 'descriptives').map((entry) => entry.values.variable)
+  assert.deepEqual(listed, ['得分一', '得分二'], listed.join(' | '))
   const anovas = out.sentences.filter((entry) => entry.kind === 'anova')
   assert.equal(anovas.length, 2, `两个因变量各要一句：${texts.join(' | ')}`)
   assert.ok(anovas.some((entry) => entry.text.includes('得分一')) && anovas.some((entry) => entry.text.includes('得分二')))
@@ -327,6 +331,103 @@ check('the variance homogeneity table is consumed, not skipped', () => {
   const out = sentencesOf([groups, test, homogeneity])
   assert.equal(out.sentences.length, 1, JSON.stringify(out.skipped))
   assert.deepEqual(out.skipped, [])
+})
+
+check('a logistic table becomes odds ratios with their interval', () => {
+  // 真引擎版式：表头两行（B/SE/Wald/df/Sig/Exp(B)/CI），第二行才是 Lower/Upper。
+  const item = {
+    kind: 'table',
+    title: 'Variables in the Equation',
+    table: {
+      caption: 'Variables in the Equation',
+      matrix: [
+        ['', '', 'B', 'S.E.', 'Wald', 'df', 'Sig.', 'Exp(B)', '95% CI for Exp(B)', ''],
+        ['', '', '', '', '', '', '', '', 'Lower', 'Upper'],
+        ['Step 1', 'x', '.02', '.11', '.03', '1', '.873', '1.02', '.82', '1.25'],
+        ['', 'grp', '-.02', '.33', '.00', '1', '.959', '.98', '.51', '1.89'],
+        ['', 'Constant', '-.22', '1.43', '.02', '1', '.878', '.80', '', ''],
+      ],
+    },
+  }
+  const out = sentencesOf([item])
+  assert.equal(out.sentences.length, 2, JSON.stringify(out.skipped))
+  assert.equal(out.sentences[0].values.term, 'x')
+  assert.equal(out.sentences[0].values.oddsRatio, 1.02)
+  assert.match(out.sentences[0].text, /OR = 1\.02/)
+  assert.match(out.sentences[0].text, /95% CI \.82 ~ 1\.25/)
+  assert.match(out.sentences[0].text, /p = 0\.873/)
+  // 常数项不是自变量，不能造句。
+  assert.ok(!out.sentences.some((entry) => /Constant/.test(entry.text)))
+  assert.deepEqual(out.skipped, [])
+})
+
+check('a fully separated logistic model produces no odds sentence', () => {
+  // 分离时 PSPP 印 NaN：那不是「效应为零」，不能写成 OR = NaN。
+  const item = {
+    kind: 'table',
+    title: 'Variables in the Equation',
+    table: {
+      caption: 'Variables in the Equation',
+      matrix: [
+        ['', '', 'B', 'S.E.', 'Wald', 'df', 'Sig.', 'Exp(B)', '95% CI for Exp(B)', ''],
+        ['', '', '', '', '', '', '', '', 'Lower', 'Upper'],
+        ['Step 1', 'y', 'NaN', 'NaN', 'NaN', '1', 'NaN', 'NaN', 'NaN', 'NaN'],
+      ],
+    },
+  }
+  const out = sentencesOf([item])
+  assert.deepEqual(out.sentences, [])
+})
+
+check('nonparametric tests become sentences in both layouts', () => {
+  const mannWhitney = {
+    kind: 'table',
+    title: 'Test Statistics',
+    table: {
+      caption: 'Test Statistics',
+      matrix: [
+        ['', 'Mann-Whitney U', 'Wilcoxon W', 'Z', 'Asymp. Sig. (2-tailed)'],
+        ['y', '197.50', '407.50', '-.07', '.946'],
+      ],
+    },
+  }
+  const first = sentencesOf([mannWhitney])
+  assert.equal(first.sentences.length, 1)
+  assert.equal(first.sentences[0].kind, 'npar-mannwhitney')
+  assert.match(first.sentences[0].text, /U = 197\.50/)
+  assert.match(first.sentences[0].text, /不显著/)
+
+  // Kruskal-Wallis 与 Wilcoxon 是转置版式：行是统计量，列是变量。
+  const kruskal = {
+    kind: 'table',
+    title: 'Test Statistics',
+    table: {
+      caption: 'Test Statistics',
+      matrix: [
+        ['', 'y', 'z'],
+        ['Chi-Square', '.00', '7.50'],
+        ['df', '1', '1'],
+        ['Asymp. Sig.', '.946', '.006'],
+      ],
+    },
+  }
+  const second = sentencesOf([kruskal])
+  assert.equal(second.sentences.length, 2, JSON.stringify(second.sentences))
+  assert.match(second.sentences[1].text, /χ²\(1\) = 7\.50/)
+  assert.match(second.sentences[1].text, /p = 0\.006/)
+})
+
+check('reliability becomes a Cronbach alpha sentence', () => {
+  const item = {
+    kind: 'table',
+    title: 'Reliability Statistics',
+    table: { caption: 'Reliability Statistics', matrix: [["Cronbach's Alpha", 'N of Items'], ['.82', '5']] },
+  }
+  const out = sentencesOf([item])
+  assert.equal(out.sentences.length, 1)
+  assert.equal(out.sentences[0].kind, 'reliability-alpha')
+  assert.match(out.sentences[0].text, /5 个题项/)
+  assert.match(out.sentences[0].text, /α = \.82/)
 })
 
 console.log(`\nsentences: ${checks} checks passed`)

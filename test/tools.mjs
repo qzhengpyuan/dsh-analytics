@@ -212,6 +212,21 @@ await check('every recommendation can be run as written', async () => {
   }
 })
 
+await check('pspp_sentences turns a logistic run into odds sentences', async () => {
+  // 真引擎那三张表（Variables in the Equation 的两行表头、CI 的 Lower/Upper
+  // 落在第二行）与新加的 logistic 句子必须对上，不是只对着手写夹具。
+  const run = await call('pspp_analyze', { procedure: 'logistic', dependent: 'event', independents: ['time'] })
+  // 工具的返回值是 { procedure, syntax, tables, charts, diagnostics }（表格已摊平）。
+  assert.ok((run.tables ?? []).length >= 1, JSON.stringify(run).slice(0, 300))
+  // 工具返回的是摊平的对象：{ language, sentences, skipped, runId }。
+  const sentences = await call('pspp_sentences', {})
+  const list = sentences.sentences ?? sentences.report?.sentences ?? []
+  const odds = list.filter((entry) => entry.kind === 'logistic-odds')
+  assert.ok(odds.length >= 1, `没有 OR 句子：${JSON.stringify(list).slice(0, 400)}`)
+  assert.match(odds[0].text, /OR = /)
+  assert.match(odds[0].text, /95% CI/)
+})
+
 await check('pspp_repro writes a bundle that can be rerun', async () => {
   const target = join(dir, 'repro-out')
   const bundle = await call('pspp_repro', { path: target })
