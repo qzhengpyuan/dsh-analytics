@@ -2937,6 +2937,32 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
       `the source line names a built dataset in English: ${sourceLines.join(' | ').slice(0, 200)}`)
     assert.doesNotMatch(html, /新建数据集/, 'the source line is not left in Chinese')
   }
+  // 插件自己拼的表头是中文，引擎印的表本来就是英文，所以只有打了 plugin 旗标的
+  // 表翻标题与表头；正文与引擎表一个字节都不动（中文变量名/类别值是数据）。
+  {
+    const pluginItem = {
+      kind: 'table',
+      plugin: true,
+      title: '描述统计',
+      table: { caption: '描述统计', matrix: [['变量', 'N', '均值'], ['score', '3', '2.5']] },
+    }
+    const engineItem = {
+      kind: 'table',
+      title: 'Descriptive Statistics',
+      table: { caption: 'Descriptive Statistics', matrix: [['分组', 'N'], ['男', '2']] },
+    }
+    assert.deepEqual(hooks.localizedTableMatrix(pluginItem),
+      [['Variable', 'N', 'Mean'], ['score', '3', '2.5']],
+      `a plugin table translates its header row only: ${JSON.stringify(hooks.localizedTableMatrix(pluginItem))}`)
+    assert.equal(hooks.localizedTableCaption(pluginItem), 'Descriptive Statistics')
+    assert.deepEqual(hooks.localizedTableMatrix(engineItem), engineItem.table.matrix,
+      'an engine table keeps its header: a Chinese variable name is data, not chrome')
+    assert.equal(hooks.localizedTableCaption(engineItem), 'Descriptive Statistics',
+      'an engine caption is already English')
+    const noFlag = { kind: 'table', title: '描述统计', table: { caption: '描述统计', matrix: [['变量']] } }
+    assert.deepEqual(hooks.localizedTableMatrix(noFlag), [['变量']],
+      'a table without the flag is left alone')
+  }
   await act(async () => { fullRoot.unmount() })
   console.log('ok  the rendered english panel has no chinese text left in it')
 }

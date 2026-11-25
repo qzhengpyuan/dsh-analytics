@@ -1244,6 +1244,27 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
      * kept as the exact tail, so only whole <tr> elements are added or removed.
      * Returns null when the HTML has no body row to window.
      */
+    /**
+     * 插件自己拼的表（矩阵由 JS 生成）表头是中文，引擎印的表本来就是英文。
+     * 只翻标记了 plugin 的表的表头行：正文是数据，变量名与类别值撞上词典键时
+     * 不能动（0.56.2 的递归事故就是这么来的）。
+     */
+    function localizedTableMatrix(item) {
+      const matrix = item?.table?.matrix
+      if (!Array.isArray(matrix) || matrix.length === 0) return matrix
+      if (item?.plugin !== true || !DICT) return matrix
+      return matrix.map((row, index) => {
+        if (!Array.isArray(row) || index > 0) return row
+        return row.map((cell) => (typeof cell === 'string' ? tr(cell) : cell))
+      })
+    }
+
+    function localizedTableCaption(item) {
+      const caption = item?.table?.caption
+      if (item?.plugin !== true) return caption
+      return typeof caption === 'string' ? tr(caption) : caption
+    }
+
     function splitTableHtml(html) {
       const text = String(html ?? '')
       const rowPattern = /<tr\b[\s\S]*?<\/tr>/gi
@@ -1533,6 +1554,8 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       globalThis.__AP_TEST_HOOKS__.flattenCommands = flattenCommands
       globalThis.__AP_TEST_HOOKS__.foreignWriteNotice = foreignWriteNotice
       globalThis.__AP_TEST_HOOKS__.freshDialogFlags = freshDialogFlags
+      globalThis.__AP_TEST_HOOKS__.localizedTableMatrix = localizedTableMatrix
+      globalThis.__AP_TEST_HOOKS__.localizedTableCaption = localizedTableCaption
     }
 
     /**
@@ -6311,10 +6334,10 @@ function normalizeChoices(list) {
               ...extra,
               remove)
             if (item.kind === 'table') {
-              const caption = item.table?.caption?.trim()
+              const caption = localizedTableCaption(item)?.trim()
               const csv = () => tableToCsv(item.table?.matrix)
               return h('div', { key: item.id, 'data-item-id': item.id, className: 'ap-item' },
-                head(item.title || caption || '表格', [
+                head(item.plugin === true ? tr(item.title || caption || '表格') : (item.title || caption || '表格'), [
                   item.roc
                     ? h('button', {
                       className: 'ap-tool',
@@ -6368,7 +6391,7 @@ function normalizeChoices(list) {
                   const full = expandedTables[item.id] === true
                   const limit = full ? 0 : PREVIEW_ROWS
                   const edits = tableEdits[item.id]
-                  const matrix = item.table.matrix
+                  const matrix = localizedTableMatrix(item) ?? item.table.matrix
                   const matrixRows = Array.isArray(matrix) ? matrix.length : 0
                   const bodyRows = Math.max(0, matrixRows - 1)
                   const shownRows = limit > 0 ? Math.min(limit, bodyRows) : bodyRows

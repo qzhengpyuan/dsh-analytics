@@ -96,6 +96,29 @@ await check('buildXlsx gives each table a sheet and keeps numbers numeric', () =
   assert.match(files['xl/worksheets/sheet2.xml'].toString('utf8'), /描述统计/)
 })
 
+await check('a plugin table translates its caption and header row only', () => {
+  // 插件自己拼的表（plugin: true）标题与表头是中文，导出成英文文档时要翻；正文里
+  // 的中文变量名与类别值是数据，一个字节都不能动。引擎印的表没有这个旗标。
+  const plugin = {
+    kind: 'table',
+    plugin: true,
+    table: { caption: '描述统计', matrix: [['变量', 'N', '均值'], ['score', '3', '2.5']] },
+  }
+  const engine = {
+    kind: 'table',
+    table: { caption: 'Descriptives', matrix: [['分组', 'N'], ['男', '2']] },
+  }
+  const document = unzip(buildDocx({ title: 'Report', lang: 'en', items: [plugin, engine] }))['word/document.xml'].toString('utf8')
+  assert.match(document, /Descriptive Statistics/, `the plugin caption is translated: ${document.slice(0, 200)}`)
+  assert.match(document, /Variable/, 'the plugin header row is translated')
+  assert.match(document, /Mean/, 'every header cell is translated')
+  assert.match(document, /score/, 'the body is data and keeps its own words')
+  assert.match(document, /分组/, 'an engine table keeps a Chinese variable name in its header')
+  const sheet = unzip(buildXlsx({ lang: 'en', items: [plugin] }))['xl/worksheets/sheet1.xml'].toString('utf8')
+  assert.match(sheet, /Variable/, `the sheet header is translated: ${sheet.slice(0, 240)}`)
+  assert.doesNotMatch(sheet, /均值/, 'the sheet header is not left in Chinese')
+})
+
 await check('a significance marker is a superscript run, not plain text', () => {
   // A journal table writes "-10.000**" with the stars raised. Word only raises
   // them through a separate run with <w:vertAlign w:val="superscript"/>, so the
