@@ -2,7 +2,7 @@
 // lib/survival.js and drawn by lib/charts.js, so nothing here needs the engine.
 import assert from 'node:assert/strict'
 
-import { computeKaplanMeier } from '../lib/survival.js'
+import { computeKaplanMeier, percentileOf } from '../lib/survival.js'
 import { renderSvg } from '../lib/charts.js'
 
 let checks = 0
@@ -127,6 +127,30 @@ check('a group that never falls to 50% prints a dash as its median', () => {
   const svg = renderSvg(model)
   assert.match(svg, /中位生存期 = —/, 'and the figure says so with a dash')
   assert.match(svg, /height="378"/, 'the extra text line gets its own room')
+})
+
+check('a group without events does not take the whole curve down', () => {
+  // 第一组 t ≤ 3 全是删失、第二组 t = 5,6,7 是事件：旧版这里会抛
+  // 「log-rank 的方差矩阵是奇异的」，两组曲线一起丢掉。
+  const rows = [[1, 0, 'a'], [2, 0, 'a'], [3, 0, 'a'], [5, 1, 'b'], [6, 1, 'b'], [7, 1, 'b'], [8, 0, 'b']]
+  const model = computeKaplanMeier(dataset(rows, true), { time: 't', event: 'e', group: 'g' })
+  assert.equal(model.groups.length, 2, 'both curves survive')
+  const zero = model.groups.find((group) => group.label === 'a')
+  assert.equal(zero.events, 0)
+  assert.equal(model.logRank, null, 'no test is reported')
+  assert.ok(/事件都没有|没有事件/.test(model.notes.join(' ')), JSON.stringify(model.notes))
+  // 有事件的曲线照常算：t=5 时 4 个在险、1 个事件 ⇒ S = 0.75。
+  const seen = model.groups.find((group) => group.label === 'b')
+  assert.equal(seen.curve[0].time, 5)
+  assert.equal(seen.curve[0].survival, 0.75)
+})
+
+check('percentiles decide on the unrounded survival, not the printed one', () => {
+  // 真值 0.50004 不是「达到中位数」，但印成 4 位小数是 0.5000 —— 用印出来的
+  // 数判定就会误报中位数（复验抓到的 P2-1）。
+  assert.equal(percentileOf([{ time: 1, survival: 0.5, raw: 0.50004 }], 0.5), null)
+  assert.equal(percentileOf([{ time: 1, survival: 0.5, raw: 0.5 }], 0.5), 1)
+  assert.equal(percentileOf([{ time: 1, survival: 0.25, raw: 0.25004 }, { time: 2, survival: 0.2, raw: 0.2 }], 0.25), 2)
 })
 
 console.log(`${checks} checks passed`)

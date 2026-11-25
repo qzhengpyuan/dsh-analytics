@@ -155,6 +155,13 @@ await check('pspp_publication_table and pspp_pairwise build their rows', async (
   assert.ok(table1.matrix.length >= 3, JSON.stringify(table1).slice(0, 300))
   const pairwise = await call('pspp_pairwise', { group: 'group' })
   assert.ok(pairwise.matrix.length >= 3, JSON.stringify(pairwise).slice(0, 300))
+  // 同质子集：每个变量一张字母表，字母非空、字母不在同一变量内重复成两组「显著不同」。
+  assert.ok(Array.isArray(pairwise.homogeneousSubsets), 'the letter display comes back')
+  assert.deepEqual(pairwise.homogeneousSubsets[0].slice(0, 2), ['变量', '组'])
+  const rows = pairwise.homogeneousSubsets.slice(1)
+  assert.ok(rows.length >= 2, 'header plus at least one group')
+  for (const row of rows) assert.ok(/^[a-z]+$/.test(row[5]), `字母 ${
+    row[5]} 不合规`)
 })
 
 await check('pspp_partial reports partial correlations', async () => {

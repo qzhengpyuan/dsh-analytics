@@ -2,7 +2,7 @@
   "meta": {
     "title": "Analytics",
     "description": "dsh-analytics: an SPSS-style statistics workbench backed by a bundled GNU PSPP engine — data view, variable view, syntax, output viewer, analysis dialogs, and agent-readable datasets.",
-    "count": 1955
+    "count": 1956
   },
   "strings": {
     " 个个案": " cases",
@@ -1514,7 +1514,6 @@
     "并列事件时间用 Breslow 近似；协变量在计算时已中心化，不影响 B 与 Exp(B)。": "Tied event times use the Breslow approximation; the covariates are centred before fitting, which does not change B or Exp(B).",
     "分类协变量不直接收：先用「转换 → 重新编码成不同变量」造 0/1 哑变量。": "Categorical covariates are not accepted directly: build 0/1 dummies first with Transform → Recode into Different Variables.",
     "已选 {0} 个协变量": "{0} covariates selected",
-    "复杂生存模型（分层 Cox、时依协变量、竞争风险）": "Advanced survival models (stratified Cox, time-dependent covariates, competing risks)",
     "决策树 / 报表": "Decision trees / reports",
     "TREE、REPORT、PPLOT 在 PSPP 2.1.3 都没有实现。替代：报表用「表 1 / 表 2」或导出 Word；P-P/Q-Q 图与偏相关由插件自己实现，分别在「图形 → P-P / Q-Q 图」与「相关 → 偏相关…」。": "TREE, REPORT and PPLOT are not implemented in PSPP 2.1.3. Instead: reports via Table 1 / Table 2 or a Word export; the P-P/Q-Q plot and partial correlations are computed by the plugin, under Graphs → P-P / Q-Q Plot and Correlate → Partial….",
     "判别分析": "Discriminant Analysis",
@@ -1772,7 +1771,6 @@
     "（不分层）": "(no strata)",
     "分层让每一层有自己的基线风险，B（Exp(B)）在各层之间共享；把分层变量当协变量塞进模型是另一个假设，通常不对。": "Stratifying gives every stratum its own baseline hazard while B (Exp(B)) is shared across strata; putting the stratification variable in as a covariate is a different assumption and usually wrong.",
     "分层个案摘要": "Case processing summary by strata",
-    "PSPP 2.1.3 没有实现生存分析。插件自己实现了三件：分析 → 生存分析 → Kaplan–Meier（生存曲线 + log-rank）、Cox 回归（偏似然，Breslow 并列）、分层 Cox（对话框里的「分层」框，每层自己的风险集与基线风险、B 共享）。时依协变量与竞争风险没有做，替代是把数据导出 CSV，用 R 的 survival 包。": "PSPP 2.1.3 has no survival analysis. The plugin implements three parts: Analyze > Survival > Kaplan-Meier (curve plus log-rank), Cox regression (partial likelihood, Breslow ties) and stratified Cox (the Strata box in the dialog: every stratum gets its own risk set and baseline hazard while B is shared). Time-dependent covariates and competing risks are not implemented; export the data to CSV and use R's survival package instead.",
     "{0}（饱和）": "{0} (saturated)",
     "竞争风险（累积发生率）": "Competing Risks (cumulative incidence)",
     "竞争风险…（累积发生率）": "Competing Risks… (cumulative incidence)",
@@ -1959,6 +1957,9 @@
     "事件指示": "Event Indicator",
     "起始时间（可留空，时依协变量）": "Interval start (optional, time-dependent covariate)",
     "（固定协变量）": "(fixed covariates)",
-    "给了起始时间，每一行就是区间（起始时间, 生存时间】：风险集只收盖住这个时刻的行，同一个个案可以占多行、每行给不同的协变量取值。起始时间 ≥ 生存时间的行会被丢掉。": "With an interval start every row is the interval (start, survival time]: the risk set at a time holds only the rows whose interval covers it, so one case may occupy several rows with different covariate values. Rows whose start is not before the survival time are dropped."
+    "给了起始时间，每一行就是区间（起始时间, 生存时间】：风险集只收盖住这个时刻的行，同一个个案可以占多行、每行给不同的协变量取值。起始时间 ≥ 生存时间的行会被丢掉。": "With an interval start every row is the interval (start, survival time]: the risk set at a time holds only the rows whose interval covers it, so one case may occupy several rows with different covariate values. Rows whose start is not before the survival time are dropped.",
+    "同质子集": "Homogeneous subsets",
+    "均数": "Mean",
+    "生存与竞争风险（引擎里没有，插件已补）": "Survival and competing risks (engine lacks them, the plugin supplies them)"
   }
 }

@@ -197,6 +197,39 @@ check('pairwise table leaves P alone when adjustment is switched off', () => {
   assert.ok(built.matrix.every((row) => row.every((cell) => !String(cell).includes('Bonferroni'))))
 })
 
+check('pairwise table also prints a homogeneous-subsets letter display', () => {
+  // A 与 B 几乎一样、C 明显更高：字母表应当把 A、B 归到一个字母、C 拿另一个，
+  // 而且显著不同的一对绝不能共用一个字母。
+  const fixture = {
+    variables: [{ name: 'arm', type: 'numeric' }, { name: 'y', type: 'numeric', label: '得分' }],
+    rows: [
+      [1, 10], [1, 11], [1, 10.5], [1, 10.2], [1, 10.8],
+      [2, 10.4], [2, 10.1], [2, 10.9], [2, 10.6], [2, 10.3],
+      [3, 20], [3, 21], [3, 20.4], [3, 20.7], [3, 20.2],
+    ],
+  }
+  const built = buildPairwiseTable(fixture, { group: 'arm' })
+  assert.ok(built.lettersMatrix, 'letters come back')
+  const [head, ...rows] = built.lettersMatrix.matrix
+  assert.deepEqual(head, ['变量', '组', '个案数', '均数', '标准误', '同质子集'])
+  assert.equal(built.lettersMatrix.caption, '同质子集')
+  // 均数最大的组先拿字母：第 3 组（20.26）应当是 a，第 1、2 组同字母且不是 a。
+  const letters = Object.fromEntries(rows.map((row) => [row[1], row[5]]))
+  assert.equal(letters['3'], 'a')
+  assert.equal(letters['1'], letters['2'])
+  assert.notEqual(letters['1'], 'a')
+  assert.ok(rows.every((row) => /^[a-z]+$/.test(row[5])), JSON.stringify(rows))
+  // 与两两比较表对账：标记不是 ns 的那一对不许共用字母。
+  for (const row of built.matrix.slice(1)) {
+    if (row.at(-1) === 'ns') continue
+    const [left, right] = row[1].split(' vs ')
+    for (const letter of letters[left]) {
+      assert.ok(!letters[right].includes(letter), `${left}（${letters[left]}）与 ${right}（${letters[right]}）显著却共用字母 ${letter}`)
+    }
+  }
+  assert.ok(built.notes.some((note) => note.includes('同质子集（字母标记）')))
+})
+
 check('pairwise table says a variable has no data instead of blaming group size', () => {
   const withEmpty = {
     variables: [

@@ -9071,7 +9071,7 @@ let ITEM_CSV_PENDING = null
             { label: '缺失值分析…', action: () => runAnalysis('missing') },
             { sep: true },
             { label: '受引擎限制的功能', sub: [
-              { label: '复杂生存模型（分层 Cox、时依协变量、竞争风险）', action: () => notify('PSPP 2.1.3 没有实现生存分析。插件自己实现了三件：分析 → 生存分析 → Kaplan–Meier（生存曲线 + log-rank）、Cox 回归（偏似然，Breslow 并列）、分层 Cox（对话框里的「分层」框，每层自己的风险集与基线风险、B 共享）。时依协变量与竞争风险没有做，替代是把数据导出 CSV，用 R 的 survival 包。') },
+              { label: '生存与竞争风险（引擎里没有，插件已补）', action: () => notify('PSPP 2.1.3 没有实现生存分析，下面这些都在插件里算，不必导出：Kaplan–Meier（曲线 + log-rank）、Cox 回归（偏似然，Breslow 并列）、分层 Cox、时依协变量（Cox 对话框的「起始时间」，每行一个区间）、竞争风险（累积发生率 + 原因别 log-rank）、生命表、生存时间均值与百分位。仍然没有的只有复杂抽样模型（如加权 Cox 的稳健方差），那类需求要导出 CSV 用 R。') },
               { label: '复杂抽样', action: () => notify('PSPP 2.1.3 没有实现复杂抽样（CSDESCRIPTIVES / CSTABULATE）。替代：用「数据 → 加权个案」近似分层权重，或导出后用 R 的 survey 包。') },
               { label: '多重插补', action: () => notify('PSPP 2.1.3 根本不认识 MULTIPLE IMPUTATION（Unknown command）。插件给了两件替代：分析 → 缺失值分析（看缺失集中在哪些变量、哪些模式）与 转换 → 替换缺失值（序列平均值 / 线性趋势 / 临近点）。这两件都不是多重插补，会低估方差，写限制时要说明。') },
               { label: '协方差分析（ANCOVA）', action: () => notify('PSPP 2.1.3 的 GLM 不接受 WITH 协变量子句。替代：用「回归 → 线性」把分组变量当哑变量、协变量当预测变量，等价于 ANCOVA 的模型。') },

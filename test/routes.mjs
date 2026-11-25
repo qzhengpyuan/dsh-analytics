@@ -397,6 +397,19 @@ r = await call('POST', `${base}/api/publication`, { sessionId: sid, kind: 'basel
 console.log('publication without a group', r.code, /分组变量/.test(String(r.json().error)))
 r = await call('POST', `${base}/api/pairwise`, { sessionId: sid, options: { group: 'cohort', variables: ['age'], adjust: 'bonferroni' } })
 console.log('pairwise', r.code, r.json().result?.matrix?.length, r.json().result?.matrix?.[1]?.[1], r.json().result?.matrix?.[0]?.at(-2))
+{
+  // 同质子集成第二张表：面板与导出都按 items 走，接口这里少一张用户就看不到。
+  const result = r.json().result ?? {}
+  const titles = (result.items ?? []).map((item) => item.title)
+  const letters = (result.items ?? [])[1]?.table?.matrix ?? []
+  console.log('pairwise letters', r.code, (result.items ?? []).length, titles.join('|'), letters[0]?.join('/'), letters.length - 1)
+  assert.equal(r.code, 200)
+  assert.equal((result.items ?? []).length, 2, 'two tables: comparisons and homogeneous subsets')
+  assert.equal(titles[1], '同质子集')
+  assert.deepEqual(letters[0], ['变量', '组', '个案数', '均数', '标准误', '同质子集'])
+  assert.ok(letters.length >= 3, 'header plus at least two groups')
+  assert.ok(letters.slice(1).every((row) => /^[a-z]+$/.test(row[5])), JSON.stringify(letters))
+}
 // The default branch matters as much as the explicit one: adjusting is the
 // default now, and a regression there silently publishes raw P values.
 r = await call('POST', `${base}/api/pairwise`, { sessionId: sid, options: { group: 'cohort', variables: ['age'] } })
