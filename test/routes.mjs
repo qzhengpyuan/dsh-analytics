@@ -1600,6 +1600,10 @@ r = await call('POST', `${base}/api/sample`, { sessionId: sid })
   assert.equal(result.cases, 60)
   assert.equal(result.variables, 8)
   assert.ok(result.tables >= 4, `示例数据至少要出 4 张表，实际 ${result.tables}`)
+  // 「张表」只数表，图另算（复验 N4）；值标签必须留下来（复验 N3）。
+  assert.ok(result.charts >= 1, `示例数据要带图，实际 ${result.charts}`)
+  assert.equal(result.tables + result.charts, result.items.length)
+  assert.deepEqual(r.json().state.dataset.variables.find((variable) => variable.name === 'sex').valueLabels, { 0: '女', 1: '男' })
   assert.equal(r.json().state?.dataset?.name, '示例数据（员工）')
   // 示例数据必须真的能继续跑：紧接着做一次描述统计。
   const after = await call('POST', `${base}/api/run`, { sessionId: sid, syntax: 'DESCRIPTIVES VARIABLES=salary.' })

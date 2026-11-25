@@ -1151,6 +1151,8 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   const toast = sampleHost.querySelector('.ap-toast')
   assert.ok(toast, 'the user is told what happened')
   assert.match(toast.textContent, /60 例、8 个变量，跑了 11 张表/, toast.textContent)
+  // 只断言请求与文案是不够的：删掉 setView('output') 时这条必须变红（复验 N5）。
+  assert.ok(sampleHost.querySelector('.ap-output'), '打开示例数据后应该停在输出视图')
   await act(async () => { sampleRoot.unmount() })
 }
 

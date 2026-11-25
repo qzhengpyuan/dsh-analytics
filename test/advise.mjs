@@ -291,6 +291,23 @@ check('a table of nothing but ids gets no recommendation at all', () => {
   assert.ok(result.notes.some((note) => /编号/.test(note)), result.notes.join(' | '))
 })
 
+check('a Kaplan-Meier suggestion groups with `group`, not `by`', () => {
+  // km 图只认 options.group；写成 by 会画成一条总曲线、也没有 log-rank（复验 N1）。
+  const dataset = {
+    variables: [
+      { name: 'time', type: 'numeric', label: '随访时间' },
+      { name: 'event', type: 'numeric' },
+      { name: 'arm', type: 'string' },
+    ],
+    rows: Array.from({ length: 20 }, (_, index) => [10 + index, index % 3 === 0 ? 1 : 0, index % 2 === 0 ? 'a' : 'b']),
+  }
+  const result = adviseDataset(dataset, {})
+  const entry = result.recommendations.find((item) => item.how.tool === 'pspp_chart' && item.how.params.type === 'km')
+  assert.ok(entry, 'the survival data suggests a KM chart')
+  assert.equal(entry.how.params.group, 'arm', JSON.stringify(entry.how.params))
+  assert.equal(entry.how.params.by, undefined, 'by 不是 km 的分组参数')
+})
+
 check('a numeric column starting from 1 is only an id when there are enough cases', () => {
   // 8 个个案的 score=1..8 是真实测量，不该被判成编号（复验 P2-3 的副作用）。
   const rows = Array.from({ length: 8 }, (_, index) => [index + 1, 50 + index, index % 2 === 0 ? 'a' : 'b'])
