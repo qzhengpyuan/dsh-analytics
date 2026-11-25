@@ -66,7 +66,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 44, names.join(' '))
+  assert.equal(names.length, 46, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -189,6 +189,23 @@ await check('pspp_numbers returns real numbers and nulls for placeholders', asyn
   const table = out.tables.find((entry) => /描述|Descriptive/i.test(entry.title)) ?? out.tables[0]
   assert.ok(Array.isArray(table.columns))
   assert.ok(table.rows.some((row) => row.some((cell) => typeof cell === 'number')), JSON.stringify(table).slice(0, 300))
+})
+
+await check('pspp_advise argues the choice from the data', async () => {
+  const advise = await call('pspp_advise', { question: '两组的得分有没有差异' })
+  assert.ok(advise.recommendations.length >= 1, JSON.stringify(advise).slice(0, 300))
+  assert.equal(advise.recommendations[0].how.tool.startsWith('pspp_'), true)
+  assert.equal(advise.table.caption, '方法建议')
+  assert.equal(advise.item.title, '方法建议')
+})
+
+await check('pspp_repro writes a bundle that can be rerun', async () => {
+  const target = join(dir, 'repro-out')
+  const bundle = await call('pspp_repro', { path: target })
+  assert.equal(bundle.cases, 8, JSON.stringify(bundle).slice(0, 300))
+  assert.ok(bundle.files.includes('README.md'))
+  assert.ok(bundle.files.includes('dataset.json'))
+  assert.ok(existsSync(join(target, 'README.md')))
 })
 
 await check('pspp_partial reports partial correlations', async () => {

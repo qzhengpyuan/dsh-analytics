@@ -2,7 +2,7 @@
   "meta": {
     "title": "Analytics",
     "description": "dsh-analytics: an SPSS-style statistics workbench backed by a bundled GNU PSPP engine — data view, variable view, syntax, output viewer, analysis dialogs, and agent-readable datasets.",
-    "count": 1962
+    "count": 1968
   },
   "strings": {
     " 个个案": " cases",
@@ -1966,6 +1966,12 @@
     "离群值": "Outliers",
     "文本": "Text",
     "数字存成文本": "Numbers stored as text",
-    "日期存成文本": "Dates stored as text"
+    "日期存成文本": "Dates stored as text",
+    "方法建议": "Method suggestions",
+    "建议用的过程": "Suggested procedure",
+    "为什么": "Why",
+    "怎么做": "How",
+    "要注意：": "Watch out: ",
+    "数据：": "Data: "
   }
 }

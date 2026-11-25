@@ -180,4 +180,100 @@ check('a table it cannot read is listed, not guessed at', () => {
   assert.deepEqual(out.skipped, ['Some Other Table'])
 })
 
+check('a footnote superscript is not part of the number', () => {
+  // PSPP 给显著的相关挂 `.995<sup>a</sup>`；不剥掉的话句子里会印出标记，
+  // 而且 values.r 会变成 NaN（复验抓到过）。
+  const [sentence] = sentencesOf([item('Correlations', [
+    ['', '', 'y', 'x'],
+    ['y', 'Pearson Correlation', '1.000', '.995<sup>a</sup>'],
+    ['', 'Sig. (2-tailed)', '', '.000'],
+    ['', 'N', '24', '24'],
+    ['x', 'Pearson Correlation', '.995<sup>a</sup>', '1.000'],
+    ['', 'Sig. (2-tailed)', '.000', ''],
+    ['', 'N', '24', '24'],
+  ])]).sentences
+  assert.doesNotMatch(sentence.text, /<sup>/)
+  assert.equal(sentence.values.r, 0.995)
+  assert.equal(typeof sentence.values.r, 'number')
+})
+
+check('p < 0.001 still counts as significant', () => {
+  // `formatP` 回的是字符串 `< 0.001`，`Number()` 得到 NaN，判成「不显著」过。
+  const groups = item('Group Statistics', [
+    ['', 'Group', 'N', 'Mean', 'Std. Deviation', 'S.E. Mean'],
+    ['y', '1', '12', '20', '.01', '.00'],
+    ['', '2', '12', '46.5', '10.82', '3.12'],
+  ])
+  const test = item('Independent Samples Test', [
+    ['', '', "Levene's Test", '', 'T-Test', '', '', '', '', '', ''],
+    ['', '', 'F', 'Sig.', 't', 'df', 'Sig. (2-tailed)', 'Mean Difference', 'Std. Error Difference', '95% CI', ''],
+    ['', '', '', '', '', '', '', '', '', 'Lower', 'Upper'],
+    ['y', 'Equal variances assumed', '1.0', '.330', '-8.49', '22.00', '.000', '-26.50', '3.12', '-33.00', '-20.00'],
+    ['', 'Equal variances not assumed', '', '', '-8.49', '11.00', '.000', '-26.50', '3.12', '-33.37', '-19.62'],
+  ])
+  const [sentence] = sentencesOf([groups, test]).sentences
+  assert.match(sentence.text, /差异显著/)
+  assert.equal(sentence.values.p, '< 0.001')
+})
+
+check('Levene p = .000 selects the not-assumed row', () => {
+  const groups = item('Group Statistics', [
+    ['', 'Group', 'N', 'Mean', 'Std. Deviation', 'S.E. Mean'],
+    ['y', '1', '12', '20', '.01', '.00'],
+    ['', '2', '12', '46.5', '10.82', '3.12'],
+  ])
+  const test = item('Independent Samples Test', [
+    ['', '', "Levene's Test", '', 'T-Test', '', '', '', '', '', ''],
+    ['', '', 'F', 'Sig.', 't', 'df', 'Sig. (2-tailed)', 'Mean Difference', 'Std. Error Difference', '95% CI', ''],
+    ['', '', '', '', '', '', '', '', '', 'Lower', 'Upper'],
+    ['y', 'Equal variances assumed', '50.30', '.000', '-8.49', '22.00', '.000', '-26.50', '3.12', '-33.00', '-20.00'],
+    ['', 'Equal variances not assumed', '', '', '-8.49', '11.00', '.000', '-26.50', '3.12', '-33.37', '-19.62'],
+  ])
+  const [sentence] = sentencesOf([groups, test]).sentences
+  assert.match(sentence.text, /t\(11\.00\)/)
+  assert.match(sentence.text, /方差不齐/)
+})
+
+check('English frequencies carry no Chinese words', () => {
+  const [sentence] = sentencesOf([item('g', [
+    ['', '', 'Frequency', 'Percent', 'Valid Percent', 'Cumulative Percent'],
+    ['Valid', '1.00', '8', '33.3%', '33.3%', '33.3%'],
+    ['', '2.00', '16', '66.7%', '66.7%', '100.0%'],
+    ['Total', '', '24', '100.0%', '', ''],
+  ])], { language: 'en' }).sentences
+  assert.doesNotMatch(sentence.text, /[\u4e00-\u9fff]/)
+  assert.match(sentence.text, /^g: 1\.00 8 times \(33\.3%\), 2\.00 16 times \(66\.7%\)\.$/)
+})
+
+check('a table used for a sentence is not also listed as skipped', () => {
+  const groups = item('Group Statistics', [
+    ['', 'Group', 'N', 'Mean', 'Std. Deviation', 'S.E. Mean'],
+    ['y', '1', '2', '5.50', '.71', '.50'],
+    ['', '2', '2', '7.50', '.71', '.50'],
+  ])
+  const test = item('Independent Samples Test', [
+    ['', '', "Levene's Test", '', 'T-Test', '', '', '', '', '', ''],
+    ['', '', 'F', 'Sig.', 't', 'df', 'Sig. (2-tailed)', 'Mean Difference', 'Std. Error Difference', '95% CI', ''],
+    ['', '', '', '', '', '', '', '', '', 'Lower', 'Upper'],
+    ['y', 'Equal variances assumed', '.10', '.700', '-2.83', '2.00', '.106', '-2.00', '.71', '-5.04', '1.04'],
+  ])
+  const out = sentencesOf([groups, test])
+  assert.equal(out.sentences.length, 1)
+  assert.deepEqual(out.skipped, [])
+})
+
+check('a grouped descriptives table reports the Total row, not the first group', () => {
+  // `ONEWAY … /STATISTICS=DESCRIPTIVES` 的表是每组一行 + Total，第一列只有
+  // 第一组那行写着变量名；按行造句会写出「y：n = 8」，那是第一组的数。
+  const [sentence] = sentencesOf([item('Descriptives', [
+    ['', 'g', 'N', 'Mean', 'Std. Deviation', 'Std. Error', '95% Confidence Interval for Mean', '', 'Minimum', 'Maximum'],
+    ['', '', '', '', '', '', 'Lower Bound', 'Upper Bound', '', ''],
+    ['y', '1.00', '8', '24.90', '2.71', '.96', '22.64', '27.16', '20.00', '28.40'],
+    ['', '2.00', '8', '25.57', '2.81', '.99', '23.23', '27.92', '21.30', '29.70'],
+    ['', 'Total', '24', '25.37', '2.67', '.55', '24.24', '26.50', '20.00', '29.90'],
+  ])]).sentences
+  assert.match(sentence.text, /^y（全部）：n = 24，M = 25\.37/)
+  assert.equal(sentence.values.n, 24)
+})
+
 console.log(`\nsentences: ${checks} checks passed`)

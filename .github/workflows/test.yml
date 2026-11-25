@@ -71,6 +71,8 @@ jobs:
           node test/profile.mjs
           node test/sentences.mjs
           node test/numbers.mjs
+          node test/advise.mjs
+          node test/repro.mjs
           node test/survmean.mjs
           node test/discriminant.mjs
           node test/cluster.mjs

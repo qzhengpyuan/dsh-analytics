@@ -422,6 +422,30 @@ r = await call('POST', `${base}/api/numbers`, { sessionId: sid })
   assert.ok(Array.isArray(result.tables))
 }
 
+r = await call('POST', `${base}/api/advise`, { sessionId: sid })
+{
+  const result = r.json().result ?? {}
+  console.log('advise', r.code, (result.recommendations ?? []).length, result.item?.title, result.table?.matrix?.[0]?.length)
+  assert.equal(r.code, 200)
+  assert.ok((result.recommendations ?? []).length >= 1, JSON.stringify(result).slice(0, 300))
+  assert.equal(result.item?.title, '方法建议')
+  assert.equal(result.table?.matrix?.[0]?.[0], '顺序')
+}
+r = await call('POST', `${base}/api/advise`, { sessionId: sid, options: { outcome: 'nope' } })
+assert.equal(r.code, 400)
+assert.match(r.json().error, /没有这个变量：nope/)
+r = await call('POST', `${base}/api/repro`, { sessionId: sid, options: { path: join(home, 'bundle-route') } })
+{
+  const result = r.json().result ?? {}
+  console.log('repro', r.code, result.runs, (result.files ?? []).length, result.datasetFile)
+  assert.equal(r.code, 200)
+  assert.ok((result.files ?? []).includes('README.md'))
+  assert.ok((result.files ?? []).includes('dataset.json'))
+}
+r = await call('POST', `${base}/api/repro`, { sessionId: sid, options: {} })
+assert.equal(r.code, 400)
+assert.match(r.json().error, /给一个目录/)
+
 r = await call('POST', `${base}/api/pairwise`, { sessionId: sid, options: { group: 'cohort', variables: ['age'], adjust: 'bonferroni' } })
 console.log('pairwise', r.code, r.json().result?.matrix?.length, r.json().result?.matrix?.[1]?.[1], r.json().result?.matrix?.[0]?.at(-2))
 {
