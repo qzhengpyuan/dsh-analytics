@@ -395,6 +395,33 @@ r = await call('POST', `${base}/api/publication`, { sessionId: sid, kind: 'compa
 console.log('publication compare', r.code, r.json().result?.matrix?.[0]?.[1]?.includes('（n='), r.json().result?.item?.title?.includes('表 2'))
 r = await call('POST', `${base}/api/publication`, { sessionId: sid, kind: 'baseline', options: {} })
 console.log('publication without a group', r.code, /分组变量/.test(String(r.json().error)))
+// 这三条是给 agent 用的（数据体检 / 结果变句子 / 结构化数值），面板不用，但
+// 接口必须通：agent 走工具，工具走的就是这几个入口。
+r = await call('POST', `${base}/api/profile`, { sessionId: sid })
+{
+  const result = r.json().result ?? {}
+  console.log('profile', r.code, result.profile?.variableCount, result.profile?.counts?.warn, result.item?.title)
+  assert.equal(r.code, 200)
+  assert.ok((result.profile?.variableCount ?? 0) >= 3, JSON.stringify(result).slice(0, 300))
+  assert.equal(result.item?.title, '数据体检')
+  assert.ok(result.item?.table?.matrix?.length >= 2)
+}
+r = await call('POST', `${base}/api/sentences`, { sessionId: sid, runId: 999999 })
+console.log('sentences for a run that does not exist', r.code, r.json().result?.sentences?.length)
+assert.equal(r.code, 200)
+assert.equal(r.json().result?.sentences?.length, 0, '没有输出就是空的，不要瞎编')
+r = await call('POST', `${base}/api/sentences`, { sessionId: sid, runId: 'abc' })
+console.log('sentences with a bad run id', r.code, r.json().error)
+assert.equal(r.code, 400)
+assert.match(String(r.json().error), /runId 要是数字/)
+r = await call('POST', `${base}/api/numbers`, { sessionId: sid })
+{
+  const result = r.json().result ?? {}
+  console.log('numbers', r.code, (result.tables ?? []).length)
+  assert.equal(r.code, 200)
+  assert.ok(Array.isArray(result.tables))
+}
+
 r = await call('POST', `${base}/api/pairwise`, { sessionId: sid, options: { group: 'cohort', variables: ['age'], adjust: 'bonferroni' } })
 console.log('pairwise', r.code, r.json().result?.matrix?.length, r.json().result?.matrix?.[1]?.[1], r.json().result?.matrix?.[0]?.at(-2))
 {

@@ -68,6 +68,9 @@ jobs:
           node test/competing.mjs
           node test/lifetable.mjs
           node test/letters.mjs
+          node test/profile.mjs
+          node test/sentences.mjs
+          node test/numbers.mjs
           node test/survmean.mjs
           node test/discriminant.mjs
           node test/cluster.mjs

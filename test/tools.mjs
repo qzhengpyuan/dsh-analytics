@@ -66,7 +66,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 41, names.join(' '))
+  assert.equal(names.length, 44, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -162,6 +162,33 @@ await check('pspp_publication_table and pspp_pairwise build their rows', async (
   assert.ok(rows.length >= 2, 'header plus at least one group')
   for (const row of rows) assert.ok(/^[a-z]+$/.test(row[5]), `字母 ${
     row[5]} 不合规`)
+})
+
+await check('pspp_profile screens the dataset before any analysis', async () => {
+  const profile = await call('pspp_profile', {})
+  assert.equal(profile.title, '数据体检')
+  assert.ok(Array.isArray(profile.variables) && profile.variables.length >= 3, JSON.stringify(profile).slice(0, 300))
+  assert.ok(Array.isArray(profile.findings))
+  assert.equal(typeof profile.counts.error, 'number')
+  // 表与面板同源：表头必须是这一份
+  assert.deepEqual(profile.matrix[0], ['变量', '类型', '个案', '缺失', '不同取值', '均值', '标准差', '最小', '最大', '偏度', '离群值'])
+})
+
+await check('pspp_sentences turns the last run into sentences', async () => {
+  await call('pspp_run', { syntax: 'DESCRIPTIVES score.' })
+  const out = await call('pspp_sentences', {})
+  assert.ok(Array.isArray(out.sentences), JSON.stringify(out).slice(0, 300))
+  assert.ok(out.sentences.some((entry) => entry.kind === 'descriptives'), JSON.stringify(out.sentences))
+  assert.ok(Array.isArray(out.skipped))
+})
+
+await check('pspp_numbers returns real numbers and nulls for placeholders', async () => {
+  await call('pspp_run', { syntax: 'DESCRIPTIVES score.' })
+  const out = await call('pspp_numbers', {})
+  assert.ok(Array.isArray(out.tables) && out.tables.length >= 1)
+  const table = out.tables.find((entry) => /描述|Descriptive/i.test(entry.title)) ?? out.tables[0]
+  assert.ok(Array.isArray(table.columns))
+  assert.ok(table.rows.some((row) => row.some((cell) => typeof cell === 'number')), JSON.stringify(table).slice(0, 300))
 })
 
 await check('pspp_partial reports partial correlations', async () => {
