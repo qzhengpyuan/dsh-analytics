@@ -17,6 +17,55 @@ function check(name, run) {
   }
 }
 
+// 独立的特征值实现（Jacobi 旋转），只用来给主特征的幂迭代做对照。对应分析没有
+// 引擎答案，幂迭代又可能因为起点与残余主方向正交而漏掉一维（Win10 0930 的 P0-1），
+// 所以必须有一条「与另一种算法逐值对账」的断言，否则这类缺陷永远不会被拦住。
+function eigenvaluesOf(matrix) {
+  const size = matrix.length;
+  const a = matrix.map((line) => [...line]);
+  for (let sweep = 0; sweep < 200; sweep += 1) {
+    let off = 0;
+    for (let row = 0; row < size; row += 1) {
+      for (let column = row + 1; column < size; column += 1) off += a[row][column] ** 2;
+    }
+    if (off < 1e-26) break;
+    for (let p = 0; p < size - 1; p += 1) {
+      for (let q = p + 1; q < size; q += 1) {
+        if (Math.abs(a[p][q]) < 1e-20) continue;
+        const theta = (a[q][q] - a[p][p]) / (2 * a[p][q]);
+        const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+        const c = 1 / Math.sqrt(t * t + 1);
+        const s = t * c;
+        for (let k = 0; k < size; k += 1) {
+          const kp = a[k][p];
+          const kq = a[k][q];
+          a[k][p] = c * kp - s * kq;
+          a[k][q] = s * kp + c * kq;
+        }
+        for (let k = 0; k < size; k += 1) {
+          const pk = a[p][k];
+          const qk = a[q][k];
+          a[p][k] = c * pk - s * qk;
+          a[q][k] = s * pk + c * qk;
+        }
+      }
+    }
+  }
+  return a.map((line, index) => line[index]).sort((left, right) => right - left);
+}
+
+// 与 caCore 同口径的 ZᵀZ：标准化残差按**比例**算（用频数会让 ΣZ² 等于卡方而不是惯量）。
+function gramOf(observed) {
+  const rows = observed.map((line) => line.reduce((sum, value) => sum + value, 0));
+  const total = rows.reduce((sum, value) => sum + value, 0);
+  const columns = observed[0].map((_, index) => observed.reduce((sum, line) => sum + line[index], 0));
+  const rowMass = rows.map((value) => value / total);
+  const columnMass = columns.map((value) => value / total);
+  const z = observed.map((line, row) => line.map((value, column) => ((value / total) - rowMass[row] * columnMass[column])
+    / Math.sqrt(rowMass[row] * columnMass[column])));
+  return z[0].map((_, left) => z[0].map((__, right) => z.reduce((sum, line) => sum + line[left] * line[right], 0)));
+}
+
 function close(actual, expected, tolerance, message) {
   assert.ok(Number.isFinite(actual), `${message}: ${actual} 不是有限数值`);
   assert.ok(Math.abs(actual - expected) <= tolerance, `${message}: 实际 ${actual}，期望 ${expected}（容差 ${tolerance}）`);
@@ -148,6 +197,50 @@ check('bad input is refused with a readable message', () => {
     () => computeMultipleCorrespondence(dataset(tall), { variables: ['a', 'b'] }),
     /个案太多/,
   );
+});
+
+check('a correlated pair keeps its second dimension (P0-1 guard)', () => {
+  // 两个相关二分类（对角 13+13、错角 2+2）：特征值 0.8667 / 0.1333。固定起点与
+  // 残余主方向正交时，第二维会被压成 0 —— V1 判据里那个「四格各 3 例」的夹具
+  // 特征值恰好相等，碰巧测不出来，所以这里必须补一条特征值不相等的。
+  const dataset = { variables: [{ name: 'a', type: 'string' }, { name: 'b', type: 'string' }], rows: [] };
+  const push = (left, right, times) => { for (let index = 0; index < times; index += 1) dataset.rows.push([left, right]); };
+  push('x', 'x', 13); push('y', 'y', 13); push('x', 'y', 2); push('y', 'x', 2);
+  const out = computeMultipleCorrespondence(dataset, { variables: ['a', 'b'], dimensions: 2 });
+  close(out.model.explained[0] * out.model.inertia, 0.8666667, 1e-6, 'first eigenvalue');
+  close(out.model.explained[1] * out.model.inertia, 0.1333333, 1e-6, 'second eigenvalue');
+  assert.ok(out.model.explained[1] > 0.1, `the second dimension is real: ${out.model.explained[1]}`);
+});
+
+check('a balanced three-variable set keeps all three dimensions (P0-1 guard)', () => {
+  const dataset = {
+    variables: [{ name: 'a', type: 'string' }, { name: 'b', type: 'string' }, { name: 'c', type: 'string' }],
+    rows: [],
+  };
+  // 8 种组合各 3 例：三个变量互相独立，三维特征值都是 1/3。
+  for (const left of ['x', 'y']) {
+    for (const middle of ['x', 'y']) {
+      for (const right of ['x', 'y']) {
+        for (let index = 0; index < 3; index += 1) dataset.rows.push([left, middle, right]);
+      }
+    }
+  }
+  const out = computeMultipleCorrespondence(dataset, { variables: ['a', 'b', 'c'], dimensions: 3 });
+  for (let index = 0; index < 3; index += 1) {
+    close(out.model.explained[index] * out.model.inertia, 1 / 3, 1e-6, `eigenvalue ${index + 1}`);
+  }
+});
+
+check('one dimension reports a single axis (P3-1 guard)', () => {
+  const dataset = { variables: [{ name: 'a', type: 'string' }, { name: 'b', type: 'string' }], rows: [] };
+  for (let index = 0; index < 6; index += 1) dataset.rows.push(['x', 'x']);
+  for (let index = 0; index < 6; index += 1) dataset.rows.push(['y', 'y']);
+  const one = computeMultipleCorrespondence(dataset, { variables: ['a', 'b'], dimensions: 1 });
+  assert.ok(!/维 2/.test(one.chart.yLabel), `the single-dimension map must not name a second axis: ${one.chart.yLabel}`);
+  assert.ok(one.notes.some((note) => /只取了 1 维/.test(note)), 'and the note speaks of one dimension');
+  assert.ok(!one.notes.some((note) => /前两维/.test(note)), 'without claiming two dimensions');
+  const two = computeMultipleCorrespondence(dataset, { variables: ['a', 'b'], dimensions: 2 });
+  assert.match(two.chart.yLabel, /^维 2（/);
 });
 
 process.stdout.write(`\n${checks} checks in test/mca.mjs\n`);

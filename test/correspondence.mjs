@@ -2,7 +2,7 @@
 // 对应分析没有「引擎答案」可比，所以每条断言都是可以独立推导的恒等式：
 // Σ 行质量 × 行坐标² = σ²、两维坐标按质量加权正交、奇异值平方和 = 卡方/个案数。
 import assert from 'node:assert/strict';
-import { computeCorrespondence } from '../lib/correspondence.js';
+import { caCore, computeCorrespondence } from '../lib/correspondence.js';
 
 let checks = 0;
 function check(name, run) {
@@ -15,6 +15,55 @@ function check(name, run) {
     process.stdout.write(`  ${error.message}\n`);
     process.exitCode = 1;
   }
+}
+
+// 独立的特征值实现（Jacobi 旋转），只用来给主特征的幂迭代做对照。对应分析没有
+// 引擎答案，幂迭代又可能因为起点与残余主方向正交而漏掉一维（Win10 0930 的 P0-1），
+// 所以必须有一条「与另一种算法逐值对账」的断言，否则这类缺陷永远不会被拦住。
+function eigenvaluesOf(matrix) {
+  const size = matrix.length;
+  const a = matrix.map((line) => [...line]);
+  for (let sweep = 0; sweep < 200; sweep += 1) {
+    let off = 0;
+    for (let row = 0; row < size; row += 1) {
+      for (let column = row + 1; column < size; column += 1) off += a[row][column] ** 2;
+    }
+    if (off < 1e-26) break;
+    for (let p = 0; p < size - 1; p += 1) {
+      for (let q = p + 1; q < size; q += 1) {
+        if (Math.abs(a[p][q]) < 1e-20) continue;
+        const theta = (a[q][q] - a[p][p]) / (2 * a[p][q]);
+        const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+        const c = 1 / Math.sqrt(t * t + 1);
+        const s = t * c;
+        for (let k = 0; k < size; k += 1) {
+          const kp = a[k][p];
+          const kq = a[k][q];
+          a[k][p] = c * kp - s * kq;
+          a[k][q] = s * kp + c * kq;
+        }
+        for (let k = 0; k < size; k += 1) {
+          const pk = a[p][k];
+          const qk = a[q][k];
+          a[p][k] = c * pk - s * qk;
+          a[q][k] = s * pk + c * qk;
+        }
+      }
+    }
+  }
+  return a.map((line, index) => line[index]).sort((left, right) => right - left);
+}
+
+// 与 caCore 同口径的 ZᵀZ：标准化残差按**比例**算（用频数会让 ΣZ² 等于卡方而不是惯量）。
+function gramOf(observed) {
+  const rows = observed.map((line) => line.reduce((sum, value) => sum + value, 0));
+  const total = rows.reduce((sum, value) => sum + value, 0);
+  const columns = observed[0].map((_, index) => observed.reduce((sum, line) => sum + line[index], 0));
+  const rowMass = rows.map((value) => value / total);
+  const columnMass = columns.map((value) => value / total);
+  const z = observed.map((line, row) => line.map((value, column) => ((value / total) - rowMass[row] * columnMass[column])
+    / Math.sqrt(rowMass[row] * columnMass[column])));
+  return z[0].map((_, left) => z[0].map((__, right) => z.reduce((sum, line) => sum + line[left] * line[right], 0)));
 }
 
 function close(actual, expected, tolerance, message) {
@@ -132,6 +181,66 @@ check('too many categories are refused instead of producing a slow chart', () =>
     () => computeCorrespondence({ variables: [ROW, COLUMN], rows }, { row: 'r', column: 'c' }),
     /类别太多/,
   );
+});
+
+check('the second dimension is not lost when the eigenvalues differ (P0-1 guard)', () => {
+  // 相关 3×2 表：特征值互不相同，幂迭代的固定起点曾在这里与残余主方向正交，
+  // 把真实的第二维压成 0。
+  const observed = [[13, 2, 3], [2, 13, 1], [6, 4, 3]];
+  const core = caCore(observed, { dimensions: 2 });
+  const truth = eigenvaluesOf(gramOf(observed));
+  close(core.singular[0] ** 2, truth[0], 1e-10, 'first eigenvalue');
+  close(core.singular[1] ** 2, truth[1], 1e-10, 'second eigenvalue');
+  assert.ok(core.singular[1] > 0.1, `second singular value stays real: ${core.singular[1]}`);
+});
+
+check('a balanced table keeps every dimension (repeated eigenvalues, P0-1 guard)', () => {
+  // 4×4 均衡表：四个特征值有两两相等，收缩后起点容易落进上一维的特征空间。
+  const observed = Array.from({ length: 4 }, (_, row) => Array.from({ length: 4 }, (_, column) => (row === column ? 60 : 20)));
+  const core = caCore(observed, { dimensions: 3 });
+  const truth = eigenvaluesOf(gramOf(observed));
+  for (let index = 0; index < 3; index += 1) {
+    close(core.singular[index] ** 2, truth[index], 1e-9, `eigenvalue ${index + 1}`);
+  }
+});
+
+check('the total inertia comes from chi-square, not from the few eigenvalues retrieved (P0-2 guard)', () => {
+  // 7×7 偏斜表：非零特征值有 6 个，而 caCore 只取前 4 个。用「取到的和」当分母时
+  // 「合计」行会小于卡方分解里的总惯量，解释比例也被系统性放大。
+  const base = [40, 18, 12, 8, 5, 3, 2];
+  const observed = base.map((value, row) => base.map((other, column) => (row === column ? value * 3 : value + other)));
+  const core = caCore(observed, { dimensions: 3 });
+  const total = observed.reduce((sum, line) => sum + line.reduce((left, right) => left + right, 0), 0);
+  const truth = eigenvaluesOf(gramOf(observed));
+  const allEigenvalues = truth.reduce((sum, value) => sum + value, 0);
+  close(core.totalInertia, core.chiSquare / total, 1e-12, 'definition');
+  close(core.totalInertia, allEigenvalues, 1e-9, 'sum of every eigenvalue');
+  const proportions = truth.map((value) => value / allEigenvalues);
+  for (let index = 0; index < 3; index += 1) {
+    close(core.explained[index], proportions[index], 1e-9, `explained ${index + 1}`);
+  }
+  // 取到的四个特征值之和必须严格小于总惯量，否则这条用例根本没触发缺陷。
+  const retrieved = truth.slice(0, 4).reduce((sum, value) => sum + value, 0);
+  assert.ok(retrieved < allEigenvalues - 1e-6, `the fixture spans more than four dimensions: ${retrieved} vs ${allEigenvalues}`);
+});
+
+check('one dimension reports a single axis and does not claim two (P3-1 guard)', () => {
+  // 3×3 才能取到两维（维数上限是 min(行, 列, 4) − 1）。
+  const observed = [[13, 2, 4], [2, 13, 5], [7, 6, 3]];
+  const dataset = {
+    variables: [{ name: 'row', type: 'string' }, { name: 'col', type: 'string' }],
+    rows: [],
+  };
+  const rowLabels = ['p', 'q', 'r'];
+  const columnLabels = ['u', 'v', 'w'];
+  observed.forEach((line, row) => line.forEach((count, column) => {
+    for (let repeat = 0; repeat < count; repeat += 1) dataset.rows.push([rowLabels[row], columnLabels[column]]);
+  }));
+  const one = computeCorrespondence(dataset, { row: 'row', column: 'col', dimensions: 1 });
+  assert.ok(!/维 2/.test(one.chart.yLabel), `the single-dimension map must not name a second axis: ${one.chart.yLabel}`);
+  assert.ok(one.notes.some((note) => /这一维占/.test(note)), 'and the note speaks of one dimension');
+  const two = computeCorrespondence(dataset, { row: 'row', column: 'col', dimensions: 2 });
+  assert.match(two.chart.yLabel, /^维 2（/);
 });
 
 process.stdout.write(`\n${checks} checks in test/correspondence.mjs\n`);

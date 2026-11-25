@@ -166,6 +166,7 @@
 | 2026-11-25 | lead | 0.91.0 发布：修 Ctrl+Shift+F（菜单栏守卫挡死「查找过程」分支 + 数据「查找」不判 Shift，两处都改）+ client 用例钉住；一批 0.89–0.91 送 Win10（lead-0910-verify-0127） |
 | 2026-11-25 | lead | 0.92.0 发布：多重对应分析（指标矩阵 + `caCore` 复用 + 类别图）、修幂迭代重复特征值掉一维与解释比例分母、`lib/mca.js`、`pspp_mca`、`POST api/mca`、面板「分析 → 降维 → 多重对应分析…」、新套件 `test/mca.mjs`（50 套件 / 741 ok） |
 | 2026-11-25 | lead | 0.93.0 发布：修 0910 报告 P2（离散分位数容差跟输入精度走，六位小数输入不再差一格）；一批 0.92–0.93 送 Win10（lead-0930-verify-0128） |
+| 2026-11-25 | lead | 0.96.0 发布：修 Win10 0930 的两条 P0（幂迭代起点与残余主方向正交导致第二维恒为 0；合计惯量的分母用取到的特征值之和）+ P3 一维轴名 + P2 用例补独立 Jacobi 对照（52 套件 / 771 ok） |
 | 2026-11-25 | lead | 0.95.0 发布：多维标度（经典解、三种距离、可选标准化、Stress 口径、标度图）；`lib/mds.js`、`pspp_mds`、`POST api/mds`、面板「分析 → 降维 → 多维标度…」、新套件 `test/mds.mjs`（52 套件 / 764 ok） |
 | 2026-11-25 | lead | 0.94.0 发布：曲线估计（11 个模型、两列 R²、取值剔除、最佳曲线叠在散点图上）；`lib/curves.js`、`pspp_curve`、`POST api/curve`、面板「分析 → 回归 → 曲线估计…」、散点图 `curve` 叠线、新套件 `test/curves.mjs`（51 套件 / 754 ok） |
 | 2026-11-25 | lead | 0.89.0 发布：分布计算器（六种分布的密度/概率质量、累积、上尾、双侧、分位数，不需要数据集）、`lib/distributions.js`、`pspp_distribution` 与 `POST api/distribution`、面板「实用程序 → 分布计算器…」；t/卡方尾概率直接复用检验用的 `studentP`/`chiSquareP` 以保证两处 P 一致；新套件 `test/distributions.mjs`（48 套件 / 724 ok） |
