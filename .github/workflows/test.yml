@@ -137,6 +137,8 @@ jobs:
           node test/flow.mjs
           node test/tools.mjs
           node test/weight.mjs
+          # 图的几何不需要引擎，但新建数据集会落 work.sav，所以这一条跟着引擎跑。
+          node test/redraw.mjs
 
       - name: pdf table notes
         run: node test/pdf-notes.mjs

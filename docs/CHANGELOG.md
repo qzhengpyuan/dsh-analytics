@@ -5,7 +5,20 @@
 
 计数口径细则（0.72.0 起）：`^ok` 只统计打印 `ok  …` 的断言。`test/stage.mjs`、`test/messages.mjs` 打自己的 `N checks passed` 汇总行（`^ok` 为 0）；`test/build.mjs` 有一行 `ok  …` 写在 `await check(...)` 内部，因此比它自报的 summary 多 1。核对数量只用 `grep -cE '^ok\b'`。
 
-## 0.99.0
+## 0.100.0
+
+**能画不能改：** 重绘只认得老图型。0.90–0.99 陆续加的双标图（对应分析 / 多维标度）、类别点图（多重对应分析）、时间序列拟合图与累积发生率都不在 `redrawChart` 的白名单里，点了「重绘」只换来「重绘的目标类型不认识」—— 这是 Win10 在 0.81.0 抓 KM 那条同一类问题的第二遍。
+
+- **白名单补齐**：`bar`/`histogram`/`boxplot`/`line`/`pie`/`area`/`scatterplot`/`ppplot`/`pareto`/`control`/`km`/`cif`/`dendrogram`/`timeseries`/`biplot`/`category`。散点图的模型种类叫 `scatter`、请求名是 `scatterplot`，两个名字都收。
+- **累积发生率有了自己的图型** `cif`：此前借用 `km`，重绘时会重跑 Kaplan–Meier，于是一张累积发生率图悄悄变成生存曲线（数字全对、含义全错）。现在曲线随 `options` 存进 `chart.json`，重绘/改标题都从它自己重建；渲染仍与生存曲线共用同一段阶梯画法（`model.kind === 'km' || model.kind === 'cif'`），不再有第二份实现。
+- **坐标存在图自己记录里的三种图**（`cif`/`biplot`/`category`）拒绝换类型：几何不是从「变量」推出来的，换成别的类型只会画出一张空图。提示直接说「只能按原类型重绘，换图型请回到生成它的那个分析过程」。
+- **编辑图对话框**：原来下拉框只列 11 种基本图型，遇到 KM / 累积发生率 / 时间序列 / 双标图 / 类别点图时显示成空；现在按「这张图本来是什么」补一条原类型（`REDRAW_KEEP_TYPES`）。
+- **拼版**：`chart.json` 本来就没有，先按输出树里的条目判一次，给出的是「拼版不能重绘成别的类型」而不是「第 N 次运行没有图表可以重绘」。
+- `chartSpec` 补 `rowName`/`columnName`/`time`/`event`/`method`：编辑器据此知道这张图能改什么。
+- **测试**：新增 `test/redraw.mjs`（4 checks）—— 逐个图型「按原类型重绘、模型同形」的清单式断言（漏一种红一种）、选项与来源留痕、几何型图拒绝换类型、拼版与未知类型各自的说法。**教训又踩了一次**：`check` 是 async，忘了 `await` 会让汇总先打印、`checks` 还是 0（这条在 0.54.98 已经因为同一个原因吃过一次）。
+- 词典 +5 条（三个图型名、两条拒绝文案）；工具数不变（39）。
+
+
 
 竞争风险（competing risks）。SPSS 的生存过程只做单一终点，PSPP 2.1.3 连 `COXREG` 都报 not yet implemented，所以这一族全部由插件自算；0.98.0 补了分层 Cox，这一版补「一个个案只会死于一种原因」的那一半。
 

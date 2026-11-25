@@ -1794,6 +1794,11 @@
     "在险数": "At risk",
     "该类事件": "Events of this type",
     "标准误": "Std. error",
-    "（选一个状态变量）": "(pick a status variable)"
+    "（选一个状态变量）": "(pick a status variable)",
+    "时间序列拟合图": "Time-series fitted curve",
+    "双标图（对应分析 / 多维标度）": "Biplot (correspondence analysis / multidimensional scaling)",
+    "类别点图（多重对应分析）": "Category plot (multiple correspondence analysis)",
+    "「{0}」的坐标存在它自己的记录里：只能按原类型重绘，换图型请回到生成它的那个分析过程": "The coordinates of \"{0}\" live in its own record: it can only be redrawn as the same kind, go back to the analysis that drew it to change the type",
+    "拼版不能重绘成别的类型：先取消拼版，重画单图": "A chart grid cannot be redrawn as another type: unbind the grid and redraw a single chart"
   }
 }

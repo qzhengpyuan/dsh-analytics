@@ -6503,6 +6503,15 @@ function normalizeChoices(list) {
      * The variables stay the same and only the picture changes, so this is one
      * small dialog rather than a second visit to the chart dialog.
      */
+    // 只按原类型重绘的图型（几何存在图自己的记录里，换类型会画成空图）。
+    const REDRAW_KEEP_TYPES = {
+      km: 'Kaplan–Meier 生存曲线',
+      cif: '累积发生率',
+      timeseries: '时间序列拟合图',
+      biplot: '双标图（对应分析 / 多维标度）',
+      category: '类别点图（多重对应分析）',
+    }
+
     function RedrawChartDialog({ runId, title, from, onClose, onRun }) {
       const [type, setType] = useState(from && from !== 'grid' ? from : 'histogram')
       const TYPES = [
@@ -6518,6 +6527,11 @@ function normalizeChoices(list) {
         ['control', '控制图'],
         ['dendrogram', '系统聚类树状图'],
       ]
+      // 0.90 之后加的图型（双标图、类别点图、时间序列拟合图、累积发生率）不在上面
+      // 那份「换个画法」的清单里：它们的几何来自各自的分析过程，只能按原类型重绘，
+      // 所以只在这一张图确实属于那种类型时补一条，免得下拉框显示成空。
+      const original = from && from !== 'grid' ? REDRAW_KEEP_TYPES[from] : null
+      const choices = original && !TYPES.some(([value]) => value === from) ? [[from, original], ...TYPES] : TYPES
       return h(Modal, {
         title: '重绘为另一种图',
         onCancel: onClose,
@@ -6528,7 +6542,7 @@ function normalizeChoices(list) {
       h('label', { className: 'ap-field' },
         h('span', null, '新类型'),
         h('select', { value: type, onChange: (event) => setType(event.target.value) },
-          TYPES.map(([value, label]) => h('option', { key: value, value }, tr(label))))),
+          choices.map(([value, label]) => h('option', { key: value, value }, tr(label))))),
       from === 'grid' ? h('div', { className: 'ap-error' }, '拼版不能重绘：先取消拼版，重画单图') : null)
     }
 
