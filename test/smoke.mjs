@@ -45,6 +45,33 @@ await workspace.createDataset({
 })
 for (const row of values) workspace.appendCase({ gender: row[0], age: row[1], score: row[2] })
 
+// A label with a line break used to break the whole save: PSPP syntax is one
+// command per line, so a raw newline inside a quoted label ended the string and
+// the .sav never got written (`VALUE LABELS: Unterminated string constant`).
+// Labels are flattened to a single line now (复验 O2).
+await mkdir(join(root, 'labels', 'smoke-labels'), { recursive: true })
+const broken = new Workspace({ id: 'smoke-labels', engine, root: join(root, 'labels'), config: { timeoutMs: 60000 } })
+await broken.createDataset({
+  variables: [
+    { name: 'g', type: 'numeric', width: 2, decimals: 0, label: '第一行\n第二行', valueLabels: { 1: '低\n（<30）', 2: '高' } },
+    { name: 'v', type: 'numeric', width: 5, decimals: 1, label: '值' },
+  ],
+})
+broken.appendCase({ g: 1, v: 3 })
+broken.appendCase({ g: 2, v: 5 })
+const flattened = await broken.save(join(root, 'labels', 'flattened.sav'))
+console.log('labels with line breaks saved:', flattened)
+{
+  await mkdir(join(root, 'labels', 'reopen', 'smoke-labels-reopen'), { recursive: true })
+  const reopened = new Workspace({ id: 'smoke-labels-reopen', engine, root: join(root, 'labels', 'reopen'), config: { timeoutMs: 60000 } })
+  await reopened.open(join(root, 'labels', 'flattened.sav'))
+  const group = reopened.dataset.variables.find((variable) => variable.name === 'g')
+  if (!group) throw new Error('the reloaded file lost the labelled variable')
+  if (/[\r\n]/.test(String(group.label ?? ''))) throw new Error(`variable label still has a line break: ${JSON.stringify(group.label)}`)
+  if (/[\r\n]/.test(String(group.valueLabels?.['1'] ?? ''))) throw new Error(`value label still has a line break: ${JSON.stringify(group.valueLabels)}`)
+  console.log('label after reload:', JSON.stringify(group.label), JSON.stringify(group.valueLabels))
+}
+
 // The panel prints the engine's own version under 「关于」 and on the status
 // line; state used to omit it, so every dataset said 「引擎：未知」.
 await workspace.probeEngineVersion()

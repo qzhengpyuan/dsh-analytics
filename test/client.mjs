@@ -1129,7 +1129,7 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     const target = String(url)
     if (target.includes('api/sample')) {
       sampleCalls += 1
-      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { cases: 60, variables: 8, tables: 11 }, state: sampleState }) }
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { cases: 60, variables: 8, tables: 8, charts: 3 }, state: sampleState }) }
     }
     if (target.includes('api/rows')) {
       return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, page: { rows: [[1, 2]], total: 60 } }) }
@@ -1150,7 +1150,7 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.equal(sampleCalls, 1, 'the sample is requested once')
   const toast = sampleHost.querySelector('.ap-toast')
   assert.ok(toast, 'the user is told what happened')
-  assert.match(toast.textContent, /60 例、8 个变量，跑了 11 张表/, toast.textContent)
+  assert.match(toast.textContent, /60 例、8 个变量，跑了 8 张表/, toast.textContent)
   // 只断言请求与文案是不够的：删掉 setView('output') 时这条必须变红（复验 N5）。
   assert.ok(sampleHost.querySelector('.ap-output'), '打开示例数据后应该停在输出视图')
   await act(async () => { sampleRoot.unmount() })
@@ -1270,6 +1270,87 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.equal(reproCalls, 1, 'a directory is sent once')
   assert.match(insHost.textContent, /复现包写到/, insHost.textContent.slice(-200))
   await act(async () => { insRoot.unmount() })
+}
+
+// 英文界面下「复制表格」必须复制译过的表头：表格渲染走了 tr()，复制曾直接把
+// 中文表头拼进 TSV（复验 O1）。正文是数据，必须原样。
+{
+  const dict = JSON.parse(readFileSync(join(root, 'locale', 'en.json'), 'utf8')).strings
+  const enHost = window.document.createElement('div')
+  window.document.body.appendChild(enHost)
+  const enRoot = createRoot(enHost)
+  const enState = {
+    id: 'session-ins-en',
+    version: '0.116.0',
+    engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+    dataset: null,
+    items: [],
+    importNotes: [],
+    log: [],
+    mrSets: [],
+    splitBy: [],
+    history: { undo: 0, redo: 0 },
+    tableStyle: 'three-line',
+    maxRows: null,
+    maxExportRows: null,
+    locale: 'en',
+    signal: { id: 'session-ins-en', items: 0 },
+  }
+  window.fetch = async (url) => {
+    const target = String(url)
+    if (target.includes('api/locale')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, locale: 'en', strings: dict }) }
+    }
+    if (target.includes('api/profile')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          ok: true,
+          result: {
+            item: { id: 'profile-en', kind: 'table', title: '数据体检' },
+            profile: { variableCount: 2, counts: { error: 0, warn: 1, info: 0 } },
+            table: {
+              caption: '数据体检',
+              matrix: [['变量', '最小', '最大'], ['score', '3', '9']],
+              notes: [],
+            },
+          },
+        }),
+      }
+    }
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(target.includes('api/heartbeat') ? { ok: true, signal: enState.signal } : { ok: true, state: enState }),
+    }
+  }
+  globalThis.fetch = window.fetch
+  let copied = null
+  Object.defineProperty(window.navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: async (text) => { copied = text } },
+  })
+  await act(async () => {
+    enRoot.render(React.createElement(registered.tabs[0].component, { ...props, scope: { sessionId: 'session-ins-en', cwd: '/tmp' }, tab: null }))
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  })
+  const dataButton = [...enHost.querySelectorAll('.ap-menu-button')].find((node) => node.textContent.trim() === 'Data')
+  assert.ok(dataButton, 'the menu bar is English')
+  await act(async () => { dataButton.click(); await new Promise((resolve) => setTimeout(resolve, 20)) })
+  const screening = [...enHost.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.trim() === 'Data checkup…')
+  assert.ok(screening, 'Data offers Data checkup…')
+  await act(async () => { screening.click(); await new Promise((resolve) => setTimeout(resolve, 120)) })
+  const headerCells = [...enHost.querySelectorAll('.ap-ins-table thead th')].map((node) => node.textContent.trim())
+  assert.deepEqual(headerCells, ['Variable', 'Minimum', 'Maximum'], JSON.stringify(headerCells))
+  await act(async () => {
+    enHost.querySelector('.ap-ins-copy').click()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  assert.ok(copied, 'the copy button writes to the clipboard')
+  assert.match(copied, /^Variable\tMinimum\tMaximum/, JSON.stringify(copied))
+  assert.match(copied, /\n?score\t3\t9/, 'data cells are not translated')
+  await act(async () => { enRoot.unmount() })
 }
 
 // View → 结果句子…: the panel has to show the sentences the tool would produce,

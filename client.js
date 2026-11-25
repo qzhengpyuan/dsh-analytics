@@ -114,7 +114,9 @@ function InsightDialog({ sessionId, kind, onClose }) {
   }, [sessionId, kind])
   const matrix = state.result?.table?.matrix ?? []
   const notes = state.result?.table?.notes ?? []
-  const header = matrix[0] ?? []
+  // 表头是插件拼的中文，英文界面下显示的是译文；复制走同一份译法，否则英文界面
+  // 复制出来还是中文表头（复验 O1）。正文是数据，一律原样。
+  const header = (matrix[0] ?? []).map((cell) => (typeof cell === 'string' ? tr(cell) : cell))
   const body = matrix.slice(1)
   const copy = () => {
     const text = [header.join('\t'), ...body.map((row) => row.join('\t'))].join('\n')
