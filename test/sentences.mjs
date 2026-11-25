@@ -430,4 +430,39 @@ check('reliability becomes a Cronbach alpha sentence', () => {
   assert.match(out.sentences[0].text, /α = \.82/)
 })
 
+check('the English Mann-Whitney sentence follows the p value', () => {
+  // 复验 P1-1：英文模板无条件写 "do not differ"，p = 0.031 时结论正好相反。
+  const [significant] = sentencesOf([item('Test Statistics', [
+    ['', 'Mann-Whitney U', 'Wilcoxon W', 'Z', 'Asymp. Sig. (2-tailed)'],
+    ['y', '304.00', '769.00', '-2.16', '.031'],
+  ])], { language: 'en' }).sentences
+  assert.match(significant.text, /differ in location/, significant.text)
+  assert.doesNotMatch(significant.text, /do not differ/, significant.text)
+  const [quiet] = sentencesOf([item('Test Statistics', [
+    ['', 'Mann-Whitney U', 'Wilcoxon W', 'Z', 'Asymp. Sig. (2-tailed)'],
+    ['y', '304.00', '769.00', '-.20', '.841'],
+  ])], { language: 'en' }).sentences
+  assert.match(quiet.text, /do not differ in location/, quiet.text)
+})
+
+check('the logistic CI bounds avoid scientific notation too', () => {
+  const [sentence] = sentencesOf([item('Variables in the Equation', [
+    ['', 'B', 'S.E.', 'Wald', 'df', 'Sig.', 'Exp(B)', '95% CI for Exp(B)', ''],
+    ['', '', '', '', '', '', '', 'Lower', 'Upper'],
+    ['x', '-11.51', '1.20', '92.02', '1', '.000', '0.000010', '1.23E-005', '8.10E-005'],
+  ])]).sentences
+  assert.doesNotMatch(sentence.text, /E[+-]\d/i, sentence.text)
+  assert.match(sentence.text, /95% CI 0\.000012 ~ 0\.000081/, sentence.text)
+})
+
+check('engine plumbing tables are not counted as unreadable tables', () => {
+  const out = sentencesOf([
+    item('Reading free-form data from INLINE.', [['x'], ['1']]),
+    item('Case Processing Summary', [['', 'N'], ['a', '1']]),
+    item('Case Processing Summary', [['', 'N'], ['a', '1']]),
+    item('Dependent Variable Encoding', [['Original Value', 'Internal Value'], ['a', '0']]),
+  ])
+  assert.deepEqual(out.skipped, [], out.skipped.join(' | '))
+})
+
 console.log(`\nsentences: ${checks} checks passed`)

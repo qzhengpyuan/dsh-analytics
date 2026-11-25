@@ -265,4 +265,43 @@ check('an ID column is never handed to a regression as a predictor', () => {
   }
 })
 
+check('a small sequential id is never the outcome, and never a test variable', () => {
+  // 复验反例：n < 10 时旧的 idLike 带 n>=10 门槛，1..8 的 id 被当成结局。
+  const rowsSmall = []
+  for (let index = 0; index < 8; index += 1) rowsSmall.push([index + 1, 50 + index, index % 2 === 0 ? 'a' : 'b'])
+  const data = {
+    variables: [
+      { name: 'id', type: 'numeric' },
+      { name: 'score', type: 'numeric' },
+      { name: 'grp', type: 'string' },
+    ],
+    rows: rowsSmall,
+  }
+  const result = adviseDataset(data, {})
+  assert.equal(result.outcome, 'score', `8 例时结局不该是 id：${result.outcome}`)
+  for (const entry of result.recommendations) {
+    const listed = [...(entry.how.params.independents ?? []), ...(entry.how.params.variables ?? [])]
+    assert.ok(!listed.includes('id'), `${entry.analysis} 仍在用 id：${JSON.stringify(entry.how.params)}`)
+  }
+})
+
+check('a table of nothing but ids gets no recommendation at all', () => {
+  const result = adviseDataset({ variables: [{ name: 'id', type: 'numeric' }], rows: [[1], [2], [3], [4], [5], [6]] }, {})
+  assert.equal(result.recommendations.length, 0, JSON.stringify(result.recommendations))
+  assert.ok(result.notes.some((note) => /编号/.test(note)), result.notes.join(' | '))
+})
+
+check('no recommendation is emitted with an empty variable list', () => {
+  // id + 纯文本分组：没有自变量可放，Logistic 该退成一句注文而不是空 independents。
+  const result = adviseDataset({
+    variables: [{ name: 'id', type: 'numeric' }, { name: 'grp', type: 'string' }],
+    rows: Array.from({ length: 20 }, (_, index) => [index + 1, index % 2 === 0 ? 'a' : 'b']),
+  }, {})
+  for (const entry of result.recommendations) {
+    const params = entry.how.params
+    const named = Object.entries(params).filter(([key]) => !['procedure', 'groupValues', 'statistics', 'postHoc'].includes(key))
+    assert.ok(named.some(([, value]) => (Array.isArray(value) ? value.length > 0 : value)), `${entry.analysis} 的参数里一个变量都没有：${JSON.stringify(params)}`)
+  }
+})
+
 console.log(`\nadvise: ${checks} checks passed`)

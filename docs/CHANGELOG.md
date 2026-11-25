@@ -5,6 +5,21 @@
 
 计数口径细则（0.72.0 起）：`^ok` 只统计打印 `ok  …` 的断言。`test/stage.mjs`、`test/messages.mjs` 打自己的 `N checks passed` 汇总行（`^ok` 为 0）；`test/build.mjs` 有一行 `ok  …` 写在 `await check(...)` 内部，因此比它自报的 summary 多 1。核对数量只用 `grep -cE '^ok\b'`。
 
+## 0.111.0
+
+**修 0.110.0 那批复验（6 PASS / 1 FAIL + 2 P1 + 3 P2）。** 七条验收里唯一 FAIL 是「编号列不进任何变量」只修了自变量、没修结局回退；另有一个英文句子在显著时写成「无差异」，这是会直接抄进英文稿的内容错误。
+
+- **英文 Mann-Whitney 句子跟着 p 走**：模板原来无条件写 `do not differ in location`，p = 0.031 也照写（中文分支一直是对的）。现在两条分支用同一个判据：`p < 0.001` 或 `p < 0.05` 写 `differ in location`，否则 `do not differ`。
+- **编号列不会再成为结局**：原来是「名字像 id 且 n ≥ 10 才算、或取值正好 0..n/1..n」，结局回退最后一档 `?? columns[0]` 又没排除编号。现在 ① `id/编号/序号/no/case/subject` 这类名字一律判定编号，不看例数；② 取值正好铺成 0..n-1 或 1..n 的列一律判定编号（n ≥ 2 即可）；③ 回复退链排除编号列，整张表只剩编号时用第一个非编号列，真没有就取第一列并写一条注文「没有可分析的结局」；④ 分组候选也排除编号列。复验的两个反例（`id`+`grp` 的 20 例、`id`+`score`+`grp` 的 8 例）现在分别得到「无建议 + 注文」与 `outcome = score`。
+- **没有自变量时不发 Logistic**：`predictorNames` 为空时二分结局的分类分支与数值分支都不再拼一条 `independents: []` 的建议（引擎会拒，且这种表正是「只有编号 + 分组」的形状），改成一条注文。
+- **logistic 句子的 95% CI 也过 `readableNumber`**：`1.23E-005` 这种 CI 上下限原来没走转换，句子前半是定点小数、括号后突然出现 `E-`；现在整句不再出现科学计数法。
+- **`skipped` 不再把引擎流水表算成「认不出来的表」**：`Case Processing Summary`、`Dependent Variable Encoding`、`Classification Table`、`Reading free-form data from INLINE.`、`Variables Entered`、`Residuals Statistics`、`Notes`/`Warnings`、`Omnibus Tests` 进新的 `PLUMBING_TITLES`，同名表只列一次。真引擎跑一次 LOGISTIC 原来报「还有 5 张表认不出来」，其中两张同名 `Case Processing Summary`。
+- **计数口径改正**：0.110.0 那段写的「943（装 poppler 944）」是错的 —— `pdf-notes` 的那 1 条 ok 本来就在 943 里。现在写成「943 含 poppler，不装 942」。
+
+用例：`test/advise.mjs` 19 → 22（8 例的 `id` 不当结局也不进变量、只有编号的表不给建议、任何建议都不许带空变量列表）、`test/sentences.mjs` 24 → 27（英文 MW 显著/不显著两向、logistic CI 不印 `E-`、流水表不进 `skipped`）。
+
+全量 949 条 ok（含 poppler 的 1 条；不装是 948）、64 套件、0 FAIL。工具数不变（47），词典不变（1984）。
+
 ## 0.110.0
 
 **句子认的表多了三类（Logistic 的优势比、Mann-Whitney / Kruskal-Wallis、Cronbach's α），面板自带「结果句子」对话框；同时修掉 0.109.0 那批复验的 4 条 P1 与 5 条 P2。**
@@ -20,7 +35,7 @@
 - **复验 P2（0.109.0）**：Cox 的 `covariates` 不再包含时间列与事件列自己；二分结局的 Logistic 在只有数值自变量时也不会丢掉分组列（`predictorNames` 就是「数值自变量 + 分组」去重）；编号列不再进任何回归（并给一条注文）；多因变量句子的 `values.variable` 去掉「（全部）」后缀，和方差分析那句对得上；`test/repro.mjs` 的 `at` 断言改成 `entry.at !== null && Number.isFinite(entry.at)`（`Number(null)` 是 0，旧写法假绿）。
 - 用例：`test/advise.mjs` 15 → 19（二分不推 GLM、多项 Logistic 自变量必须全数值、删失不推秩检验、Cox 协变量不含时间/事件列、编号不进回归）、`test/sentences.mjs` 20 → 24（logistic OR 与 CI、分离时 NaN 不造句、两种非参数版式、α；另加一条变量名一致）、`test/client.mjs` 新增「结果句子」对话框一段（菜单可达、两行句子渲染、认不出的表列出来、复制按钮、关得掉 —— 它还抓到对话框按 `stateOf()` 解 `{ok, result}` 导致永远 0 句）。
 
-全量 943 条 ok（装 poppler 944）、64 套件、0 FAIL。工具数不变（47），词典 1977 → 1984。
+全量 943 条 ok（该数**含** poppler 的 pdf-notes 1 条；不装 poppler 是 942）、64 套件、0 FAIL。工具数不变（47），词典 1977 → 1984。
 
 ## 0.109.0
 
