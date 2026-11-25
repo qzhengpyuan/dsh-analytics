@@ -2128,6 +2128,63 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
           h('div', { className: 'ap-hint' }, '原因最多 6 类；数据里出现的其他状态码按删失处理，注文会点名。'))))
     }
 
+    function LifeTableDialog({ variables, onRun, onClose }) {
+      const numeric = variables.filter((variable) => variable.type === 'numeric')
+      const [time, setTime] = useState(null)
+      const [status, setStatus] = useState(null)
+      const [group, setGroup] = useState('')
+      const [interval, setInterval] = useState('')
+      const ready = Boolean(time && status && time !== status)
+      const width = Number(interval)
+      const submit = () => onRun({
+        time,
+        status,
+        ...(group ? { group } : {}),
+        ...(Number.isFinite(width) && width > 0 ? { interval: width } : {}),
+      })
+      return h(Modal, {
+        title: '生命表',
+        wide: true,
+        okDisabled: !ready,
+        onCancel: onClose,
+        onOk: submit,
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '分组（可留空）'),
+          h('select', { value: group, onChange: (event) => setGroup(event.target.value) },
+            h('option', { value: '' }, '（不分组）'),
+            variables
+              .filter((variable) => variable.name !== time && variable.name !== status)
+              .map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name))),
+          h('label', { className: 'ap-check' },
+            h('span', null, '区间宽度'),
+            h('input', {
+              type: 'number',
+              min: '0',
+              step: 'any',
+              value: interval,
+              placeholder: '留空 = 自动',
+              onChange: (event) => setInterval(event.target.value),
+            })),
+          h('div', { className: 'ap-hint' }, '宽度留空时按随访范围切十段左右；写死宽度可以跟别人的表逐格对照。'),
+          h('div', { className: 'ap-hint' }, '生命表把区间内的删失按半个个案算，区间越宽误差越大。')),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '随访时间（必选，数值）'),
+            h('select', { value: time ?? '', onChange: (event) => setTime(event.target.value || null) },
+              h('option', { value: '' }, '（选一个时间变量）'),
+              numeric.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '状态（必选：0 = 删失，其他 = 事件）'),
+            h('select', { value: status ?? '', onChange: (event) => setStatus(event.target.value || null) },
+              h('option', { value: '' }, '（选一个状态变量）'),
+              numeric.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-hint' }, 'PSPP 没有 SURVIVAL（报 not yet implemented），所以这张表在插件里算。'),
+          h('div', { className: 'ap-hint' }, '表里给期初在险数、期内删失、期内事件、有效样本数、死亡比例与生存比例、累积生存率与标准误、风险率。'),
+          h('div', { className: 'ap-hint' }, '累积生存率第一次降到 0.5 以下的那一段终点记为中位生存期；始终高于 0.5 记作未达到。'))))
+    }
+
     /**
      * Multinomial logistic regression: PSPP only fits two levels, so the K−1
      * logits are fitted by the plugin and this dialog only collects the shape of
@@ -7846,6 +7903,23 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId])
 
+      const runLifeTable = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/lifetable', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const result = value.result ?? {}
+          notify(tr('生命表：{0} 段、{1} 个个案{2}', result.steps ?? 0, result.cases ?? 0,
+            (result.groups ?? []).length ? tr('，按 {0} 分组', result.groups.length) : ''))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId])
+
       const runMultinomial = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -8917,6 +8991,7 @@ let ITEM_CSV_PENDING = null
               { label: 'Kaplan–Meier…（生存曲线 + log-rank）', action: () => setDialog({ kind: 'chart', type: 'km' }) },
               { label: 'Cox 回归…（比例风险）', action: () => setDialog({ kind: 'cox' }) },
               { label: '竞争风险…（累积发生率）', action: () => setDialog({ kind: 'competing' }) },
+              { label: '生命表…（分组生存率）', action: () => setDialog({ kind: 'lifetable' }) },
             ] },
             { label: '质量控制', sub: [
               { label: '控制图…（X̄–R）', action: () => setDialog({ kind: 'chart', type: 'control' }) },
@@ -10116,6 +10191,12 @@ let ITEM_CSV_PENDING = null
           ? h(CompetingDialog, {
             variables,
             onRun: (payload) => runCompeting(payload),
+            onClose: () => setDialog(null),
+          })
+          : dialog?.kind === 'lifetable'
+          ? h(LifeTableDialog, {
+            variables,
+            onRun: (payload) => runLifeTable(payload),
             onClose: () => setDialog(null),
           })
           : dialog?.kind === 'cox'

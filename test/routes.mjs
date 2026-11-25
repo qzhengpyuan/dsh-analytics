@@ -1321,6 +1321,23 @@ assert.equal(competingGrouped.result?.logRank?.length, 2, 'one test per event ty
 assert.equal(competingGrouped.result?.tables?.[1]?.matrix?.[0]?.[1], '分组', 'the incidence table names the group column')
 r = await call('POST', `${base}/api/competing`, { sessionId: 'cr01', options: { time: 't', status: 'nope' } })
 assert.equal(r.code, 400, 'an unknown status variable is refused')
+
+// 生命表复用同一份随访数据：区间宽度 2、状态 0/1/2 都是事件（非 0），再按 g 分组。
+r = await call('POST', `${base}/api/lifetable`, { sessionId: 'cr01', options: { time: 't', status: 's', interval: 2 } })
+const lifetable = r.json()
+console.log('lifetable ->', r.code, lifetable.result?.steps, lifetable.result?.matrix?.[0]?.length, lifetable.result?.cases)
+assert.equal(r.code, 200, 'api/lifetable answers')
+assert.equal(lifetable.result?.matrix?.[0]?.[0], '区间', 'the table starts with the interval label')
+assert.equal(lifetable.result?.matrix?.length, lifetable.result?.steps + 1, 'one row per interval plus the header')
+assert.equal(lifetable.result?.medians?.[0]?.[0], '分组', 'the median table has its own header')
+assert.equal(lifetable.result?.chart?.kind, 'km', 'the curve is a step function')
+r = await call('POST', `${base}/api/lifetable`, { sessionId: 'cr01', options: { time: 't', status: 's', group: 'g', interval: 2 } })
+const groupedLife = r.json()
+assert.equal(r.code, 200, 'api/lifetable answers with a group')
+assert.equal(groupedLife.result?.matrix?.[0]?.[1], '分组', 'the group column sits after the interval label')
+assert.equal(groupedLife.result?.medians?.length, groupedLife.result?.groups?.length + 1)
+r = await call('POST', `${base}/api/lifetable`, { sessionId: 'cr01', options: { time: 'nope', status: 's' } })
+assert.equal(r.code, 400, 'an unknown time variable is refused')
 await call('POST', `${base}/api/close`, { sessionId: 'cr01' })
 
 await call('POST', `${base}/api/close`, { sessionId: 'cox02' })

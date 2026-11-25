@@ -2051,6 +2051,44 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   assert.equal([...menuHost.querySelectorAll('.ap-modal')].length, 0, 'and it closes again')
   assert.match(clientSource, /api\('api\/competing', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/competing')
+  // 生命表：同一组里第四件。PSPP 没有 SURVIVAL，整张表在插件里算，所以对话框
+  // 只问时间、状态、可选分组与可选区间宽度。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const survivalPop3 = menuHost.querySelector('.ap-menu-pop')
+  const survivalGroup3 = [...survivalPop3.querySelectorAll('button')].find((node) => node.textContent.startsWith('生存分析'))
+  await act(async () => {
+    survivalGroup3?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const lifeItem = [...(survivalGroup3?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])]
+    .find((node) => node.textContent.startsWith('生命表'))
+  assert.ok(lifeItem, 'the survival group lists life tables')
+  await act(async () => {
+    lifeItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const lifeDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.ok(lifeDialog, 'the life-table dialog opens from the menu')
+  assert.match(lifeDialog.textContent, /^生命表/, `the dialog is titled like the procedure: ${lifeDialog.textContent.slice(0, 40)}`)
+  assert.match(lifeDialog.textContent, /随访时间（必选，数值）/, 'and asks for the follow-up time')
+  assert.match(lifeDialog.textContent, /状态（必选：0 = 删失，其他 = 事件）/, 'and for the status variable')
+  assert.match(lifeDialog.textContent, /区间宽度/, 'and offers an interval width')
+  const lifeWidth = lifeDialog.querySelector('input[type="number"]')
+  assert.ok(lifeWidth, 'the interval width is a number field')
+  assert.equal(lifeWidth.getAttribute('placeholder'), '留空 = 自动', 'whose placeholder says what an empty box means')
+  assert.match(lifeDialog.textContent, /生命表把区间内的删失按半个个案算/, 'and warns about the actuarial assumption')
+  const lifeOk = [...lifeDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(lifeOk.disabled, true, 'nothing runs until the two required choices are made')
+  const lifeCancel = [...lifeDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    lifeCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.equal([...menuHost.querySelectorAll('.ap-modal')].length, 0, 'and it closes again')
+  assert.match(clientSource, /api\('api\/lifetable', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/lifetable')
   // 判别分析：PSPP 没有 DISCRIMINANT，四张表由插件拟合，菜单位置对标 SPSS 的分类。
   // 关掉对话框之后菜单是重新渲染的，早先抓到的 pop 已经脱开文档，得再点开一次。
   await act(async () => {

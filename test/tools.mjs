@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 39, names.join(' '))
+  assert.equal(names.length, 40, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -185,6 +185,19 @@ await check('pspp_competing reports cumulative incidence and a cause-specific lo
   const grouped = await call('pspp_competing', { time: 'time', status: 'event', group: 'grp' })
   assert.ok(Array.isArray(grouped.logRank) && grouped.logRank.length === 1, 'one test per event type')
   assert.ok(grouped.logRank[0].df >= 1, 'df counts the groups minus one')
+})
+
+await check('pspp_lifetable reports a life table with intervals and a median row', async () => {
+  const out = await call('pspp_lifetable', { time: 'time', status: 'event', interval: 2 })
+  assert.equal(out.matrix[0][0], '区间', JSON.stringify(out).slice(0, 300))
+  assert.ok(out.steps >= 1, `steps ${out.steps}`)
+  assert.equal(out.matrix.length, out.steps + 1, 'header plus one row per interval')
+  assert.equal(out.medians[0][0], '分组')
+  assert.ok(out.notes.some((note) => /区间宽度/.test(note)), 'the notes name the interval width')
+  assert.equal(out.chart.kind, 'km', 'the curve is drawn as a step function')
+  const grouped = await call('pspp_lifetable', { time: 'time', status: 'event', group: 'grp', interval: 2 })
+  assert.ok(Array.isArray(grouped.groups) && grouped.groups.length >= 2, 'a group column splits the table')
+  assert.equal(grouped.medians.length, grouped.groups.length + 1, 'one median row per group plus the header')
 })
 
 await check('pspp_multinomial fits a multinomial model and returns every table', async () => {
