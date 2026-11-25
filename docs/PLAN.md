@@ -165,6 +165,7 @@
 | 2026-11-25 | lead | 0.90.0 发布：对应分析（卡方分解 + 幂迭代 SVD + 行/列主坐标、四张表 + 双标图）、`lib/correspondence.js`、`biplot` 图型、`pspp_correspondence` 与 `POST api/correspondence`、面板「分析 → 降维 → 对应分析…」；新套件 `test/correspondence.mjs`（49 套件 / 733 ok） |
 | 2026-11-25 | lead | 0.91.0 发布：修 Ctrl+Shift+F（菜单栏守卫挡死「查找过程」分支 + 数据「查找」不判 Shift，两处都改）+ client 用例钉住；一批 0.89–0.91 送 Win10（lead-0910-verify-0127） |
 | 2026-11-25 | lead | 0.92.0 发布：多重对应分析（指标矩阵 + `caCore` 复用 + 类别图）、修幂迭代重复特征值掉一维与解释比例分母、`lib/mca.js`、`pspp_mca`、`POST api/mca`、面板「分析 → 降维 → 多重对应分析…」、新套件 `test/mca.mjs`（50 套件 / 741 ok） |
+| 2026-11-25 | lead | 0.93.0 发布：修 0910 报告 P2（离散分位数容差跟输入精度走，六位小数输入不再差一格）；一批 0.92–0.93 送 Win10（lead-0930-verify-0128） |
 | 2026-11-25 | lead | 0.89.0 发布：分布计算器（六种分布的密度/概率质量、累积、上尾、双侧、分位数，不需要数据集）、`lib/distributions.js`、`pspp_distribution` 与 `POST api/distribution`、面板「实用程序 → 分布计算器…」；t/卡方尾概率直接复用检验用的 `studentP`/`chiSquareP` 以保证两处 P 一致；新套件 `test/distributions.mjs`（48 套件 / 724 ok） |
 | 2026-11-25 | lead | 0.84.0 发布：泊松回归（`log μ = xβ`、IRLS + 步长减半、离散参数照实报并点名过度离散、三张表）、`lib/poisson.js`、`pspp_poisson` 与 `POST api/poisson`、面板「分析 → 回归 → 泊松回归…」；闭式解（仅截距 β₀ = ln 均值、二分类斜率与标准误）加得分方程归零三重校验；新套件 `test/poisson.mjs`（44 套件 / 700 ok） |
 | 2026-11-24 | lead | 0.81.0 发布：修 Win10 0780 报告的 P1（KM 图能画不能改 —— 抽 `Workspace.chartFor()` 统一三个调用点）+ P2（中位生存期印进图里）+ P3×3（可用值列表、edit 工具描述、Cox ties 口径）（41 套件 / 673 ok） |

@@ -123,5 +123,15 @@ check('bad input is refused with a readable message', () => {
   }
 });
 
+check('a quantile accepts the six-decimal value the panel shows', () => {
+  // 用户照着屏幕上六位小数的 CDF(5)=0.623047 反查分位数：真值比它小 1.2e-7，
+  // 容差只给 1e-12 时会被判成 CDF(5) 还不够，落到 6（差一格）。
+  assert.equal(computeDistribution({ distribution: 'binomial', x: 5, n: 10, p: 0.5, probability: 0.623047 }).quantile, 5);
+  assert.equal(computeDistribution({ distribution: 'binomial', x: 5, n: 10, p: 0.5, probability: 0.623046875 }).quantile, 5);
+  assert.equal(computeDistribution({ distribution: 'binomial', x: 5, n: 10, p: 0.5, probability: 0.376953 }).quantile, 4);
+  // 泊松同理：P(X≤3) = 0.857123（六位），真值 0.8571234604。
+  assert.equal(computeDistribution({ distribution: 'poisson', x: 3, lambda: 2, probability: 0.857123 }).quantile, 3);
+})
+
 process.stdout.write(`\n${checks} checks in test/distributions.mjs\n`);
 if (process.exitCode) process.stdout.write('failures above\n');
