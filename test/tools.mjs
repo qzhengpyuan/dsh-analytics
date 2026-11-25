@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 38, names.join(' '))
+  assert.equal(names.length, 39, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -174,6 +174,17 @@ await check('pspp_cox fits a survival model and reports the hazard ratio', async
   assert.ok(stratified.strata.length >= 2, 'with at least one stratum plus the total')
   assert.match(stratified.notes[0], /分了 \d+ 层/, 'the note says how many strata')
   assert.equal(stratified.strataVariable, 'grp')
+})
+
+await check('pspp_competing reports cumulative incidence and a cause-specific log-rank', async () => {
+  const out = await call('pspp_competing', { time: 'time', status: 'event' })
+  assert.equal(out.counts[0][0], '原因', JSON.stringify(out).slice(0, 300))
+  assert.equal(out.causes.length, 1, 'the fixture has one event type')
+  assert.match(out.incidence[0][0], /时间/, 'the incidence table is a long table keyed by time')
+  assert.ok(out.notes.some((note) => /Aalen/.test(note)), 'the estimator is named')
+  const grouped = await call('pspp_competing', { time: 'time', status: 'event', group: 'grp' })
+  assert.ok(Array.isArray(grouped.logRank) && grouped.logRank.length === 1, 'one test per event type')
+  assert.ok(grouped.logRank[0].df >= 1, 'df counts the groups minus one')
 })
 
 await check('pspp_multinomial fits a multinomial model and returns every table', async () => {

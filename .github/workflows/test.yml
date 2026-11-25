@@ -65,6 +65,7 @@ jobs:
           node test/exact.mjs
           node test/survival.mjs
           node test/cox.mjs
+          node test/competing.mjs
           node test/discriminant.mjs
           node test/cluster.mjs
           node test/timeseries.mjs

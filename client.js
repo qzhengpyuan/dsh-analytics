@@ -2062,6 +2062,50 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     }
 
     /**
+     * 竞争风险：状态变量用 0 表示删失、其他码表示原因，所以这里只要时间、状态与
+     * 可选的分组 —— 原因清单由数据决定，不让用户在这里多输一遍（输错只会换来看不懂
+     * 的拒绝）。分组给了就会多一张原因别 log-rank 表。
+     */
+    function CompetingDialog({ variables, onRun, onClose }) {
+      const numeric = variables.filter((variable) => variable.type === 'numeric')
+      const [time, setTime] = useState(null)
+      const [status, setStatus] = useState(null)
+      const [group, setGroup] = useState('')
+      const ready = Boolean(time && status && time !== status)
+      return h(Modal, {
+        title: '竞争风险（累积发生率）',
+        wide: true,
+        okDisabled: !ready,
+        onCancel: onClose,
+        onOk: () => onRun({ time, status, ...(group ? { group } : {}) }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '分组（可留空）'),
+          h('select', { value: group, onChange: (event) => setGroup(event.target.value) },
+            h('option', { value: '' }, '（不分组）'),
+            variables
+              .filter((variable) => variable.name !== time && variable.name !== status)
+              .map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name))),
+          h('div', { className: 'ap-hint' }, '给了分组变量就多一张「原因别 log-rank」表：逐类原因比较各组的原因别风险。'),
+          h('div', { className: 'ap-hint' }, '这里不是 Gray 的次分布检验 —— 那检验累积发生率本身，问题不同，结论可能不同。')),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '随访时间（必选，数值）'),
+            h('select', { value: time ?? '', onChange: (event) => setTime(event.target.value || null) },
+              h('option', { value: '' }, '（选一个时间变量）'),
+              numeric.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '状态（必选：0 = 删失，其他码 = 原因）'),
+            h('select', { value: status ?? '', onChange: (event) => setStatus(event.target.value || null) },
+              h('option', { value: '' }, '（选一个状态变量）'),
+              numeric.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-hint' }, '累积发生率是 Aalen–Johansen 估计：每一步按该原因占当步全部事件的比例分给各类原因。'),
+          h('div', { className: 'ap-hint' }, '所以它比「1 − Kaplan–Meier」小：后者把删失当唯一出口，会高估累积发生率。'),
+          h('div', { className: 'ap-hint' }, '原因最多 6 类；数据里出现的其他状态码按删失处理，注文会点名。'))))
+    }
+
+    /**
      * Multinomial logistic regression: PSPP only fits two levels, so the K−1
      * logits are fitted by the plugin and this dialog only collects the shape of
      * the model (dependent, numeric predictors, optional reference category).
@@ -7748,6 +7792,23 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId])
 
+      const runCompeting = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/competing', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const result = value.result ?? {}
+          notify(tr('竞争风险：{0} 例，{1} 类原因{2}', result.cases ?? 0, (result.causes ?? []).length,
+            (result.logRank ?? []).length ? tr('，已做组间检验') : ''))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId])
+
       const runMultinomial = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -8818,6 +8879,7 @@ let ITEM_CSV_PENDING = null
             { label: '生存分析', sub: [
               { label: 'Kaplan–Meier…（生存曲线 + log-rank）', action: () => setDialog({ kind: 'chart', type: 'km' }) },
               { label: 'Cox 回归…（比例风险）', action: () => setDialog({ kind: 'cox' }) },
+              { label: '竞争风险…（累积发生率）', action: () => setDialog({ kind: 'competing' }) },
             ] },
             { label: '质量控制', sub: [
               { label: '控制图…（X̄–R）', action: () => setDialog({ kind: 'chart', type: 'control' }) },
@@ -10013,7 +10075,13 @@ let ITEM_CSV_PENDING = null
             onClose: () => setDialog(null),
           })
           : null,
-        dialog?.kind === 'cox'
+        dialog?.kind === 'competing'
+          ? h(CompetingDialog, {
+            variables,
+            onRun: (payload) => runCompeting(payload),
+            onClose: () => setDialog(null),
+          })
+          : dialog?.kind === 'cox'
           ? h(CoxDialog, {
             variables,
             onRun: (payload) => runCox(payload),

@@ -1773,6 +1773,27 @@
     "分层让每一层有自己的基线风险，B（Exp(B)）在各层之间共享；把分层变量当协变量塞进模型是另一个假设，通常不对。": "Stratifying gives every stratum its own baseline hazard while B (Exp(B)) is shared across strata; putting the stratification variable in as a covariate is a different assumption and usually wrong.",
     "分层个案摘要": "Case processing summary by strata",
     "PSPP 2.1.3 没有实现生存分析。插件自己实现了三件：分析 → 生存分析 → Kaplan–Meier（生存曲线 + log-rank）、Cox 回归（偏似然，Breslow 并列）、分层 Cox（对话框里的「分层」框，每层自己的风险集与基线风险、B 共享）。时依协变量与竞争风险没有做，替代是把数据导出 CSV，用 R 的 survival 包。": "PSPP 2.1.3 has no survival analysis. The plugin implements three parts: Analyze > Survival > Kaplan-Meier (curve plus log-rank), Cox regression (partial likelihood, Breslow ties) and stratified Cox (the Strata box in the dialog: every stratum gets its own risk set and baseline hazard while B is shared). Time-dependent covariates and competing risks are not implemented; export the data to CSV and use R's survival package instead.",
-    "{0}（饱和）": "{0} (saturated)"
+    "{0}（饱和）": "{0} (saturated)",
+    "竞争风险（累积发生率）": "Competing Risks (cumulative incidence)",
+    "竞争风险…（累积发生率）": "Competing Risks… (cumulative incidence)",
+    "竞争风险：{0} 例，{1} 类原因{2}": "Competing risks: {0} cases, {1} event types{2}",
+    "，已做组间检验": ", group comparison done",
+    "分组（可留空）": "Group (optional)",
+    "（不分组）": "(no grouping)",
+    "给了分组变量就多一张「原因别 log-rank」表：逐类原因比较各组的原因别风险。": "With a grouping variable the output gains a cause-specific log-rank table: each event type is compared across groups.",
+    "这里不是 Gray 的次分布检验 —— 那检验累积发生率本身，问题不同，结论可能不同。": "This is not the Gray subdistribution test: that one tests the cumulative incidence itself, a different question with possibly a different answer.",
+    "随访时间（必选，数值）": "Follow-up time (required, numeric)",
+    "状态（必选：0 = 删失，其他码 = 原因）": "Status (required: 0 = censored, other codes = event type)",
+    "累积发生率是 Aalen–Johansen 估计：每一步按该原因占当步全部事件的比例分给各类原因。": "The cumulative incidence is the Aalen–Johansen estimate: at each step the drop in all-cause survival is split between the event types by their share of that step.",
+    "所以它比「1 − Kaplan–Meier」小：后者把删失当唯一出口，会高估累积发生率。": "That makes it smaller than 1 minus Kaplan–Meier, which treats censoring as the only way out and therefore overstates the cumulative incidence.",
+    "原因最多 6 类；数据里出现的其他状态码按删失处理，注文会点名。": "At most six event types; other status codes found in the data are treated as censored and named in the notes.",
+    "累积发生率": "Cumulative incidence",
+    "事件计数": "Event counts",
+    "组间检验（原因别 log-rank）": "Group comparison (cause-specific log-rank)",
+    "原因": "Event type",
+    "在险数": "At risk",
+    "该类事件": "Events of this type",
+    "标准误": "Std. error",
+    "（选一个状态变量）": "(pick a status variable)"
   }
 }

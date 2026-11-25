@@ -2015,6 +2015,42 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.equal([...menuHost.querySelectorAll('.ap-modal')].length, 0, 'and it closes again')
   assert.match(clientSource, /api\('api\/cox', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/cox')
   assert.match(clientSource, /\{ time, event, covariates: chosen, \.\.\.\(strata \? \{ strata \} : \{\}\) \}/, 'sending the three choices plus the optional strata')
+  // 竞争风险：同一组里第三件。状态变量用 0 表示删失，所以只要时间、状态与可选分组。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const survivalPop2 = menuHost.querySelector('.ap-menu-pop')
+  const survivalGroup2 = [...survivalPop2.querySelectorAll('button')].find((node) => node.textContent.startsWith('生存分析'))
+  await act(async () => {
+    survivalGroup2?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const survivalItems2 = [...(survivalGroup2?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])].map((node) => node.textContent)
+  assert.ok(survivalItems2.some((text) => text.startsWith('竞争风险')), `the survival group lists competing risks, got ${JSON.stringify(survivalItems2)}`)
+  const competingItem = [...(survivalGroup2?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])]
+    .find((node) => node.textContent.startsWith('竞争风险'))
+  await act(async () => {
+    competingItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const competingDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.ok(competingDialog, 'the competing-risks dialog opens from the menu')
+  assert.match(competingDialog.textContent, /竞争风险（累积发生率）/, 'the dialog is titled like the procedure')
+  assert.match(competingDialog.textContent, /随访时间（必选，数值）/, 'and asks for the follow-up time')
+  assert.match(competingDialog.textContent, /状态（必选：0 = 删失，其他码 = 原因）/, 'and for the status variable')
+  assert.match(competingDialog.textContent, /分组（可留空）/, 'and offers a grouping box')
+  assert.match(competingDialog.textContent, /Aalen/, 'and names the estimator')
+  assert.match(competingDialog.textContent, /不是 Gray 的次分布检验/, 'and says which test it is not')
+  const competingOk = [...competingDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(competingOk.disabled, true, 'nothing runs until both required choices are made')
+  const competingCancel = [...competingDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    competingCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.equal([...menuHost.querySelectorAll('.ap-modal')].length, 0, 'and it closes again')
+  assert.match(clientSource, /api\('api\/competing', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/competing')
   // 判别分析：PSPP 没有 DISCRIMINANT，四张表由插件拟合，菜单位置对标 SPSS 的分类。
   // 关掉对话框之后菜单是重新渲染的，早先抓到的 pop 已经脱开文档，得再点开一次。
   await act(async () => {

@@ -1292,6 +1292,37 @@ assert.equal(stratified.result?.strata?.[0]?.[0], '分层', 'and it is labelled'
 assert.equal(stratified.result?.model?.strataVariable, 's')
 r = await call('POST', `${base}/api/cox`, { sessionId: 'cox02', options: { time: 't', event: 'e', covariates: ['x'], strata: 'nope' } })
 assert.equal(r.code, 400, 'an unknown strata variable is refused')
+// Competing risks: three tables without a grouping variable (counts, incidence,
+// and no group test), one more with it. The engine is not involved at all.
+let competingRes = await call('POST', `${base}/api/new`, { sessionId: 'cr01', cwd: home, variables: [
+  { name: 't', type: 'numeric' },
+  { name: 's', type: 'numeric' },
+  { name: 'g', type: 'string' },
+] })
+for (let index = 0; index < 36; index += 1) {
+  competingRes = await call('POST', `${base}/api/case`, {
+    sessionId: 'cr01',
+    values: { t: 1 + (index % 9), s: index % 6 === 0 ? 0 : (index % 2 === 0 ? 1 : 2), g: index < 18 ? 'A' : 'B' },
+  })
+}
+r = await call('POST', `${base}/api/competing`, { sessionId: 'cr01', options: { time: 't', status: 's' } })
+const competing = r.json()
+console.log('competing ->', r.code, competing.result?.tables?.length, competing.result?.causes?.length,
+  competing.result?.logRank?.length, competing.result?.model?.cases)
+assert.equal(r.code, 200, 'api/competing answers')
+assert.equal(competing.result?.tables?.length, 2, 'two tables without a grouping variable')
+assert.equal(competing.result?.causes?.length, 2, 'both event types are reported')
+assert.equal(competing.result?.logRank?.length, 0, 'and no group test is attempted')
+r = await call('POST', `${base}/api/competing`, { sessionId: 'cr01', options: { time: 't', status: 's', group: 'g' } })
+const competingGrouped = r.json()
+assert.equal(r.code, 200, 'api/competing answers with a group')
+assert.equal(competingGrouped.result?.tables?.length, 3, 'the group test table comes with it')
+assert.equal(competingGrouped.result?.logRank?.length, 2, 'one test per event type')
+assert.equal(competingGrouped.result?.tables?.[1]?.matrix?.[0]?.[1], '分组', 'the incidence table names the group column')
+r = await call('POST', `${base}/api/competing`, { sessionId: 'cr01', options: { time: 't', status: 'nope' } })
+assert.equal(r.code, 400, 'an unknown status variable is refused')
+await call('POST', `${base}/api/close`, { sessionId: 'cr01' })
+
 await call('POST', `${base}/api/close`, { sessionId: 'cox02' })
 await call('POST', `${base}/api/close`, { sessionId: 'cox01' })
 
