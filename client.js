@@ -88,6 +88,117 @@ function SentencesDialog({ sessionId, language, onClose }) {
       : null))
 }
 
+
+/**
+ * 「数据体检」与「方法建议」共用一张结果视图：两张表都是插件自己算的
+ * （`plugin: true`），呈现方式一样，只是头部的计数文案不同。
+ *
+ * 结果从 `api/profile` / `api/advise` 来，形状是 `{ok, result:{item, table, …}}`。
+ */
+function InsightDialog({ sessionId, kind, onClose }) {
+  const [state, setState] = React.useState({ loading: true, result: null, error: null })
+  React.useEffect(() => {
+    let alive = true
+    void (async () => {
+      try {
+        const value = kind === 'profile'
+          ? await api('api/profile', { sessionId })
+          : await api('api/advise', { sessionId, options: {} })
+        if (!alive) return
+        setState({ loading: false, result: value?.result ?? null, error: null })
+      } catch (error) {
+        if (alive) setState({ loading: false, result: null, error: error.message })
+      }
+    })()
+    return () => { alive = false }
+  }, [sessionId, kind])
+  const matrix = state.result?.table?.matrix ?? []
+  const notes = state.result?.table?.notes ?? []
+  const header = matrix[0] ?? []
+  const body = matrix.slice(1)
+  const copy = () => {
+    const text = [header.join('\t'), ...body.map((row) => row.join('\t'))].join('\n')
+    try { void navigator.clipboard?.writeText(text) } catch { /* 剪贴板不可用时只能手工选中 */ }
+  }
+  const counts = state.result?.profile?.counts
+  const summary = kind === 'profile'
+    ? (counts ? tr('{0} 个变量：{1} 条必须先处理、{2} 条要注意', String(state.result.profile.variableCount), String(counts.error), String(counts.warn)) : '')
+    : (state.result?.recommendations ? tr('{0} 条建议', String(state.result.recommendations.length)) : '')
+  return h(Modal, {
+    title: kind === 'profile' ? '数据体检' : '方法建议',
+    wide: true,
+    onCancel: onClose,
+    okText: '关闭',
+    onOk: onClose,
+  }, h('div', { className: 'ap-ins' },
+    h('div', { className: 'ap-ins-head' },
+      h('span', { className: 'ap-ins-count' }, state.loading ? tr('正在读取…') : summary),
+      h('button', {
+        className: 'ap-ins-copy',
+        disabled: state.loading || matrix.length === 0,
+        onClick: copy,
+      }, tr('复制表格'))),
+    state.error
+      ? h('div', { className: 'ap-ins-empty' }, state.error)
+      : null,
+    !state.loading && !state.error && matrix.length === 0
+      ? h('div', { className: 'ap-ins-empty' }, tr('这次没有可显示的内容'))
+      : null,
+    matrix.length > 0
+      ? h('div', { className: 'ap-ins-table' }, h('table', { className: 'ap-tbl-grid' },
+        h('thead', null, h('tr', null, header.map((label, index) => h('th', { key: index }, tr(String(label)))))),
+        h('tbody', null, body.map((row, rowIndex) => h('tr', { key: rowIndex },
+          row.map((value, columnIndex) => h('td', { key: columnIndex }, tr(String(value)))))))))
+      : null,
+    notes.length > 0
+      ? h('div', { className: 'ap-ins-notes' }, notes.map((note, index) => h('div', { key: index, className: 'ap-ins-note' }, tr(String(note)))))
+      : null))
+}
+
+/** 导出复现包：写目录由用户填，路径校验与越界提示都在引擎侧（`lib/paths.js`）。 */
+function ReproDialog({ sessionId, onClose, notify }) {
+  const [path, setPath] = React.useState('')
+  const [includeData, setIncludeData] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
+  const run = async () => {
+    if (!path.trim()) { notify(tr('要填一个目录')); return }
+    setBusy(true)
+    try {
+      const value = await api('api/repro', { sessionId, options: { path: path.trim(), includeData } })
+      const files = value?.result?.files?.length ?? 0
+      notify(tr('复现包写到 {0}：{1} 个文件', value?.result?.path ?? path.trim(), String(files)))
+      onClose()
+    } catch (error) {
+      notify(error.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return h(Modal, {
+    title: '导出复现包',
+    onCancel: onClose,
+    onOk: run,
+    okText: '导出',
+    okDisabled: busy,
+  }, h('div', { className: 'ap-repro' },
+    h('label', { className: 'ap-field' },
+      h('span', null, '目录'),
+      h('input', {
+        type: 'text',
+        value: path,
+        placeholder: '例如 /mnt/data/bundle',
+        onChange: (event) => setPath(event.target.value),
+      })),
+    h('label', { className: 'ap-check' },
+      h('input', {
+        type: 'checkbox',
+        checked: includeData,
+        onChange: (event) => setIncludeData(event.target.checked),
+      }), '把工作数据文件（data.sav）也复制进去'),
+    h('div', { className: 'ap-hint' }, tr('包里是：README（怎么重跑）、dataset.json（变量字典与每次运行）、syntax/（引擎真正收到的语法）、log.txt；勾上数据文件后整包可以原样重跑。')),
+    busy ? h('div', { className: 'ap-hint' }, tr('正在写入…')) : null))
+}
+
 /**
  * 「查找过程」——SPSS 的 Search for a Procedure。输入框过滤整条菜单路径，
  * 上下键选、回车执行；结果里保留完整路径，因为同名条目（比如三个
@@ -939,6 +1050,17 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-sent-copy { border:1px solid var(--ap-line-2); background:var(--ap-panel); color:var(--ap-text-2);
   font:inherit; font-size:11px; padding:1px 6px; border-radius:2px; cursor:pointer; }
 .ap-sent-copy:hover { background:var(--ap-hover); }
+.ap-ins { display:flex; flex-direction:column; gap:8px; }
+.ap-ins-head { display:flex; align-items:center; gap:8px; }
+.ap-ins-count { flex:1; font-size:11px; color:var(--ap-muted); }
+.ap-ins-table { max-height:420px; overflow:auto; }
+.ap-ins-table table { width:100%; border-collapse:collapse; font-size:11px; }
+.ap-ins-table th, .ap-ins-table td { padding:2px 6px; border:0; text-align:left; }
+.ap-ins-notes { max-height:180px; overflow:auto; font-size:11px; color:var(--ap-muted); }
+.ap-ins-note { padding:1px 0; }
+.ap-ins-empty { font-size:11px; color:var(--ap-muted); }
+.ap-repro { display:flex; flex-direction:column; gap:8px; }
+.ap-repro .ap-field input { width:100%; }
 .ap-sent-empty { color:var(--ap-text-3); padding:8px; }
 .ap-about { display:flex; flex-direction:column; gap:5px; }
 .ap-about-name { font-weight:600; font-size:14px; }
@@ -8920,6 +9042,7 @@ let ITEM_CSV_PENDING = null
             { label: '导出输出为 Word（.docx）…', action: () => setBrowser({ mode: 'office', format: 'docx', scope: 'session' }) },
             { label: '导出输出为 Excel（.xlsx）…', action: () => setBrowser({ mode: 'office', format: 'xlsx', scope: 'session' }) },
             { label: '导出报告（成册，勾选的表）…', action: () => setBrowser({ mode: 'reportBook', format: 'docx', reportTitle: '', reportSubtitle: '' }) },
+            { label: '导出复现包…', action: () => setDialog({ kind: 'repro' }) },
             { sep: true },
             { label: '语法模板库…', action: () => setDialog({ kind: 'templates' }) },
             { label: '运行历史…', action: () => setDialog({ kind: 'runs' }) },
@@ -8992,6 +9115,8 @@ let ITEM_CSV_PENDING = null
         },
         {
           label: '数据', items: [
+            { label: '数据体检…', action: () => setDialog({ kind: 'profile' }) },
+            { sep: true },
             { label: '新建变量（转到变量视图最后一行）', action: () => setView('variables') },
             { label: '批量导入值标签…', action: () => setDialog({ kind: 'valueLabels' }) },
             { label: '插入个案', action: async () => {
@@ -9051,6 +9176,8 @@ let ITEM_CSV_PENDING = null
         },
         {
           label: '分析', items: [
+            { label: '方法建议…', action: () => setDialog({ kind: 'advise' }) },
+            { sep: true },
             { label: '描述统计', sub: [
               { label: '频率…', action: () => runAnalysis('frequencies') },
               { label: '描述…', action: () => runAnalysis('descriptives') },
@@ -10112,6 +10239,20 @@ let ITEM_CSV_PENDING = null
             sessionId,
             language: st?.locale ?? 'zh',
             onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'profile' || dialog?.kind === 'advise'
+          ? h(InsightDialog, {
+            sessionId,
+            kind: dialog.kind,
+            onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'repro'
+          ? h(ReproDialog, {
+            sessionId,
+            onClose: () => setDialog(null),
+            notify: (text) => notify(text),
           })
           : null,
         dialog?.kind === 'commands'

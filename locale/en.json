@@ -2,7 +2,7 @@
   "meta": {
     "title": "Analytics",
     "description": "dsh-analytics: an SPSS-style statistics workbench backed by a bundled GNU PSPP engine — data view, variable view, syntax, output viewer, analysis dialogs, and agent-readable datasets.",
-    "count": 1984
+    "count": 2000
   },
   "strings": {
     " 个个案": " cases",
@@ -1988,6 +1988,22 @@
     "复制": "Copy",
     "这次运行的表格还认不出来：先跑一次描述统计、t 检验或回归再来看": "None of the tables in this run can be turned into a sentence yet: run a descriptives, t test or regression first",
     "还有 {0} 张表认不出来：{1}": "{0} more tables could not be read: {1}",
-    "结果句子…": "Result sentences…"
+    "结果句子…": "Result sentences…",
+    "数据体检…": "Data checkup…",
+    "方法建议…": "Suggested methods…",
+    "导出复现包": "Export reproduction bundle",
+    "导出复现包…": "Export reproduction bundle…",
+    "复制表格": "Copy table",
+    "{0} 个变量：{1} 条必须先处理、{2} 条要注意": "{0} variables: {1} to fix first, {2} worth a look",
+    "{0} 条建议": "{0} suggestions",
+    "这次没有可显示的内容": "Nothing to show for this run",
+    "要填一个目录": "Enter a directory",
+    "复现包写到 {0}：{1} 个文件": "Reproduction bundle written to {0}: {1} files",
+    "目录": "Directory",
+    "例如 /mnt/data/bundle": "for example /mnt/data/bundle",
+    "把工作数据文件（data.sav）也复制进去": "Also copy the working data file (data.sav)",
+    "包里是：README（怎么重跑）、dataset.json（变量字典与每次运行）、syntax/（引擎真正收到的语法）、log.txt；勾上数据文件后整包可以原样重跑。": "The bundle holds README (how to rerun), dataset.json (dictionary and every run), syntax/ (the syntax the engine actually received) and log.txt; with the data file checked the bundle runs as is.",
+    "正在写入…": "Writing…",
+    "导出": "Export"
   }
 }

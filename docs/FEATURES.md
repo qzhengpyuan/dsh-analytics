@@ -1,6 +1,6 @@
 # dsh-analytics 功能说明
 
-> 版本 0.111.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 版本 0.112.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
 > 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
 > **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 37 个 agent 工具，让模型能在对话里直接分析、转换、画图。这些工具不再是「装了插件就有」，而是挂在插件自带的「统计分析」Agent 预设里（见 §9）。
 
@@ -488,7 +488,7 @@ SVG 尺寸 560×360，字体 Noto Sans CJK SC，中文标签正常。图表文�
 | `pspp_repro` | **复现包（0.107.0）**：把变量字典、每次运行的真语法、日志与版本号写成一组能重跑的文件 | `path`（目录）、`includeData` |
 | `pspp_power` | **功效与样本量（0.108.0）**：t / 配对 t / 单样本 t（d）、方差分析（f）、相关（r）、两比例、卡方（w）；`sample` 求每组例数、`power` 求把握度，真反演非中心 t/F/χ² | `method`、`mode`、`effect`、`alpha`、`power`、`n`、`groups`、`p1`/`p2`、`df` |
 
-**这六个工具是为 agent 设计的（0.106.0 / 0.107.0 / 0.108.0）**，面板不用它们，但它们决定了「对话里做分析」好不好用：
+**这六个工具是为 agent 设计的（0.106.0 / 0.107.0 / 0.108.0）**，但它们决定了「对话里做分析」好不好用。0.112.0 起其中三个在面板里也有了入口：数据 →「数据体检…」、分析 →「方法建议…」（同一份结果，表格加注文，可复制）、文件 →「导出复现包…」（填目录、可选复制 `data.sav`）：
 
 - `pspp_profile` 回答的是「这份数据现在能不能直接分析」：空变量与常量列、**像编号的列**（每个个案取值都不同，不能当测量变量；要求至少 10 个个案才报，5 个个案的年龄也能看不出重复）、**数字存成文本**（PSPP 平均不了）、**日期存成文本**、缺失超过一半、完全重复的列、离群占比过高、均值比标准差大四个数量级以上（量纲写错）。每一条都带 `level`：`error` 会让常见分析直接失败，`warn` 多半要先处理，`info` 只是提示。
 - `pspp_sentences` 把「读表」这一步替 agent 做完：Levene 的 Sig. < 0.05 时抄**不假定方差相等**那一行并在句子里点名；`.000` 写成 `p < 0.001`；`+Infinit`/`NaN` 不当 P 值；卡方表里没有 Pearson 行时（PSPP 期望频数为 0 时会这样）点名它真正印出来的检验；`Paired Sample Statistics` 的第一列是 `Pair 1`，不当成变量。认不出的表进 `skipped`，不硬编一句话。PSPP 的表头常拆成 2–3 行，`locateTable` 用「这一行里有几个能当数字的格子」定表头边界，再按列取**最靠近数据**的标签（`Lower/Upper` 落在第三行也取得到）。
@@ -809,7 +809,7 @@ npm run bundle-engine   # 从系统 PSPP 重新打包 engine/<本机平台>/
 node scripts/bundle-engine.mjs --from-prefix out --platform linux-x64   # 从容器里编好的 prefix 导入
 ```
 
-- 测试：`npm test` 依次跑 64 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/flow/poll、设置存储、路径白名单、预设挂载、缺失值、重复个案、异常个案、精确检验与风险差、分层卡方、多因子对比、引擎崩溃文案），全绿时共 949 条 ok 断言（Linux 与 Windows 相同；其中含装了 poppler 才跑的 1 条 pdf-notes —— 不装 poppler 是 948） —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`repro` 覆盖复现包（它 spawn 引擎，所以属于 engine job 而不是 pure tests）与 `engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`tools` 覆盖 47 个工具的 `execute()` 与输出渲染，`smoke` 里的 ONEWAY 用例覆盖「真引擎那张 `Multiple Comparisons (score)` 表上的两两比较注文」，`weight` 覆盖「上一轮 WEIGHT BY 被重放时注文怎么说」（真引擎跑通打开、分析、变换、图表、三种汇总表与五个导出工具），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」，`update` 覆盖版本比较、缓存与「检查失败不等于已是最新」，`import` 覆盖导入向导（跳过行、列名/类型覆盖、缺失值标记、预览不动数据集），`redraw` 覆盖「每种图型都能按原类型重绘、几何型图拒绝换类型、拼版与未知类型各自的说法」，`charts` 覆盖副标题位置与删除、拼版单文档/顺序/像素尺寸与间隙、3× 导出的像素倍数，`crash` 覆盖引擎缺陷 banner 的中文文案（Linux 139 与 Windows 3 同一条分支、不泄露 build_system、普通语法错误不被误判）。**退出码纪律（0.54.98 起）**：每个套件的失败必须让 `node test/x.mjs` 以非零退出码结束 —— `check()` 的 catch 里设 `process.exitCode = 1`，末尾再兜一次；`test/regression.mjs` 曾把这一句写在文件中部，导致其后一千多行的失败只打印不生效，Win10 用逐条 TAP 抓到。仓库级抽查法：对每个套件在最后一个 `check(` 块里插一条 `assert.ok(false)`，脚本 `rc` 必须非零（`test/zip.mjs` 是辅助模块、不打 `ok` 行，属预期例外）。全仓普查（0.54.99）结论：34 个套件注入 `throw` 后全部 `rc=1`（`update` 之后加入，同形），没有第二个 `regression` 那样的静默失败；但 `client`/`smoke`/`routes`/`exact`/`pdf-notes` 五个是**崩溃型**（失败时一条 `ok` 都不打，只吐堆栈），按「逐套件 `^ok` 表」比对版本时会把「断言红了」误读成「套件没跑」，做版本对照要按 `rc` 而不是 `^ok` 基数判断。失败行统一以 `FAIL ` 开头、后接用例名（0.56.2 起全部 29 个打失败行的套件同形：`FAIL  <用例名>` 或 `FAIL  <用例名>: <异常文案>`）；`pdf-notes` 在没装 `pdftotext` 的机器上永远 `exit 0` + 一行 skip，是唯一「本机不可证伪」的断言，只由 CI 的 `pdf-notes` job 覆盖。
+- 测试：`npm test` 依次跑 64 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/flow/poll、设置存储、路径白名单、预设挂载、缺失值、重复个案、异常个案、精确检验与风险差、分层卡方、多因子对比、引擎崩溃文案），全绿时共 949 条 ok 断言（Linux 与 Windows 相同；含装了 poppler 才跑的 1 条 pdf-notes —— 不装 poppler 是 948） —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`repro` 覆盖复现包（它 spawn 引擎，所以属于 engine job 而不是 pure tests）与 `engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`tools` 覆盖 47 个工具的 `execute()` 与输出渲染，`smoke` 里的 ONEWAY 用例覆盖「真引擎那张 `Multiple Comparisons (score)` 表上的两两比较注文」，`weight` 覆盖「上一轮 WEIGHT BY 被重放时注文怎么说」（真引擎跑通打开、分析、变换、图表、三种汇总表与五个导出工具），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」，`update` 覆盖版本比较、缓存与「检查失败不等于已是最新」，`import` 覆盖导入向导（跳过行、列名/类型覆盖、缺失值标记、预览不动数据集），`redraw` 覆盖「每种图型都能按原类型重绘、几何型图拒绝换类型、拼版与未知类型各自的说法」，`charts` 覆盖副标题位置与删除、拼版单文档/顺序/像素尺寸与间隙、3× 导出的像素倍数，`crash` 覆盖引擎缺陷 banner 的中文文案（Linux 139 与 Windows 3 同一条分支、不泄露 build_system、普通语法错误不被误判）。**退出码纪律（0.54.98 起）**：每个套件的失败必须让 `node test/x.mjs` 以非零退出码结束 —— `check()` 的 catch 里设 `process.exitCode = 1`，末尾再兜一次；`test/regression.mjs` 曾把这一句写在文件中部，导致其后一千多行的失败只打印不生效，Win10 用逐条 TAP 抓到。仓库级抽查法：对每个套件在最后一个 `check(` 块里插一条 `assert.ok(false)`，脚本 `rc` 必须非零（`test/zip.mjs` 是辅助模块、不打 `ok` 行，属预期例外）。全仓普查（0.54.99）结论：34 个套件注入 `throw` 后全部 `rc=1`（`update` 之后加入，同形），没有第二个 `regression` 那样的静默失败；但 `client`/`smoke`/`routes`/`exact`/`pdf-notes` 五个是**崩溃型**（失败时一条 `ok` 都不打，只吐堆栈），按「逐套件 `^ok` 表」比对版本时会把「断言红了」误读成「套件没跑」，做版本对照要按 `rc` 而不是 `^ok` 基数判断。失败行统一以 `FAIL ` 开头、后接用例名（0.56.2 起全部 29 个打失败行的套件同形：`FAIL  <用例名>` 或 `FAIL  <用例名>: <异常文案>`）；`pdf-notes` 在没装 `pdftotext` 的机器上永远 `exit 0` + 一行 skip，是唯一「本机不可证伪」的断言，只由 CI 的 `pdf-notes` job 覆盖。
 - smoke：真实引擎跑一遍打开 → 分析 → 保存。
 - routes：43 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收、`api/heartbeat`、新增的 `api/settings`）。
 

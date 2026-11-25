@@ -1111,6 +1111,122 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   delete globalThis.__updateAnswer
 }
 
+// 数据 → 数据体检… / 分析 → 方法建议… / 文件 → 导出复现包…：这三条入口原来只
+// 有给 agent 用的工具，面板里没有；断言落在「点开就有内容、失败有话说」上。
+{
+  const insHost = window.document.createElement('div')
+  window.document.body.appendChild(insHost)
+  const insRoot = createRoot(insHost)
+  const profileAnswer = {
+    ok: true,
+    result: {
+      item: { id: 'profile-1', kind: 'table', title: '数据体检' },
+      profile: { variableCount: 3, counts: { error: 1, warn: 2, info: 0 } },
+      table: {
+        caption: '数据体检',
+        matrix: [
+          ['变量', '类型', '个案', '缺失'],
+          ['id', '数值', '20', '0'],
+          ['score', '数值', '18', '2'],
+        ],
+        notes: ['必须先处理：id 像编号', '要注意：score 缺失 2 / 20'],
+      },
+    },
+  }
+  const adviseAnswer = {
+    ok: true,
+    result: {
+      item: { id: 'advise-1', kind: 'table', title: '方法建议' },
+      outcome: 'score',
+      group: 'arm',
+      recommendations: [
+        { analysis: '独立样本 t 检验', why: '分组有两个水平', how: { tool: 'pspp_analyze', params: {} }, caveats: [] },
+      ],
+      notes: ['数据：arm 缺失 0'],
+      table: {
+        caption: '方法建议',
+        matrix: [['顺序', '建议用的过程', '为什么', '怎么做'], ['1', '独立样本 t 检验', '分组有两个水平', 'pspp_analyze']],
+        notes: ['要注意：先看方差齐性'],
+      },
+    },
+  }
+  window.fetch = async (url) => {
+    const target = String(url)
+    const text = target.includes('api/profile') ? JSON.stringify(profileAnswer)
+      : target.includes('api/advise') ? JSON.stringify(adviseAnswer)
+        : JSON.stringify({ ok: true, state: { id: 'session-i', version: '0.112.0', engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true }, dataset: null, items: [], log: [], history: { undo: 0, redo: 0 }, locale: 'zh' } })
+    return { ok: true, status: 200, text: async () => text }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    insRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const openFrom = async (menuName, itemName) => {
+    const button = [...insHost.querySelectorAll('.ap-menu-button')].find((node) => node.textContent.trim() === menuName)
+    assert.ok(button, `the menu bar has ${menuName}`)
+    await act(async () => { button.click(); await new Promise((resolve) => setTimeout(resolve, 20)) })
+    const item = [...insHost.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.trim() === itemName)
+    assert.ok(item, `${menuName} offers ${itemName}`)
+    await act(async () => { item.click(); await new Promise((resolve) => setTimeout(resolve, 80)) })
+  }
+  await openFrom('数据', '数据体检…')
+  assert.match(insHost.textContent, /3 个变量：1 条必须先处理、2 条要注意/, insHost.textContent.slice(0, 200))
+  assert.match(insHost.textContent, /id 像编号/, 'notes are rendered')
+  assert.equal(insHost.querySelectorAll('.ap-ins-table tbody tr').length, 2, 'profile table rows')
+  const copy = [...insHost.querySelectorAll('.ap-ins-copy')][0]
+  assert.ok(copy, 'the table can be copied')
+  await act(async () => { copy.click(); await new Promise((resolve) => setTimeout(resolve, 20)) })
+  await act(async () => {
+    const close = [...insHost.querySelectorAll('.ap-modal button')].find((node) => node.textContent.trim() === '关闭')
+    close.click()
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  await openFrom('分析', '方法建议…')
+  assert.match(insHost.textContent, /1 条建议/, insHost.textContent.slice(0, 200))
+  assert.match(insHost.textContent, /独立样本 t 检验/, 'the recommendation is on screen')
+  await act(async () => {
+    const close = [...insHost.querySelectorAll('.ap-modal button')].find((node) => node.textContent.trim() === '关闭')
+    close.click()
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  // 导出复现包：空目录先被拦下，填了目录才发请求。
+  let reproCalls = 0
+  window.fetch = async (url) => {
+    const target = String(url)
+    if (target.includes('api/repro')) {
+      reproCalls += 1
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { path: '/tmp/bundle', files: ['README.md', 'dataset.json'], runs: 2, cases: 20 } }) }
+    }
+    return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state: { id: 'session-i', version: '0.112.0', engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true }, dataset: null, items: [], log: [], history: { undo: 0, redo: 0 }, locale: 'zh' } }) }
+  }
+  globalThis.fetch = window.fetch
+  await openFrom('文件', '导出复现包…')
+  assert.ok(insHost.querySelector('.ap-repro'), 'the bundle dialog opens')
+  await act(async () => {
+    const ok = [...insHost.querySelectorAll('.ap-modal button')].find((node) => node.textContent.trim() === '导出')
+    ok.click()
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.equal(reproCalls, 0, 'an empty directory is refused before the request')
+  assert.match(insHost.textContent, /要填一个目录/, 'and says why')
+  const input = insHost.querySelector('.ap-repro input[type="text"]')
+  await act(async () => {
+    // 受控输入必须走原型上的 setter，否则 React 收不到变化（直接改 .value 无效）。
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, '/tmp/bundle')
+    input.dispatchEvent(new window.Event('input', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  await act(async () => {
+    const ok = [...insHost.querySelectorAll('.ap-modal button')].find((node) => node.textContent.trim() === '导出')
+    ok.click()
+    await new Promise((resolve) => setTimeout(resolve, 60))
+  })
+  assert.equal(reproCalls, 1, 'a directory is sent once')
+  assert.match(insHost.textContent, /复现包写到/, insHost.textContent.slice(-200))
+  await act(async () => { insRoot.unmount() })
+}
+
 // View → 结果句子…: the panel has to show the sentences the tool would produce,
 // and each one has to be copyable. The interesting failure is "the dialog opens
 // and stays empty", which a source-level assertion would not catch.
