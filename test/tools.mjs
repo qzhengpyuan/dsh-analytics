@@ -66,7 +66,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 46, names.join(' '))
+  assert.equal(names.length, 47, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -206,6 +206,15 @@ await check('pspp_repro writes a bundle that can be rerun', async () => {
   assert.ok(bundle.files.includes('README.md'))
   assert.ok(bundle.files.includes('dataset.json'))
   assert.ok(existsSync(join(target, 'README.md')))
+})
+
+await check('pspp_power answers a sample-size question with the real distributions', async () => {
+  const plan = await call('pspp_power', { method: 'ttest-two', effect: 0.5, mode: 'sample' })
+  assert.equal(plan.nPerGroup, 64)
+  assert.equal(plan.table.caption, '功效与样本量')
+  assert.equal(plan.item.title, '功效与样本量')
+  const achieved = await call('pspp_power', { method: 'ttest-two', effect: 0.5, mode: 'power', n: 64 })
+  assert.ok(Math.abs(achieved.power - plan.power) < 1e-9)
 })
 
 await check('pspp_partial reports partial correlations', async () => {

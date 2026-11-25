@@ -422,6 +422,18 @@ r = await call('POST', `${base}/api/numbers`, { sessionId: sid })
   assert.ok(Array.isArray(result.tables))
 }
 
+r = await call('POST', `${base}/api/power`, { sessionId: sid, options: { method: 'ttest-two', effect: 0.5, mode: 'sample' } })
+{
+  const result = r.json().result ?? {}
+  console.log('power', r.code, result.nPerGroup, result.total, result.item?.title)
+  assert.equal(r.code, 200)
+  assert.equal(result.nPerGroup, 64)
+  assert.equal(result.item?.title, '功效与样本量')
+}
+r = await call('POST', `${base}/api/power`, { sessionId: sid, options: { method: 'nope' } })
+assert.equal(r.code, 400)
+assert.match(r.json().error, /没有这个方法/)
+
 r = await call('POST', `${base}/api/advise`, { sessionId: sid })
 {
   const result = r.json().result ?? {}

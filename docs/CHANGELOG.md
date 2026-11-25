@@ -5,6 +5,18 @@
 
 计数口径细则（0.72.0 起）：`^ok` 只统计打印 `ok  …` 的断言。`test/stage.mjs`、`test/messages.mjs` 打自己的 `N checks passed` 汇总行（`^ok` 为 0）；`test/build.mjs` 有一行 `ok  …` 写在 `await check(...)` 内部，因此比它自报的 summary 多 1。核对数量只用 `grep -cE '^ok\b'`。
 
+## 0.108.0
+
+**`pspp_power`：功效与样本量。** 写方法学一节绕不开「每组需要多少例」，PSPP 不提供，之前只能在别的软件里算。这里不抄「n = 16/d²」这类近似口诀，而是真的反演分布：
+
+- 方法：独立样本 t（Cohen's d，每组相同）、配对 t、单样本 t、单因素方差分析（Cohen's f，k 组）、Pearson 相关（r，Fisher z 闭式）、两独立比例（p1 对 p2）、卡方拟合优度（Cohen's w，df 可给）。`mode: 'sample'` 求每组例数，`mode: 'power'` 求给定 n 的把握度。
+- 分布：非中心 t 用 **卡方混合的 Simpson 积分**（`P(T' ≥ t) = ∫₀^∞ Φ(δ − t√(2u/df))·u^{df/2-1}e^{-u}/Γ(df/2) du`，4000 段，df > 400 退正态）；非中心 F 用 Poisson 权重的不完全 Beta 表示；非中心卡方同法用不完全 Gamma；临界值用不完全 Beta/Gamma 二分反解。共用函数抽到新的 `lib/dist.js`（`lgamma`、`incompleteBeta`、`incompleteGamma`、`normalCdf`、`normalQuantile`），`charts.js`/`tables.js` 里那两份私有的不完全 Beta 不动。
+- 对外能核对的数（`test/power.mjs` 13 条钉住）：t 检验 d=0.5、α=0.05 双侧、把握度 0.80 ⇒ **每组 64**（G*Power 63.77）；配对/单样本同参数 ⇒ **34**；相关 r=0.3 ⇒ **85**；方差分析 f=0.25、三组 ⇒ **每组 53 / 合计 159**；比例 0.3 对 0.5 ⇒ 约 **93**（把 93 代回去把握度必须真的 ≥0.80）；卡方 w=0.3、df=1 ⇒ **88**；临界值 t(0.975;62)=1.99897、F(0.05;2,50)=3.1826、χ²(0.95;1)=3.84146 与印出来的表一致。另有三条不变量：搜出来的 n 是**最小**达标值（n−1 必须不达标）、把握度随 n 上升、效应量越小例数越多。
+- 接口：`api/power`、工具 `pspp_power`（工具 46 → **47**）。结果同时落一张面板表「功效与样本量」（方法、α、效应量、每组例数、合计、把握度）并把数字原样回给调用方。
+- 顺手修：`非中心卡方` 与 `非中心 F` 的尾概率方向写反过（`ncx2(3.84,1,0)` 回 0.95），用例里用「无偏时等于中心分布」这一条钉住；`proportions` 不再被「必须先给 effect」的前置检查挡住。
+
+新套件 `test/power.mjs`（13 条）；`test/tools.mjs` 43 → 44（真跑一次求样本量与一次求把握度）、`test/preset.mjs` 46 → 47、`test/routes.mjs` 加 `api/power`（含未知方法 400）。词典 1968 → 1977 条。
+
 ## 0.107.1
 
 **只修 CI 分工：`test/repro.mjs` 要 spawn 引擎，属于 engine job。** 0.107.0 把它和 `test/advise.mjs` 一起塞进 engine-free 的 `pure tests` 列表，三条 unit 腿（Node 20/22/24）全红，报的是 `保存数据失败：打不开 work.sav：null: 1: exec: null: not found` —— `resolveEngine()` 在没有 `engine/` 目录的机器上回 null bin，而复现包的用例要建数据集、落 `work.sav`。现在 unit 只留 `advise`（纯函数），`repro` 挪进 engine tests；`test/repro.mjs` 头部写明这一条，避免下次再放错。代码与 0.107.0 相同（那一版的 tarball 本身没问题，引擎随包）。

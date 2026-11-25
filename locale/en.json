@@ -2,7 +2,7 @@
   "meta": {
     "title": "Analytics",
     "description": "dsh-analytics: an SPSS-style statistics workbench backed by a bundled GNU PSPP engine — data view, variable view, syntax, output viewer, analysis dialogs, and agent-readable datasets.",
-    "count": 1968
+    "count": 1977
   },
   "strings": {
     " 个个案": " cases",
@@ -1972,6 +1972,15 @@
     "为什么": "Why",
     "怎么做": "How",
     "要注意：": "Watch out: ",
-    "数据：": "Data: "
+    "数据：": "Data: ",
+    "功效与样本量": "Power and sample size",
+    "每组例数": "Cases per group",
+    "合计例数": "Total cases",
+    "把握度": "Power",
+    "独立样本 t 检验（每组相同）": "Independent-samples t test (equal groups)",
+    "配对 t 检验": "Paired t test",
+    "Pearson 相关": "Pearson correlation",
+    "两独立比例": "Two independent proportions",
+    "卡方拟合优度": "Chi-square goodness of fit"
   }
 }
