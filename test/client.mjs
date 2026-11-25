@@ -2306,6 +2306,38 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   assert.match(clientSource, /api\('api\/curve', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/curve')
 
+  // 多维标度：降维组里的第二张图（经典解，勾几个数值变量就是几个维度）。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const analysePopMds = menuHost.querySelector('.ap-menu-pop')
+  const dimensionGroupMds = [...analysePopMds.querySelectorAll('button')].find((node) => node.textContent.startsWith('降维'))
+  await act(async () => {
+    dimensionGroupMds?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const mdsItem = [...(dimensionGroupMds?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])]
+    .find((node) => node.textContent.startsWith('多维标度'))
+  assert.ok(mdsItem, 'the dimension group lists multidimensional scaling')
+  await act(async () => {
+    mdsItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const mdsDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.match(mdsDialog?.textContent ?? '', /多维标度/, 'the dialog is titled like the procedure')
+  assert.match(mdsDialog.textContent, /距离测度/, 'and asks for a distance measure')
+  assert.match(mdsDialog.textContent, /经典多维标度/, 'and says which algorithm it uses')
+  assert.match(mdsDialog.textContent, /已选 2 个变量/, 'two numeric variables start selected')
+  const mdsOk = [...mdsDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(mdsOk.disabled, false, 'two variables are enough')
+  const mdsCancel = [...mdsDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    mdsCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.match(clientSource, /api\('api\/mds', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/mds')
+
 
 
   // 二阶段最小二乘：工具数不足时确定按钮不可点（识别不足是代数问题）。

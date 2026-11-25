@@ -2377,6 +2377,64 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     }
 
     /**
+     * 多维标度（SPSS 的「分析 → 降维 → 多维标度」）。
+     *
+     * 经典解：距离矩阵一律由插件从变量算（PSPP 没有 PROXIMITIES），勾几个
+     * 数值变量就是几个维度，再降到 1–3 维画出来。
+     */
+    function MdsDialog({ variables, onRun, onClose }) {
+      const numeric = variables.filter((variable) => variable.type !== 'string')
+      const [chosen, setChosen] = useState(numeric.slice(0, 2).map((variable) => variable.name))
+      const [distance, setDistance] = useState('euclidean')
+      const [dimensions, setDimensions] = useState('2')
+      const [standardize, setStandardize] = useState(false)
+      const toggle = (name) => setChosen((current) => (current.includes(name)
+        ? current.filter((entry) => entry !== name)
+        : [...current, name]))
+      return h(Modal, {
+        title: '多维标度',
+        wide: true,
+        okDisabled: chosen.length === 0,
+        onCancel: onClose,
+        onOk: () => onRun({ variables: chosen, distance, dimensions: Number(dimensions) || 2, standardize }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '定义距离的变量（数值）'),
+          h('div', { className: 'ap-chips' },
+            numeric.map((variable) => h('button', {
+              key: variable.name,
+              type: 'button',
+              className: `ap-chip${chosen.includes(variable.name) ? ' ap-chip-on' : ''}`,
+              onClick: () => toggle(variable.name),
+              translate: false,
+            }, variable.name))),
+          h('div', { className: 'ap-dlg-caption' }, '距离测度'),
+          h('select', { value: distance, onChange: (event) => setDistance(event.target.value) },
+            h('option', { value: 'euclidean' }, '欧氏距离'),
+            h('option', { value: 'sqeuclidean' }, '平方欧氏距离'),
+            h('option', { value: 'cityblock' }, '曼哈顿距离')),
+          h('div', { className: 'ap-dlg-caption' }, '维数'),
+          h('select', { value: dimensions, onChange: (event) => setDimensions(event.target.value) },
+            h('option', { value: '1' }, '1'),
+            h('option', { value: '2' }, '2'),
+            h('option', { value: '3' }, '3')),
+          h('label', { className: 'ap-check' },
+            h('input', {
+              type: 'checkbox',
+              checked: standardize,
+              onChange: (event) => setStandardize(event.target.checked),
+            }),
+            '先把变量标准化（z 分数）')),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-hint' }, `已选 ${chosen.length} 个变量`),
+          h('div', { className: 'ap-hint' }, '每个个案在选中变量上的取值就是一个点，距离矩阵由这些点算出来，再压到 1–3 维。'),
+          h('div', { className: 'ap-hint' }, '这是经典多维标度（Torgerson 双中心化），不是 SPSS 那个迭代的 ALSCAL：距离真来自欧氏空间时结果一致。'),
+          h('div', { className: 'ap-hint' }, 'Stress 是按所选维数还原距离的归一化残差，0 表示完美还原。'),
+          h('div', { className: 'ap-hint' }, '最多 120 个个案、3 维；缺失值按整例剔除。'))))
+    }
+
+    /**
      * 曲线估计（SPSS 的「分析 → 回归 → 曲线估计」）。
      *
      * 11 个模型一次全试，表里按 R² 排不了（顺序固定按模型清单），最佳的一条
@@ -7703,6 +7761,23 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId, notify, setSt, setView, setDialog])
 
+      const runMds = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/mds', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const model = value.result?.model ?? {}
+          notify(tr('多维标度：{0} 个个案，{1} 维，Stress {2}', model.cases ?? 0, model.dimensions ?? 0,
+            Number(model.stress ?? 0).toFixed(4)))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId, notify, setSt, setView, setDialog])
+
       const runCurve = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -8599,6 +8674,7 @@ let ITEM_CSV_PENDING = null
               { label: '因子…', action: () => runAnalysis('factor') },
               { label: '对应分析…', action: () => setDialog({ kind: 'correspondence' }) },
               { label: '多重对应分析…', action: () => setDialog({ kind: 'mca' }) },
+              { label: '多维标度…（ALSCAL 替代）', action: () => setDialog({ kind: 'mds' }) },
               { label: '快速聚类…', action: () => runAnalysis('cluster') },
             ] },
             { label: '刻度', sub: [
@@ -9858,6 +9934,13 @@ let ITEM_CSV_PENDING = null
           ? h(WlsDialog, {
             variables,
             onRun: (payload) => runWls(payload),
+            onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'mds'
+          ? h(MdsDialog, {
+            variables,
+            onRun: (payload) => runMds(payload),
             onClose: () => setDialog(null),
           })
           : null,

@@ -1,6 +1,6 @@
 {
   "name": "dsh-analytics-pspp",
-  "version": "0.94.0",
+  "version": "0.95.0",
   "private": true,
   "description": "dsh-analytics: AI-assisted statistics workbench for DeepSeek Harness, built on a bundled GNU PSPP engine with an SPSS-style interface — data editor, syntax editor, output viewer, charts, agent tools, and multi-format import (.sav/.por/.xlsx/.ods/.dta/.csv).",
   "type": "module",
@@ -57,7 +57,7 @@
   "icon": "./icon.svg",
   "scripts": {
     "bundle-engine": "node scripts/bundle-engine.mjs",
-    "test": "node test/build.mjs && node test/order.mjs && node test/raster.mjs && node test/charts.mjs && node test/office.mjs && node test/xlsx.mjs && node test/import.mjs && node test/ods.mjs && node test/dta.mjs && node test/engine.mjs && node test/stage.mjs && node test/messages.mjs && node test/mrsets.mjs && node test/tables.mjs && node test/regression.mjs && node test/client.mjs && node test/smoke.mjs && node test/routes.mjs && node test/poll.mjs && node test/settings.mjs && node test/i18n.mjs && node test/mva.mjs && node test/dupes.mjs && node test/outliers.mjs && node test/exact.mjs && node test/risk.mjs && node test/cmh.mjs && node test/crash.mjs && node test/install.mjs && node test/paths.mjs && node test/preset.mjs && node test/pdf-notes.mjs && node test/flow.mjs && node test/contrasts.mjs && node test/tools.mjs && node test/weight.mjs && node test/update.mjs && node test/survival.mjs && node test/cox.mjs && node test/discriminant.mjs && node test/cluster.mjs && node test/timeseries.mjs && node test/multinomial.mjs && node test/ordinal.mjs && node test/poisson.mjs && node test/wls.mjs && node test/twosls.mjs && node test/distributions.mjs && node test/correspondence.mjs && node test/mca.mjs && node test/curves.mjs",
+    "test": "node test/build.mjs && node test/order.mjs && node test/raster.mjs && node test/charts.mjs && node test/office.mjs && node test/xlsx.mjs && node test/import.mjs && node test/ods.mjs && node test/dta.mjs && node test/engine.mjs && node test/stage.mjs && node test/messages.mjs && node test/mrsets.mjs && node test/tables.mjs && node test/regression.mjs && node test/client.mjs && node test/smoke.mjs && node test/routes.mjs && node test/poll.mjs && node test/settings.mjs && node test/i18n.mjs && node test/mva.mjs && node test/dupes.mjs && node test/outliers.mjs && node test/exact.mjs && node test/risk.mjs && node test/cmh.mjs && node test/crash.mjs && node test/install.mjs && node test/paths.mjs && node test/preset.mjs && node test/pdf-notes.mjs && node test/flow.mjs && node test/contrasts.mjs && node test/tools.mjs && node test/weight.mjs && node test/update.mjs && node test/survival.mjs && node test/cox.mjs && node test/discriminant.mjs && node test/cluster.mjs && node test/timeseries.mjs && node test/multinomial.mjs && node test/ordinal.mjs && node test/poisson.mjs && node test/wls.mjs && node test/twosls.mjs && node test/distributions.mjs && node test/correspondence.mjs && node test/mca.mjs && node test/curves.mjs && node test/mds.mjs",
     "pack": "node scripts/pack.mjs --with-engine",
     "engine:fetch": "node scripts/fetch-engine.mjs",
     "pack:portable": "node scripts/pack.mjs",

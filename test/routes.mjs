@@ -1290,6 +1290,19 @@ r = await call('POST', `${base}/api/multinomial`, { sessionId: 'mlr01', options:
 console.log('multinomial with a reference ->', r.code, r.json().result?.model?.reference,
   r.json().result?.model?.categories?.join(','))
 // Two-stage least squares: instruments that are no weaker than the endogenous set.
+// Multidimensional scaling: distances from the chosen variables, classical solution.
+r = await call('POST', `${base}/api/mds`, { sessionId: 'mlr01', options: { variables: ['dose', 'counts'], dimensions: 2 } })
+const mds = await r.json()
+console.log('mds ->', r.code, mds.result?.matrices?.length, mds.result?.model?.dimensions,
+  Number(mds.result?.model?.stress ?? 1).toFixed(4), mds.result?.chart?.rows?.length)
+assert.equal(r.code, 200, 'api/mds answers')
+assert.equal(mds.result?.matrices?.length, 2, 'summary plus coordinates')
+assert.equal(mds.result?.model?.cases, 60, 'every case used')
+assert.ok((mds.result?.model?.explained ?? []).reduce((sum, value) => sum + value, 0) > 0.99, 'proportions sum to one')
+assert.ok(mds.result?.chart?.rows?.length === 60, 'the map carries one point per object')
+r = await call('POST', `${base}/api/mds`, { sessionId: 'mlr01', options: { variables: ['arm'] } })
+assert.equal(r.code, 400, 'a text variable is refused')
+
 // Curve estimation: a model summary plus a scatter plot carrying the best curve.
 r = await call('POST', `${base}/api/curve`, { sessionId: 'mlr01', options: { dependent: 'dose', independent: 'counts', models: ['linear', 'quadratic', 'exponential'] } })
 const curve = await r.json()

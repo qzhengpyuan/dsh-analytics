@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 36, names.join(' '))
+  assert.equal(names.length, 37, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -371,6 +371,16 @@ await check('pspp_correspondence maps two categorical variables', async () => {
   assert.equal(out.matrix[0][0], '维')
   assert.ok(Number.isFinite(out.chiSquare) && out.chiSquare >= 0, `chi-square ${out.chiSquare}`)
   assert.ok(out.rows.length >= 2 && out.columns.length >= 2, `${out.rows.length}x${out.columns.length}`)
+})
+
+await check('pspp_mds places the cases in a low-dimensional space', async () => {
+  await open()
+  const out = await call('pspp_mds', { variables: ['score', 'time'], dimensions: 2 })
+  assert.equal(out.matrix[0][0], '维')
+  assert.equal(out.dimensions, 2)
+  assert.ok(out.stress >= 0 && out.stress <= 1, `stress ${out.stress}`)
+  assert.equal(out.coordinates.length, out.cases + 1, 'one row of coordinates per case plus the header')
+  assert.ok(out.chart?.kind === 'biplot', 'the map comes with it')
 })
 
 await check('pspp_curve fits the requested models and returns the best one', async () => {
