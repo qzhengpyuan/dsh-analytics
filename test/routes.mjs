@@ -1303,6 +1303,26 @@ assert.ok(mds.result?.chart?.rows?.length === 60, 'the map carries one point per
 r = await call('POST', `${base}/api/mds`, { sessionId: 'mlr01', options: { variables: ['arm'] } })
 assert.equal(r.code, 400, 'a text variable is refused')
 
+// Log-linear analysis: four tables. A 2×3 table with main effects only has
+// 6 cells and 4 parameters, so the fit must have exactly 2 degrees of freedom.
+await call('POST', `${base}/api/new`, { sessionId: 'll01', cwd: home, variables: [
+  { name: 'g', type: 'string' },
+  { name: 'h', type: 'string' },
+] })
+for (let index = 0; index < 60; index += 1) {
+  await call('POST', `${base}/api/case`, { sessionId: 'll01', values: { g: index % 2 ? 'x' : 'y', h: ['a', 'b', 'c'][index % 3] } })
+}
+r = await call('POST', `${base}/api/loglinear`, { sessionId: 'll01', options: { variables: ['g', 'h'], terms: [['g'], ['h']] } })
+const loglin = await r.json()
+console.log('loglinear ->', r.code, loglin.result?.matrices?.map((matrix) => matrix.length).join(','),
+  Number(loglin.result?.model?.fit?.g2 ?? -1).toFixed(4), loglin.result?.model?.fit?.df)
+assert.equal(r.code, 200, 'api/loglinear answers')
+assert.equal(loglin.result?.matrices?.length, 4, 'counts, fit, parameters, partial association')
+assert.equal(loglin.result?.matrices?.[0]?.length, 7, 'header plus six cells')
+assert.equal(loglin.result?.model?.fit?.df, 2, 'six cells minus four parameters')
+r = await call('POST', `${base}/api/loglinear`, { sessionId: 'll01', options: { variables: ['g'] } })
+assert.equal(r.code, 400, 'one factor is refused')
+
 // Curve estimation: a model summary plus a scatter plot carrying the best curve.
 r = await call('POST', `${base}/api/curve`, { sessionId: 'mlr01', options: { dependent: 'dose', independent: 'counts', models: ['linear', 'quadratic', 'exponential'] } })
 const curve = await r.json()

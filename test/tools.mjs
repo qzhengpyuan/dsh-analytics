@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 37, names.join(' '))
+  assert.equal(names.length, 38, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -381,6 +381,34 @@ await check('pspp_mds places the cases in a low-dimensional space', async () => 
   assert.ok(out.stress >= 0 && out.stress <= 1, `stress ${out.stress}`)
   assert.equal(out.coordinates.length, out.cases + 1, 'one row of coordinates per case plus the header')
   assert.ok(out.chart?.kind === 'biplot', 'the map comes with it')
+})
+
+await check('pspp_loglinear fits a log-linear model and reports partial associations', async () => {
+  // 自带一个两分类变量的夹具：对数线性分析只收分类变量，pspp_new 可以直接
+  // 声明成 string，不必先改 measure。
+  const rows = []
+  for (let index = 0; index < 40; index += 1) {
+    rows.push({ a: index % 2 ? 'x' : 'y', b: ['p', 'q', 'r'][index % 3] })
+  }
+  await call('pspp_new', {
+    variables: [
+      { name: 'a', type: 'string', measure: 'nominal' },
+      { name: 'b', type: 'string', measure: 'nominal' },
+    ],
+    rows,
+  })
+  const out = await call('pspp_loglinear', { variables: ['a', 'b'], terms: [['a'], ['b']] })
+  assert.equal(out.matrix[0][0], '模型')
+  assert.ok(out.fit.df > 0, `df ${out.fit.df}`)
+  assert.ok(out.fit.g2 >= 0, `G squared ${out.fit.g2}`)
+  // 两个表都是「表头 + 数据行」的矩阵，不是对象数组。
+  assert.deepEqual(out.parameters[0], ['参数', '估计', '标准误', 'z', 'P'])
+  assert.equal(out.parameters[1][0], '常数项', 'the first parameter is the intercept')
+  assert.equal(out.parameters.filter((row) => String(row[0]).startsWith('常数项')).length, 1, 'exactly one intercept')
+  assert.ok(out.parameters.slice(1).every((row) => Number.isFinite(Number(row[1]))), 'every estimate is a number')
+  assert.equal(out.partial.length, out.terms.length + 1, 'a header plus one partial association row per term')
+  assert.ok(out.partial.length >= 2, 'one partial association row per term')
+  assert.ok(out.cells[0].includes('观察频数'), 'the cell table names the counts')
 })
 
 await check('pspp_curve fits the requested models and returns the best one', async () => {

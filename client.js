@@ -2377,6 +2377,80 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     }
 
     /**
+     * 一般对数线性分析（SPSS 的「分析 → 对数线性 → 一般」）。
+     *
+     * 勾分类变量 + 勾交互项，构造出来的模型说明直接显示出来，免得用户只能从
+     * 输出倒推「刚才到底拟合了哪个模型」。
+     */
+    function LogLinearDialog({ variables, onRun, onClose }) {
+      const categorical = variables.filter((variable) => variable.type === 'string'
+        || variable.measure === 'nominal' || variable.measure === 'ordinal')
+      const [chosen, setChosen] = useState(categorical.slice(0, 2).map((variable) => variable.name))
+      const [interactions, setInteractions] = useState([])
+      const [saturated, setSaturated] = useState(false)
+      const toggle = (name) => setChosen((current) => {
+        const next = current.includes(name) ? current.filter((entry) => entry !== name) : [...current, name]
+        // 去掉的变量不能留着它的交互项，否则提交时会报「不认识的对数线性项」。
+        setInteractions((list) => list.filter((pair) => pair.every((entry) => next.includes(entry))))
+        return next
+      })
+      const pairs = []
+      for (let left = 0; left < chosen.length; left += 1) {
+        for (let right = left + 1; right < chosen.length; right += 1) pairs.push([chosen[left], chosen[right]])
+      }
+      const togglePair = (pair) => setInteractions((current) => (current.some((entry) => entry.join('*') === pair.join('*'))
+        ? current.filter((entry) => entry.join('*') !== pair.join('*'))
+        : [...current, pair]))
+      const terms = saturated ? [] : [...chosen.map((name) => [name]), ...interactions]
+      const formula = saturated
+        ? `${chosen.join(' × ')}（饱和）`
+        : terms.map((term) => term.join(' × ')).join('、')
+      return h(Modal, {
+        title: '一般对数线性分析',
+        wide: true,
+        okDisabled: chosen.length < 2,
+        onCancel: onClose,
+        onOk: () => onRun({ variables: chosen, terms: saturated ? undefined : terms, model: saturated ? 'saturated' : undefined }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '因子（分类变量，2–4 个）'),
+          h('div', { className: 'ap-chips' },
+            categorical.map((variable) => h('button', {
+              key: variable.name,
+              type: 'button',
+              className: `ap-chip${chosen.includes(variable.name) ? ' ap-chip-on' : ''}`,
+              onClick: () => toggle(variable.name),
+              translate: false,
+            }, variable.name))),
+          h('div', { className: 'ap-dlg-caption' }, '交互项'),
+          saturated
+            ? h('div', { className: 'ap-hint' }, '饱和模型：所有交互都放进去，拟合优度没有自由度。')
+            : (pairs.length === 0
+              ? h('div', { className: 'ap-hint' }, '勾两个以上因子后可以加交互项。')
+              : pairs.map((pair) => h('label', { key: pair.join('*'), className: 'ap-check' },
+                h('input', {
+                  type: 'checkbox',
+                  checked: interactions.some((entry) => entry.join('*') === pair.join('*')),
+                  onChange: () => togglePair(pair),
+                }),
+                `${pair[0]} × ${pair[1]}`))),
+          h('label', { className: 'ap-check' },
+            h('input', {
+              type: 'checkbox',
+              checked: saturated,
+              onChange: (event) => setSaturated(event.target.checked),
+            }),
+            '饱和模型（全部交互）')),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-hint' }, `已选 ${chosen.length} 个因子`),
+          h('div', { className: 'ap-hint' }, `模型：${formula || '（还没选）'}`),
+          h('div', { className: 'ap-hint' }, '主效应总是放进去；勾上 a × b 表示允许这两个变量有关联。'),
+          h('div', { className: 'ap-hint' }, '拟合用泊松回归（对数线性模型），期望频数包含频数为 0 的格子。'),
+          h('div', { className: 'ap-hint' }, '看「拟合优度」的 P：P 小说明模型不够，把该加的交互加上；「分层检验」说每一项能不能省。'))))
+    }
+
+    /**
      * 多维标度（SPSS 的「分析 → 降维 → 多维标度」）。
      *
      * 经典解：距离矩阵一律由插件从变量算（PSPP 没有 PROXIMITIES），勾几个
@@ -7761,6 +7835,23 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId, notify, setSt, setView, setDialog])
 
+      const runLoglinear = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/loglinear', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const fit = value.result?.model?.fit ?? {}
+          notify(tr('对数线性分析：G² {0}，自由度 {1}，P {2}', Number(fit.g2 ?? 0).toFixed(4), fit.df ?? 0,
+            fit.df > 0 ? (fit.p < 0.001 ? '< 0.001' : Number(fit.p ?? 0).toFixed(4)) : '—'))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId, notify, setSt, setView, setDialog])
+
       const runMds = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -8679,6 +8770,9 @@ let ITEM_CSV_PENDING = null
             ] },
             { label: '刻度', sub: [
               { label: '可靠性分析…', action: () => runAnalysis('reliability') },
+            ] },
+            { label: '对数线性', sub: [
+              { label: '一般对数线性…', action: () => setDialog({ kind: 'loglinear' }) },
             ] },
             { label: '非参数检验', sub: [
               { label: '卡方…', action: () => runAnalysis('npar') },
@@ -9934,6 +10028,13 @@ let ITEM_CSV_PENDING = null
           ? h(WlsDialog, {
             variables,
             onRun: (payload) => runWls(payload),
+            onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'loglinear'
+          ? h(LogLinearDialog, {
+            variables,
+            onRun: (payload) => runLoglinear(payload),
             onClose: () => setDialog(null),
           })
           : null,

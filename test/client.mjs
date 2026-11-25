@@ -2338,6 +2338,42 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   assert.match(clientSource, /api\('api\/mds', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/mds')
 
+  // 对数线性：分析菜单里独立的一组，勾两个分类变量就能确定。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const analysePopLoglin = menuHost.querySelector('.ap-menu-pop')
+  const loglinGroup = [...analysePopLoglin.querySelectorAll('button')].find((node) => node.textContent.startsWith('对数线性'))
+  assert.ok(loglinGroup, 'the analyse menu has a loglinear group')
+  await act(async () => {
+    loglinGroup?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const loglinItem = [...(loglinGroup?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])]
+    .find((node) => node.textContent.startsWith('一般对数线性'))
+  assert.ok(loglinItem, 'and offers the general log-linear dialog')
+  await act(async () => {
+    loglinItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const loglinDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.match(loglinDialog?.textContent ?? '', /一般对数线性分析/, 'the dialog is titled like the procedure')
+  assert.match(loglinDialog.textContent, /交互项/, 'and offers interactions')
+  // 这份夹具的两个变量都是 scale，没有分类变量，所以对话框一个因子都给不出来，
+  // 确定按钮必须不可点——这比让用户点下去再吃一个 400 强。
+  assert.equal(loglinDialog.querySelectorAll('.ap-chip').length, 0, 'an all-numeric dataset offers no factors')
+  assert.match(loglinDialog.textContent, /已选 0 个因子/, 'so nothing is selected')
+  assert.match(loglinDialog.textContent, /勾两个以上因子后可以加交互项/, 'and it says why there are no interactions')
+  const loglinOk = [...loglinDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(loglinOk.disabled, true, 'without two factors there is nothing to fit')
+  const loglinCancel = [...loglinDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    loglinCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.match(clientSource, /api\('api\/loglinear', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/loglinear')
+
 
 
   // 二阶段最小二乘：工具数不足时确定按钮不可点（识别不足是代数问题）。

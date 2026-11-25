@@ -1748,6 +1748,26 @@
     "距离矩阵退化：所有个案的取值都一样，没有可以标度的结构": "The distance matrix is degenerate: every case has the same values, so there is no structure to scale",
     "维数要在 1 到 {0} 之间": "Dimensions must be between 1 and {0}",
     "个案太多：{0} 个，多维标度在这里最多 {1} 个（先抽样，或者先聚成几类）": "Too many objects: {0}; multidimensional scaling takes at most {1} here (sample first, or cluster them)",
-    "可用个案太少：{0} 个（多维标度至少要 3 个）": "Too few usable cases: {0} (multidimensional scaling needs at least three)"
+    "可用个案太少：{0} 个（多维标度至少要 3 个）": "Too few usable cases: {0} (multidimensional scaling needs at least three)",
+    "对数线性": "Loglinear",
+    "一般对数线性…": "General…",
+    "一般对数线性分析": "General Log-linear Analysis",
+    "因子（分类变量，2–4 个）": "Factors (categorical, 2–4)",
+    "交互项": "Interactions",
+    "饱和模型（全部交互）": "Saturated model (all interactions)",
+    "饱和模型：所有交互都放进去，拟合优度没有自由度。": "Saturated model: every interaction is fitted, so the goodness of fit has no degrees of freedom.",
+    "勾两个以上因子后可以加交互项。": "Pick at least two factors to add an interaction.",
+    "已选 {0} 个因子": "{0} factors selected",
+    "模型：{0}": "Model: {0}",
+    "主效应总是放进去；勾上 a × b 表示允许这两个变量有关联。": "Main effects are always fitted; ticking a × b allows those two variables to be associated.",
+    "拟合用泊松回归（对数线性模型），期望频数包含频数为 0 的格子。": "The fit is a Poisson regression (the log-linear model); expected counts include the cells nobody fell into.",
+    "看「拟合优度」的 P：P 小说明模型不够，把该加的交互加上；「分层检验」说每一项能不能省。": "Read the p of the goodness of fit: a small p means the model is not enough, so add the interaction it is missing; partial association says whether a term can be dropped.",
+    "对数线性分析：G² {0}，自由度 {1}，P {2}": "Log-linear analysis: G² {0}, df {1}, p {2}",
+    "单元格计数与期望频数": "Cell counts and expected counts",
+    "分层检验（偏关联）": "Partial associations",
+    "似然比 G²": "Likelihood ratio G²",
+    "P（Pearson）": "p (Pearson)",
+    "G² 变化": "Change in G²",
+    "（还没选）": "(nothing selected yet)"
   }
 }
