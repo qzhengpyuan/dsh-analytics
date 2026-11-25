@@ -1111,6 +1111,49 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   delete globalThis.__updateAnswer
 }
 
+// Help → 打开示例数据…：新装好插件的人不用先找数据；这里钉住「点了会请求、
+// 会切到输出视图、会报一句带例数的提示」。
+{
+  const sampleHost = window.document.createElement('div')
+  window.document.body.appendChild(sampleHost)
+  const sampleRoot = createRoot(sampleHost)
+  let sampleCalls = 0
+  const sampleState = {
+    id: 'session-s', version: '0.114.0',
+    engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+    dataset: { name: '示例数据（员工）', variables: [{ name: 'salary', type: 'numeric' }], caseCount: 60 },
+    items: [{ id: 't1', kind: 'table', title: '描述统计', table: { caption: '描述统计', matrix: [['', 'N', 'Mean'], ['salary', '60', '8000']] } }],
+    log: [], history: { undo: 0, redo: 0 }, locale: 'zh',
+  }
+  window.fetch = async (url) => {
+    const target = String(url)
+    if (target.includes('api/sample')) {
+      sampleCalls += 1
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { cases: 60, variables: 8, tables: 11 }, state: sampleState }) }
+    }
+    if (target.includes('api/rows')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, page: { rows: [[1, 2]], total: 60 } }) }
+    }
+    return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state: sampleState }) }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    sampleRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const help = [...sampleHost.querySelectorAll('.ap-menu-button')].find((node) => node.textContent.trim() === '帮助')
+  assert.ok(help, 'the menu bar has a 帮助 menu')
+  await act(async () => { help.click(); await new Promise((resolve) => setTimeout(resolve, 20)) })
+  const item = [...sampleHost.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.trim() === '打开示例数据…')
+  assert.ok(item, 'the help menu offers 打开示例数据…')
+  await act(async () => { item.click(); await new Promise((resolve) => setTimeout(resolve, 80)) })
+  assert.equal(sampleCalls, 1, 'the sample is requested once')
+  const toast = sampleHost.querySelector('.ap-toast')
+  assert.ok(toast, 'the user is told what happened')
+  assert.match(toast.textContent, /60 例、8 个变量，跑了 11 张表/, toast.textContent)
+  await act(async () => { sampleRoot.unmount() })
+}
+
 // 数据 → 数据体检… / 分析 → 方法建议… / 文件 → 导出复现包…：这三条入口原来只
 // 有给 agent 用的工具，面板里没有；断言落在「点开就有内容、失败有话说」上。
 {

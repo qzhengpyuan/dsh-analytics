@@ -1590,6 +1590,23 @@ await call('POST', `${base}/api/close`, { sessionId: 'mlr01' })
 
 for (const id of ['pivot01', 'pivot02', 'dup01', 'out01', 'ex01', 'cmh01', 'glmc01']) await call('POST', `${base}/api/close`, { sessionId: id })
 
+
+// 示例数据：新装好插件的人点「帮助 → 打开示例数据…」走的就是这条路。
+r = await call('POST', `${base}/api/sample`, { sessionId: sid })
+{
+  const result = r.json().result ?? {}
+  console.log('sample', r.code, result.cases, result.variables, result.tables)
+  assert.equal(r.code, 200)
+  assert.equal(result.cases, 60)
+  assert.equal(result.variables, 8)
+  assert.ok(result.tables >= 4, `示例数据至少要出 4 张表，实际 ${result.tables}`)
+  assert.equal(r.json().state?.dataset?.name, '示例数据（员工）')
+  // 示例数据必须真的能继续跑：紧接着做一次描述统计。
+  const after = await call('POST', `${base}/api/run`, { sessionId: sid, syntax: 'DESCRIPTIVES VARIABLES=salary.' })
+  assert.equal(after.code, 200)
+  assert.ok((after.json().result?.items ?? []).length >= 1)
+}
+
 r = await call('POST', `${base}/api/close`, { sessionId: 'pivot01' })
 
 r = await call('POST', `${base}/api/close`, { sessionId: sid })

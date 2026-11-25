@@ -2,7 +2,7 @@
   "meta": {
     "title": "Analytics",
     "description": "dsh-analytics: an SPSS-style statistics workbench backed by a bundled GNU PSPP engine — data view, variable view, syntax, output viewer, analysis dialogs, and agent-readable datasets.",
-    "count": 2000
+    "count": 2004
   },
   "strings": {
     " 个个案": " cases",
@@ -2004,6 +2004,10 @@
     "把工作数据文件（data.sav）也复制进去": "Also copy the working data file (data.sav)",
     "包里是：README（怎么重跑）、dataset.json（变量字典与每次运行）、syntax/（引擎真正收到的语法）、log.txt；勾上数据文件后整包可以原样重跑。": "The bundle holds README (how to rerun), dataset.json (dictionary and every run), syntax/ (the syntax the engine actually received) and log.txt; with the data file checked the bundle runs as is.",
     "正在写入…": "Writing…",
-    "导出": "Export"
+    "导出": "Export",
+    "打开示例数据…": "Open sample data…",
+    "已打开示例数据：{0} 例、{1} 个变量，跑了 {2} 张表": "Opened the sample data: {0} cases, {1} variables, {2} tables",
+    "示例数据（员工）": "Sample data (employees)",
+    "打开示例数据": "Open sample data"
   }
 }

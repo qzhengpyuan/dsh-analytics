@@ -9323,6 +9323,24 @@ let ITEM_CSV_PENDING = null
           label: '帮助', items: [
             { label: '查找过程…（Ctrl+Shift+F）', action: () => setDialog({ kind: 'commands' }) },
             { label: '快捷键一览…', action: () => setDialog({ kind: 'shortcuts' }) },
+            { label: '打开示例数据…', action: async () => {
+              setBusy(true)
+              try {
+                const value = await api('api/sample', { sessionId })
+                setSt(stateOf(value))
+                const page = await loadRows(0, 500)
+                setRows(page.rows)
+                setTotal(page.total)
+                setSelected(null)
+                setView('output')
+                const result = value?.result ?? {}
+                notify(tr('已打开示例数据：{0} 例、{1} 个变量，跑了 {2} 张表', String(result.cases ?? ''), String(result.variables ?? ''), String(result.tables ?? '')))
+              } catch (error) {
+                notify(error.message)
+              } finally {
+                setBusy(false)
+              }
+            } },
             { label: '检查更新…', action: () => { void checkForUpdate() } },
             { label: '关于 PSPP 分析', action: () => setDialog({ kind: 'about' }) },
           ],
