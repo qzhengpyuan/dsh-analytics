@@ -291,6 +291,93 @@ check('a table of nothing but ids gets no recommendation at all', () => {
   assert.ok(result.notes.some((note) => /编号/.test(note)), result.notes.join(' | '))
 })
 
+check('a numeric column starting from 1 is only an id when there are enough cases', () => {
+  // 8 个个案的 score=1..8 是真实测量，不该被判成编号（复验 P2-3 的副作用）。
+  const rows = Array.from({ length: 8 }, (_, index) => [index + 1, 50 + index, index % 2 === 0 ? 'a' : 'b'])
+  const result = adviseDataset({
+    variables: [{ name: 'score', type: 'numeric' }, { name: 'pid', type: 'numeric' }, { name: 'arm', type: 'string' }],
+    rows,
+  }, {})
+  assert.equal(result.outcome, 'score', 'score 是测量值，不是编号')
+})
+
+check('ids that do not start at 1, text ids and repeated ids stay out of the analysis', () => {
+  const cases = []
+  // pid = 101..120：连号但起点不是 1。
+  cases.push({
+    name: 'offset ids',
+    dataset: {
+      variables: [{ name: 'pid', type: 'numeric' }, { name: 'score', type: 'numeric' }],
+      rows: Array.from({ length: 20 }, (_, index) => [101 + index, 50 + (index % 5)]),
+    },
+    forbidden: 'pid',
+  })
+  // 文本编号 case001…：全不同、全都像编号。
+  cases.push({
+    name: 'text ids',
+    dataset: {
+      variables: [{ name: 'sample', type: 'string' }, { name: 'score', type: 'numeric' }],
+      rows: Array.from({ length: 12 }, (_, index) => [`case${String(index + 1).padStart(3, '0')}`, 50 + (index % 4)]),
+    },
+    forbidden: 'sample',
+  })
+  // 名字叫 id 但有重复值：照样是编号。
+  cases.push({
+    name: 'repeated ids',
+    dataset: {
+      variables: [{ name: 'id', type: 'numeric' }, { name: 'score', type: 'numeric' }],
+      rows: Array.from({ length: 20 }, (_, index) => [1 + (index % 4), 50 + (index % 6)]),
+    },
+    forbidden: 'id',
+  })
+  for (const item of cases) {
+    const result = adviseDataset(item.dataset, {})
+    assert.notEqual(result.outcome, item.forbidden, `${item.name}: ${item.forbidden} 不该当结局`)
+    for (const entry of result.recommendations) {
+      const values = JSON.stringify(entry.how.params)
+      assert.ok(!values.includes(`"${item.forbidden}"`), `${item.name}: ${entry.analysis} 里不该出现 ${item.forbidden}（${values}）`)
+    }
+  }
+})
+
+check('a survival table with only categorical covariates suggests KM, not a broken Cox', () => {
+  // 文本 arm 不能进 Cox 的 covariates：真工具会报「只收数值协变量」（复验 P1）。
+  const dataset = {
+    variables: [
+      { name: 'id', type: 'numeric' },
+      { name: 'time', type: 'numeric' },
+      { name: 'event', type: 'numeric' },
+      { name: 'arm', type: 'string' },
+    ],
+    rows: Array.from({ length: 20 }, (_, index) => [index + 1, index + 2, index % 3 === 0 ? 1 : 0, index % 2 === 0 ? 'a' : 'b']),
+  }
+  const result = adviseDataset(dataset, {})
+  const cox = result.recommendations.find((entry) => entry.how.tool === 'pspp_cox')
+  if (cox) {
+    assert.ok(cox.how.params.covariates.length > 0, 'Cox 建议不能带空 covariates')
+    for (const name of cox.how.params.covariates) {
+      const column = dataset.variables.find((variable) => variable.name === name)
+      assert.notEqual(column.type, 'string', `Cox 的协变量不能是文本列：${name}`)
+    }
+  } else {
+    const km = result.recommendations.find((entry) => entry.how.params.type === 'km')
+    assert.ok(km, '没有数值协变量时应该改推 KM 曲线')
+    assert.equal(km.how.tool, 'pspp_chart', 'KM 走 pspp_chart')
+  }
+})
+
+check('a count outcome with no numeric predictor is not sent to poisson', () => {
+  const rows = Array.from({ length: 20 }, (_, index) => [100 + index, index % 4 === 0 ? 'x' : 'y'])
+  const result = adviseDataset({
+    variables: [{ name: 'pid', type: 'numeric' }, { name: 'visits', type: 'numeric' }, { name: 'arm', type: 'string' }],
+    rows,
+  }, {})
+  for (const entry of result.recommendations) {
+    if (entry.how.tool !== 'pspp_poisson') continue
+    assert.ok(entry.how.params.independents.length > 0, '泊松回归不能带空 independents')
+  }
+})
+
 check('no recommendation is emitted with an empty variable list', () => {
   // id + 纯文本分组：没有自变量可放，Logistic 该退成一句注文而不是空 independents。
   const result = adviseDataset({

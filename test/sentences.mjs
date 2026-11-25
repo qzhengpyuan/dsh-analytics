@@ -262,6 +262,35 @@ check('a table used for a sentence is not also listed as skipped', () => {
   assert.deepEqual(out.skipped, [])
 })
 
+check('a large logistic coefficient is readable and does not leak an exponent', () => {
+  // 复验 P2-1：`toFixed` 只管到 1e21，1.1E+075 会原样留在句子里。
+  const table = item('Variables in the Equation', [
+    ['', '', 'B', 'S.E.', 'Wald', 'df', 'Sig.', 'Exp(B)', '95% CI for Exp(B)', ''],
+    ['', '', '', '', '', '', '', '', 'Lower', 'Upper'],
+    ['Step 1', 'x', '1.1E+075', '.50', '1.0', '1', '.317', '1.1E+075', '1.2E-009', '1.3E+070'],
+  ])
+  const [sentence] = sentencesOf([table]).sentences
+  assert.ok(sentence, 'the row still produces a sentence')
+  assert.ok(!/[eE][+-]\d/.test(sentence.text), `句子里不该有指数写法：${sentence.text}`)
+  assert.match(sentence.text, /× 10\^75|× 10\^70/, sentence.text)
+})
+
+check('a crosstab case-processing Summary is engine plumbing, a real Notes table is not', () => {
+  const summary = item('Summary', [
+    ['', 'Cases', '', '', ''],
+    ['', 'Valid', '', 'Missing', 'Total'],
+    ['', 'N', 'Percent', 'N', 'Percent'],
+    ['g * y', '20', '100.0%', '0', '.0%'],
+  ])
+  const notes = item('Notes', [
+    ['Output Created', '26-NOV-2026 02:00:00'],
+    ['Comments', ''],
+  ])
+  const out = sentencesOf([summary, notes])
+  assert.ok(!out.skipped.includes('Summary'), '个案处理摘要不该被算成「认不出来的表」')
+  assert.ok(out.skipped.includes('Notes'), '真的 Notes 表要留在 skipped 里（不能被静默吞掉）')
+})
+
 check('a grouped descriptives table reports the Total row, not the first group', () => {
   // `ONEWAY … /STATISTICS=DESCRIPTIVES` 的表是每组一行 + Total，第一列只有
   // 第一组那行写着变量名；按行造句会写出「y：n = 8」，那是第一组的数。
