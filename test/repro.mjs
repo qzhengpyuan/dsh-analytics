@@ -1,5 +1,7 @@
 // 复现包：判据是「照这个包能不能重跑」—— 数据字典在不在、每次运行的真语法在不在、
 // 版本号有没有、日志有没有，以及默认读数不读到刚追加的插件表上。
+// 这条套件会 spawn 引擎（建数据集要落 work.sav），所以 CI 里它属于 engine job，
+// 不能放进 engine-free 的 pure tests 列表（0.107.0 曾放错，unit 三条腿全红）。
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { mkdtemp, readdir } from 'node:fs/promises'

@@ -72,7 +72,6 @@ jobs:
           node test/sentences.mjs
           node test/numbers.mjs
           node test/advise.mjs
-          node test/repro.mjs
           node test/survmean.mjs
           node test/discriminant.mjs
           node test/cluster.mjs
@@ -147,6 +146,7 @@ jobs:
           node test/weight.mjs
           # 图的几何不需要引擎，但新建数据集会落 work.sav，所以这一条跟着引擎跑。
           node test/redraw.mjs
+          node test/repro.mjs
 
       - name: pdf table notes
         run: node test/pdf-notes.mjs

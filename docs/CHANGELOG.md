@@ -5,6 +5,10 @@
 
 计数口径细则（0.72.0 起）：`^ok` 只统计打印 `ok  …` 的断言。`test/stage.mjs`、`test/messages.mjs` 打自己的 `N checks passed` 汇总行（`^ok` 为 0）；`test/build.mjs` 有一行 `ok  …` 写在 `await check(...)` 内部，因此比它自报的 summary 多 1。核对数量只用 `grep -cE '^ok\b'`。
 
+## 0.107.1
+
+**只修 CI 分工：`test/repro.mjs` 要 spawn 引擎，属于 engine job。** 0.107.0 把它和 `test/advise.mjs` 一起塞进 engine-free 的 `pure tests` 列表，三条 unit 腿（Node 20/22/24）全红，报的是 `保存数据失败：打不开 work.sav：null: 1: exec: null: not found` —— `resolveEngine()` 在没有 `engine/` 目录的机器上回 null bin，而复现包的用例要建数据集、落 `work.sav`。现在 unit 只留 `advise`（纯函数），`repro` 挪进 engine tests；`test/repro.mjs` 头部写明这一条，避免下次再放错。代码与 0.107.0 相同（那一版的 tarball 本身没问题，引擎随包）。
+
 ## 0.107.0
 
 **第二批给 agent 用的两件：方法建议、复现包；外加复验抓到的六个句子缺陷。** 0.106.0 让 agent 能「看清数据」（体检）、「读懂输出」（句子/数字），这一批补上前后两头：动手前先问「该跑什么」，交稿时给出「别人能不能重跑」。
