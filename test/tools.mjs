@@ -168,6 +168,12 @@ await check('pspp_cox fits a survival model and reports the hazard ratio', async
   assert.equal(cox.matrix.length, 2, 'a header plus one covariate')
   assert.equal(cox.matrix[1][6] !== undefined, true, 'the Exp(B) column is filled')
   assert.ok(cox.notes.some((note) => /Breslow/.test(note)), 'the ties method is stated')
+  // 分层：多一张「分层个案摘要」，并且注文要点明风险集按层分开。
+  const stratified = await call('pspp_cox', { time: 'time', event: 'event', covariates: ['group'], strata: 'grp' })
+  assert.equal(stratified.strata?.[0]?.[0], '分层', 'the by-strata table comes back')
+  assert.ok(stratified.strata.length >= 2, 'with at least one stratum plus the total')
+  assert.match(stratified.notes[0], /分了 \d+ 层/, 'the note says how many strata')
+  assert.equal(stratified.strataVariable, 'grp')
 })
 
 await check('pspp_multinomial fits a multinomial model and returns every table', async () => {

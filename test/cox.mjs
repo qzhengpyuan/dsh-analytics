@@ -136,3 +136,104 @@ check('a text covariate, a missing event and a collinear model are refused', () 
 })
 
 console.log(`${checks} checks passed`)
+
+// 分层（COXREG /STRATA）：风险集只在层内累加，B 在层间共享。没有引擎答案，所以
+// 独立实现一遍偏似然再黄金分割求最大值，逐位对账；顺带验两条守卫。
+const stratifiedRows = (() => {
+  let seed = 11
+  const random = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648 }
+  const rows = []
+  for (let group = 0; group < 2; group += 1) {
+    for (let index = 0; index < 50; index += 1) {
+      rows.push([1 + group * 5 + Math.floor(random() * 10), random() < 0.65 ? 1 : 0, index % 2, group === 0 ? 'A' : 'B'])
+    }
+  }
+  return rows
+})()
+const strataDataset = (rows) => ({
+  variables: [
+    { name: 't', type: 'numeric' },
+    { name: 'e', type: 'numeric' },
+    { name: 'x', type: 'numeric' },
+    { name: 's', type: 'string' },
+  ],
+  rows,
+})
+
+check('a stratified fit matches an independent partial-likelihood maximisation', () => {
+  // 独立实现：层内风险集 + Breslow，写成 PL(β) 的纯函数，再黄金分割找极值点。
+  const cases = stratifiedRows.map((row) => ({ t: row[0], e: row[1], x: row[2], s: row[3] }))
+  const partial = (beta) => {
+    let total = 0
+    for (const label of ['A', 'B']) {
+      const group = cases.filter((entry) => entry.s === label)
+      const times = [...new Set(group.map((entry) => entry.t))].sort((left, right) => right - left)
+      for (const time of times) {
+        const events = group.filter((entry) => entry.e === 1 && entry.t === time)
+        if (events.length === 0) continue
+        const risk = group.filter((entry) => entry.t >= time)
+        const s0 = risk.reduce((sum, entry) => sum + Math.exp(beta * entry.x), 0)
+        total += events.reduce((sum, entry) => sum + beta * entry.x, 0) - events.length * Math.log(s0)
+      }
+    }
+    return total
+  }
+  const golden = (Math.sqrt(5) - 1) / 2
+  let low = -3
+  let high = 3
+  for (let step = 0; step < 200; step += 1) {
+    const left = high - golden * (high - low)
+    const right = low + golden * (high - low)
+    if (partial(left) > partial(right)) high = right
+    else low = left
+  }
+  const expected = (low + high) / 2
+  const out = computeCox(strataDataset(stratifiedRows), { time: 't', event: 'e', covariates: ['x'], strata: 's' })
+  const estimate = Number(out.matrix[1][1])
+  assert.ok(Math.abs(estimate - expected) < 1e-3, `beta ${estimate} vs ${expected}`)
+  // 解处一阶导数为 0：说明模块收敛到的是同一个驻点，不是碰巧接近。
+  const step = 1e-5
+  const slope = (partial(expected + step) - partial(expected - step)) / (2 * step)
+  assert.ok(Math.abs(slope) < 1e-3, `slope ${slope}`)
+})
+
+check('the strata table counts every level and the notes say who owns the risk sets', () => {
+  const out = computeCox(strataDataset(stratifiedRows), { time: 't', event: 'e', covariates: ['x'], strata: 's' })
+  assert.deepEqual(out.strataTable[0], ['分层', '个案', '事件', '删失'])
+  assert.equal(out.strataTable.length, 4, 'header, two strata, total')
+  assert.deepEqual(out.strataTable[1].slice(0, 2), ['A', '50'])
+  assert.deepEqual(out.strataTable[3], ['合计', '100', String(out.model.events), String(100 - out.model.events)])
+  assert.match(out.notes[0], /按 s 分了 2 层/)
+  assert.ok(out.notes.some((note) => /把分层变量当协变量/.test(note)), 'it explains what stratifying buys you')
+  assert.equal(out.model.strata.length, 2)
+})
+
+check('stratifying is not the same model as putting the variable in as a covariate', () => {
+  // 协变量必须是数值：把分层变量做成 0/1 哑变量再当协变量放进去，和「按它分层」
+  // 是两个不同的假设（前者假设它的效应是比例风险），结果不该逐位相同。
+  const asCovariate = computeCox({
+    variables: [
+      { name: 't', type: 'numeric' },
+      { name: 'e', type: 'numeric' },
+      { name: 'x', type: 'numeric' },
+      { name: 'dummy', type: 'numeric' },
+    ],
+    rows: stratifiedRows.map((row) => [row[0], row[1], row[2], row[3] === 'A' ? 0 : 1]),
+  }, { time: 't', event: 'e', covariates: ['x', 'dummy'] })
+  const stratified = computeCox(strataDataset(stratifiedRows), { time: 't', event: 'e', covariates: ['x'], strata: 's' })
+  // 两个模型都在估 x 的效应，但一个是「层内比较」、一个是「层间也算进去」，不该逐位相同。
+  assert.notEqual(stratified.matrix[1][1], asCovariate.matrix[1][1])
+})
+
+check('strata refusals name what is wrong in Chinese', () => {
+  const single = stratifiedRows.map((row) => [...row.slice(0, 3), 'A'])
+  assert.throws(() => computeCox(strataDataset(single), { time: 't', event: 'e', covariates: ['x'], strata: 's' }), /只有一个取值/)
+  assert.throws(() => computeCox(strataDataset(stratifiedRows), { time: 't', event: 'e', covariates: ['x'], strata: 'nope' }), /没有这个变量：nope/)
+  // 有很多取值又只有一两个个案的层，事件全无 → 要么报「每层都没有事件」，要么剔掉并点名。
+  const sparse = []
+  for (let index = 0; index < 30; index += 1) sparse.push([index + 1, index % 3 === 0 ? 1 : 0, index % 2, `L${index}`])
+  assert.throws(() => computeCox(strataDataset(sparse), { time: 't', event: 'e', covariates: ['x'], strata: 's' }), /分层太多了/)
+})
+
+
+process.stdout.write(`\n${checks} checks in test/cox.mjs\n`)

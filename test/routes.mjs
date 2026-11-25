@@ -1268,6 +1268,31 @@ console.log('cox ->', r.code, cox.result?.matrix?.[0]?.[0], cox.result?.matrix?.
   cox.state?.items?.length > 0)
 r = await call('POST', `${base}/api/cox`, { sessionId: 'cox01', options: { time: 't', event: 'e', covariates: [] } })
 console.log('cox without covariates ->', r.code, /至少要一个协变量/.test(String(r.json().error)))
+// Stratified Cox: the route has to return the by-strata case table as a second
+// item, because that table is what tells the reader whose risk sets are whose.
+let stratifiedRes = await call('POST', `${base}/api/new`, { sessionId: 'cox02', cwd: home, variables: [
+  { name: 't', type: 'numeric' },
+  { name: 'e', type: 'numeric' },
+  { name: 'x', type: 'numeric' },
+  { name: 's', type: 'string' },
+] })
+for (let index = 0; index < 40; index += 1) {
+  stratifiedRes = await call('POST', `${base}/api/case`, {
+    sessionId: 'cox02',
+    values: { t: 1 + (index % 2) * 5 + (index % 7), e: index % 10 === 0 ? 0 : 1, x: index % 2, s: index < 20 ? 'A' : 'B' },
+  })
+}
+r = await call('POST', `${base}/api/cox`, { sessionId: 'cox02', options: { time: 't', event: 'e', covariates: ['x'], strata: 's' } })
+const stratified = r.json()
+console.log('stratified cox ->', r.code, stratified.result?.items?.length, stratified.result?.strata?.length,
+  stratified.result?.model?.strata?.length, stratified.result?.model?.strataVariable)
+assert.equal(r.code, 200, 'api/cox answers with strata')
+assert.equal(stratified.result?.items?.length, 2, 'the by-strata table comes with the coefficients')
+assert.equal(stratified.result?.strata?.[0]?.[0], '分层', 'and it is labelled')
+assert.equal(stratified.result?.model?.strataVariable, 's')
+r = await call('POST', `${base}/api/cox`, { sessionId: 'cox02', options: { time: 't', event: 'e', covariates: ['x'], strata: 'nope' } })
+assert.equal(r.code, 400, 'an unknown strata variable is refused')
+await call('POST', `${base}/api/close`, { sessionId: 'cox02' })
 await call('POST', `${base}/api/close`, { sessionId: 'cox01' })
 
 // Multinomial logistic regression is fitted in the plugin too (PSPP only fits

@@ -2002,6 +2002,9 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.match(coxDialog.textContent, /Cox 回归（比例风险）/, 'the dialog is titled like the procedure')
   assert.match(coxDialog.textContent, /生存时间（必选，数值）/, 'and asks for the survival time')
   assert.match(coxDialog.textContent, /事件指示（必选：1 = 发生，0 = 删失）/, 'and for the event indicator')
+  assert.match(coxDialog.textContent, /分层（可留空）/, 'and offers a stratification box')
+  assert.match(coxDialog.textContent, /（不分层）/, 'which defaults to no strata')
+  assert.match(coxDialog.textContent, /分层让每一层有自己的基线风险/, 'and explains what stratifying buys you')
   const coxOk = [...coxDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
   assert.equal(coxOk.disabled, true, 'nothing is fitted until the three choices are made')
   const coxCancel = [...coxDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
@@ -2011,7 +2014,7 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   assert.equal([...menuHost.querySelectorAll('.ap-modal')].length, 0, 'and it closes again')
   assert.match(clientSource, /api\('api\/cox', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/cox')
-  assert.match(clientSource, /\{ time, event, covariates: chosen \}/, 'sending exactly the three choices the host needs')
+  assert.match(clientSource, /\{ time, event, covariates: chosen, \.\.\.\(strata \? \{ strata \} : \{\}\) \}/, 'sending the three choices plus the optional strata')
   // 判别分析：PSPP 没有 DISCRIMINANT，四张表由插件拟合，菜单位置对标 SPSS 的分类。
   // 关掉对话框之后菜单是重新渲染的，早先抓到的 pop 已经脱开文档，得再点开一次。
   await act(async () => {
@@ -2900,6 +2903,94 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   }
   await act(async () => { fullRoot.unmount() })
   console.log('ok  the rendered english panel has no chinese text left in it')
+}
+
+// A dialog whose label is a `{0}` template: the capture is user data (variable
+// names), so translateOne() does not recurse into it. The saturated formula used
+// to be composed as `a × b（饱和）` before the template ran, which left
+// "Model: a × b（饱和）" on an English panel (verify-ui-i18n's P1).
+{
+  const dict = JSON.parse(readFileSync(join(root, 'locale', 'en.json'), 'utf8')).strings
+  const host = window.document.createElement('div')
+  window.document.body.appendChild(host)
+  const root2 = createRoot(host)
+  const logState = {
+    id: 'session-en3',
+    version: '0.32.2',
+    engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+    dataset: {
+      sourcePath: '/tmp/ll.sav',
+      name: 'll.sav',
+      caseCount: 6,
+      variables: [
+        { name: 'a', type: 'string', width: 8, measure: 'nominal' },
+        { name: 'b', type: 'string', width: 8, measure: 'nominal' },
+      ],
+      truncated: false,
+    },
+    items: [],
+    importNotes: [],
+    log: [],
+    mrSets: [],
+    splitBy: [],
+    history: { undo: 0, redo: 0 },
+    tableStyle: 'three-line',
+    maxRows: null,
+    maxExportRows: null,
+    locale: 'en',
+    signal: { id: 'session-en3', items: 0 },
+  }
+  window.fetch = async (url) => {
+    const target = String(url)
+    if (target.includes('api/locale')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, locale: 'en', strings: dict }) }
+    }
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(target.includes('api/heartbeat') ? { ok: true, signal: logState.signal } : { ok: true, state: logState }),
+    }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    root2.render(React.createElement(registered.tabs[0].component, { ...props, scope: { sessionId: 'session-en3', cwd: '/tmp' }, tab: null }))
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  })
+  const analyzeButton = [...host.querySelectorAll('.ap-menu-button')].find((node) => node.textContent === 'Analyze')
+  assert.ok(analyzeButton, 'the analyze menu is translated')
+  await act(async () => {
+    analyzeButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const loglinearGroup = [...host.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.startsWith('Loglinear'))
+  assert.ok(loglinearGroup, 'the loglinear group is translated')
+  await act(async () => {
+    loglinearGroup.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const entry = [...(loglinearGroup.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])]
+    .find((node) => node.textContent.startsWith('General'))
+  assert.ok(entry, 'the loglinear entry is translated')
+  await act(async () => {
+    entry.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+  })
+  const box = [...host.querySelectorAll('.ap-modal')].at(-1)
+  assert.ok(box, 'the dialog opened')
+  // Two categorical variables means both are picked already: the formula line
+  // reads "Model: a, b" — with a half-width comma, not the Chinese 、.
+  assert.match(box.textContent, /Model: a, b/, `the picked formula is English: ${box.textContent.slice(0, 200)}`)
+  const saturatedLabel = [...box.querySelectorAll('label')].find((node) => /Saturated/.test(node.textContent))
+  assert.ok(saturatedLabel, 'the saturated switch is on screen')
+  const saturated = saturatedLabel.querySelector('input[type="checkbox"]')
+  await act(async () => {
+    saturated.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.match(box.textContent, /Model: a × b \(saturated\)/, `the saturated formula is English: ${box.textContent.slice(0, 200)}`)
+  assert.doesNotMatch(box.textContent, /[\u4e00-\u9fff]/, 'the dialog has no chinese left in it')
+  await act(async () => { root2.unmount() })
+  console.log('ok  a templated dialog label keeps its english words')
 }
 
 // Saving the language in the settings page has to show up at once. Waiting for

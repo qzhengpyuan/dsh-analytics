@@ -2019,13 +2019,14 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         ? current.filter((entry) => entry !== name)
         : [...current, name]))
       const candidates = numeric.filter((variable) => variable.name !== time && variable.name !== event)
+      const [strata, setStrata] = useState('')
       const ready = Boolean(time && event && chosen.length > 0)
       return h(Modal, {
         title: 'Cox 回归（比例风险）',
         wide: true,
         okDisabled: !ready,
         onCancel: onClose,
-        onOk: () => onRun({ time, event, covariates: chosen }),
+        onOk: () => onRun({ time, event, covariates: chosen, ...(strata ? { strata } : {}) }),
       },
       h('div', { className: 'ap-dlg' },
         h('div', { className: 'ap-dlg-left' },
@@ -2049,6 +2050,12 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             h('select', { value: event ?? '', onChange: (e) => setEvent(e.target.value || null) },
               h('option', { value: '' }, '（选一个事件变量）'),
               numeric.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '分层（可留空）'),
+            h('select', { value: strata, onChange: (e) => setStrata(e.target.value) },
+              h('option', { value: '' }, '（不分层）'),
+              variables.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-hint' }, '分层让每一层有自己的基线风险，B（Exp(B)）在各层之间共享；把分层变量当协变量塞进模型是另一个假设，通常不对。'),
           h('div', { className: 'ap-hint' }, '并列事件时间用 Breslow 近似；协变量在计算时已中心化，不影响 B 与 Exp(B)。'),
           h('div', { className: 'ap-hint' }, '分类协变量不直接收：先用「转换 → 重新编码成不同变量」造 0/1 哑变量。'),
           h('div', { className: 'ap-hint' }, tr('已选 {0} 个协变量', chosen.length)))))
@@ -2402,9 +2409,12 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         ? current.filter((entry) => entry.join('*') !== pair.join('*'))
         : [...current, pair]))
       const terms = saturated ? [] : [...chosen.map((name) => [name]), ...interactions]
+      // 捕获片段不会递归翻译，所以这里先把公式翻好再套 `模型：{0}`（复验
+      // verify-ui-i18n 的 P1：英文界面曾经留下「Model: a × b（饱和）」）。
       const formula = saturated
-        ? `${chosen.join(' × ')}（饱和）`
-        : terms.map((term) => term.join(' × ')).join('、')
+        ? tr('{0}（饱和）', chosen.join(' × '))
+        // 英文界面用半角逗号断项（全角顿号在英文句子里很扎眼）。
+        : terms.map((term) => term.join(' × ')).join(DICT ? ', ' : '、')
       return h(Modal, {
         title: '一般对数线性分析',
         wide: true,
@@ -2443,8 +2453,8 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
             }),
             '饱和模型（全部交互）')),
         h('div', { className: 'ap-dlg-right' },
-          h('div', { className: 'ap-hint' }, `已选 ${chosen.length} 个因子`),
-          h('div', { className: 'ap-hint' }, `模型：${formula || '（还没选）'}`),
+          h('div', { className: 'ap-hint' }, tr('已选 {0} 个因子', chosen.length)),
+          h('div', { className: 'ap-hint' }, tr('模型：{0}', formula || tr('（还没选）'))),
           h('div', { className: 'ap-hint' }, '主效应总是放进去；勾上 a × b 表示允许这两个变量有关联。'),
           h('div', { className: 'ap-hint' }, '拟合用泊松回归（对数线性模型），期望频数包含频数为 0 的格子。'),
           h('div', { className: 'ap-hint' }, '看「拟合优度」的 P：P 小说明模型不够，把该加的交互加上；「分层检验」说每一项能不能省。'))))
@@ -8817,7 +8827,7 @@ let ITEM_CSV_PENDING = null
             { label: '缺失值分析…', action: () => runAnalysis('missing') },
             { sep: true },
             { label: '受引擎限制的功能', sub: [
-              { label: '复杂生存模型（分层 Cox、时依协变量、竞争风险）', action: () => notify('PSPP 2.1.3 没有实现生存分析。插件自己实现了两件：分析 → 生存分析 → Kaplan–Meier（生存曲线 + log-rank）与 Cox 回归（单个偏似然模型，Breslow 并列）。分层 Cox、时依协变量、竞争风险没有做，替代是把数据导出 CSV，用 R 的 survival 包。') },
+              { label: '复杂生存模型（分层 Cox、时依协变量、竞争风险）', action: () => notify('PSPP 2.1.3 没有实现生存分析。插件自己实现了三件：分析 → 生存分析 → Kaplan–Meier（生存曲线 + log-rank）、Cox 回归（偏似然，Breslow 并列）、分层 Cox（对话框里的「分层」框，每层自己的风险集与基线风险、B 共享）。时依协变量与竞争风险没有做，替代是把数据导出 CSV，用 R 的 survival 包。') },
               { label: '复杂抽样', action: () => notify('PSPP 2.1.3 没有实现复杂抽样（CSDESCRIPTIVES / CSTABULATE）。替代：用「数据 → 加权个案」近似分层权重，或导出后用 R 的 survey 包。') },
               { label: '多重插补', action: () => notify('PSPP 2.1.3 根本不认识 MULTIPLE IMPUTATION（Unknown command）。插件给了两件替代：分析 → 缺失值分析（看缺失集中在哪些变量、哪些模式）与 转换 → 替换缺失值（序列平均值 / 线性趋势 / 临近点）。这两件都不是多重插补，会低估方差，写限制时要说明。') },
               { label: '协方差分析（ANCOVA）', action: () => notify('PSPP 2.1.3 的 GLM 不接受 WITH 协变量子句。替代：用「回归 → 线性」把分组变量当哑变量、协变量当预测变量，等价于 ANCOVA 的模型。') },
