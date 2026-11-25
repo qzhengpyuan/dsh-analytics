@@ -5,6 +5,21 @@
 
 计数口径细则（0.72.0 起）：`^ok` 只统计打印 `ok  …` 的断言。`test/stage.mjs`、`test/messages.mjs` 打自己的 `N checks passed` 汇总行（`^ok` 为 0）；`test/build.mjs` 有一行 `ok  …` 写在 `await check(...)` 内部，因此比它自报的 summary 多 1。核对数量只用 `grep -cE '^ok\b'`。
 
+## 0.109.0
+
+**修 0.107.0 那批的复验结论（PASS 42 / FAIL 7 / 风险 4），并把「建议必须能照抄执行」变成用例。** 复验在 `v0.107.0` 的干净副本上用真引擎跑，七条 FAIL 全部落在「建议写得像那么回事、照抄就报错」和「句子漏表」这两个面上。
+
+- **建议里的参数改成工具真正认的键名**：交叉表 `rows`/`columns` → `row`/`column`；t 检验与方差分析的 `group`/`factor` → `by`，方差分析还要把结局放进 `variables`；多项 Logistic 不再伪造 `procedure` 键；`pspp_cox` 补必填 `covariates`，`pspp_poisson`/`pspp_multinomial` 补 `independents`。复验里 6 个过程「照 how 直接调工具就报错」，现在 0 个。
+- **两条不变量钉住这一类回归**：`test/advise.mjs` 新用例把每份测试数据的所有建议逐个对上 `createTools()` 的 schema —— 工具必须存在、参数键必须在 `properties` 里、`required` 必须齐、调用里必须有变量；`test/tools.mjs` 再把建议**真的跑一遍**（schema 拦不住的那类问题，比如 logistic 的 `independents` 不在 required 里但在引擎那边是硬要求，只有真跑才知道）。
+- **二分结局不再被推均值类方法**：`outcome.binary` 的守卫补到 GLM 与非参数分支上（原来只有 t 检验/方差分析/回归有）。复验里「事件 4/40 的 0/1 结局被推 GLM 与 Mann-Whitney，和它自己写的『不要当连续测量求均值』打架」这条没有了。
+- **ID 列不再当结局**：判据比「取值和个案一样多」更严 —— 还要么名字像 `id/编号/序号/no/case/subject`，要么取值正好是 0..n 或 1..n 的连续整数。只用前一条会把「30 例随访时间」也当成编号（写用例时当场发生，`survival is suggested only when the outcome looks like follow-up time` 抓到的），而少了这一条就会推「对 id 做 t 检验」。
+- **带删失的生存数据不再被推均值检验与线性回归**：结局像随访时间、同表里又有 0/1 事件列时，t 检验/方差分析/线性回归/GLM 整组跳过，并给一条注文说清「把删失当完整观测会系统性低估生存时间」；Cox 的 `covariates` 这时用数值自变量（没有就用分组列）填上，不再发出缺必填的调用。
+- **GLM 只收数值因子**：PSPP 对文本因子报 `GLM: grp is not a numeric variable. It will not be included in the variable list.` 且一条表都不出（真跑抓到）。现在文本分类变量不进 `factors`，改为一条注文「先重新编码成数值」；GLM 的说明也从「协变量 + 因子」改回「因子 + 协变量」，因为 PSPP 2.1.3 的 GLM 根本没有 `WITH` 子句。
+- **多因变量时句子不再漏表**：`ONEWAY y1 y2 BY g /STATISTICS=DESCRIPTIVES HOMOGENEITY.` 的 `Descriptives` 每个变量一段、各有一个 `Total` 行，原来只报第一个 Total（第二个变量整段丢）；`ANOVA` 的每一段 `Between Groups` 也各出一句「多因变量方差分析（逐变量）」。真引擎跑同一份数据得 4 句（两个变量的 Total + 两个变量的 F）。`Test of Homogeneity of Variances` 的 Levene 结果已被 t 检验句子消费，不再列进 `skipped`。
+- **复现包三处**：README 不再说「把第一行 `GET FILE` 换掉」（脚本首行是 `*` 注释），改成「把 `GET FILE='…'` 那一行换掉，前面可能有一行注释」，并说明脚本开头的注释只是运行顺序；`dataset.json` 的 `runs[]` 现在带 `at`（该次运行第一条产物的 `createdAt`）与 `title`；目标路径被一个文件占住时报中文「目标路径已存在且不是目录：…。换一个目录名，或先把它挪走」而不是 `EEXIST: file already exists, mkdir '…'`。
+
+`test/advise.mjs` 11 → 15、`test/sentences.mjs` 18 → 20、`test/repro.mjs` 6 → 8、`test/tools.mjs` 44 → 45（多一条「每条建议都能照抄跑通」）。全量 934 条 ok（装 poppler 935）、64 套件、0 FAIL。工具数不变（47），词典不变（1977）。
+
 ## 0.108.0
 
 **`pspp_power`：功效与样本量。** 写方法学一节绕不开「每组需要多少例」，PSPP 不提供，之前只能在别的软件里算。这里不抄「n = 16/d²」这类近似口诀，而是真的反演分布：

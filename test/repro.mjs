@@ -73,6 +73,31 @@ await check('the README says how to rerun it', async () => {
   assert.match(text, /dataset\.json/)
 })
 
+await check('each run in the bundle carries when it ran and what it was', async () => {
+  // 复验抓到过：`runs[].at` 恒 null、`label` 没传，包里只剩「第 3 次运行」这种
+  // 编号，读者无法把脚本对回自己点过的那次分析。
+  const dictionary = JSON.parse(readFileSync(join(root, 'bundle', 'dataset.json'), 'utf8'))
+  const entry = dictionary.runs.find((item) => item.runId === runId)
+  assert.ok(entry, '这次运行应该出现在 dataset.json 里')
+  assert.ok(Number.isFinite(Number(entry.at)), `运行时间不该是 null：${JSON.stringify(entry)}`)
+  assert.ok(entry.title, `运行标题不该是 null：${JSON.stringify(entry)}`)
+})
+
+await check('a target that is an existing file is refused in Chinese', async () => {
+  const { writeFileSync } = await import('node:fs')
+  const target = join(root, 'occupied')
+  writeFileSync(target, 'not a directory')
+  await assert.rejects(
+    () => workspace.reproBundle({ path: target }),
+    (error) => {
+      // 不能是 Node 的英文原文 `EEXIST: file already exists, mkdir '…'`。
+      assert.match(error.message, /已存在/, error.message)
+      assert.doesNotMatch(error.message, /EEXIST/, error.message)
+      return true
+    },
+  )
+})
+
 await check('includeData copies the working file', async () => {
   const target = join(root, 'bundle-data')
   const result = await workspace.reproBundle({ path: target, includeData: true })

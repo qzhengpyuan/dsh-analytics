@@ -276,4 +276,57 @@ check('a grouped descriptives table reports the Total row, not the first group',
   assert.equal(sentence.values.n, 24)
 })
 
+check('several dependent variables each get their own sentence', () => {
+  // 复验抓到过：`ONEWAY y1 y2 BY g /STATISTICS=DESCRIPTIVES` 的表里每个变量
+  // 一段、各有一个 Total 行，只取第一个会把第二个变量整段丢掉。
+  const descriptives = item('Descriptives', [
+    ['', 'g', 'N', 'Mean', 'Std. Deviation', 'Std. Error', '95% CI for Mean', '', 'Minimum', 'Maximum'],
+    ['', '', '', '', '', '', 'Lower Bound', 'Upper Bound', '', ''],
+    ['得分一', '1.00', '3', '11.0', '1.0', '.58', '9.5', '12.5', '10.0', '12.0'],
+    ['', '2.00', '3', '13.0', '1.0', '.58', '11.5', '14.5', '12.0', '14.0'],
+    ['', 'Total', '6', '12.0', '1.4', '.58', '10.5', '13.5', '10.0', '14.0'],
+    ['得分二', '1.00', '3', '22.0', '2.0', '1.15', '19.0', '25.0', '20.0', '24.0'],
+    ['', '2.00', '3', '24.0', '2.0', '1.15', '21.0', '27.0', '22.0', '26.0'],
+    ['', 'Total', '6', '23.0', '2.0', '1.15', '20.0', '26.0', '20.0', '26.0'],
+  ])
+  const anova = item('ANOVA', [
+    ['', '', 'Sum of Squares', 'df', 'Mean Square', 'F', 'Sig.'],
+    ['得分一', 'Between Groups', '6.0', '1', '6.0', '6.00', '.070'],
+    ['', 'Within Groups', '4.0', '4', '1.0', '', ''],
+    ['', 'Total', '10.0', '5', '', '', ''],
+    ['得分二', 'Between Groups', '6.0', '1', '6.0', '1.50', '.287'],
+    ['', 'Within Groups', '16.0', '4', '4.0', '', ''],
+    ['', 'Total', '22.0', '5', '', '', ''],
+  ])
+  const out = sentencesOf([descriptives, anova])
+  const texts = out.sentences.map((entry) => entry.text)
+  assert.equal(texts.filter((text) => /得分一（全部）/.test(text)).length, 1, texts.join(' | '))
+  assert.equal(texts.filter((text) => /得分二（全部）/.test(text)).length, 1, texts.join(' | '))
+  const anovas = out.sentences.filter((entry) => entry.kind === 'anova')
+  assert.equal(anovas.length, 2, `两个因变量各要一句：${texts.join(' | ')}`)
+  assert.ok(anovas.some((entry) => entry.text.includes('得分一')) && anovas.some((entry) => entry.text.includes('得分二')))
+})
+
+check('the variance homogeneity table is consumed, not skipped', () => {
+  // t 检验的句子已经用过 Levene 的结果，把它再列进 skipped 等于说「没看懂」。
+  const test = item('Independent Samples Test', [
+    ['', '', "Levene's Test", '', 'T-Test', '', '', '', '', '', ''],
+    ['', '', 'F', 'Sig.', 't', 'df', 'Sig. (2-tailed)', 'Mean Difference', 'Std. Error Difference', '95% CI', ''],
+    ['', '', '', '', '', '', '', '', '', 'Lower', 'Upper'],
+    ['y', 'Equal variances assumed', '.10', '.700', '-2.83', '2.00', '.106', '-2.00', '.71', '-5.04', '1.04'],
+  ])
+  const homogeneity = item('Test of Homogeneity of Variances', [
+    ['', "Levene's Test", 'df1', 'df2', 'Sig.'],
+    ['y', '.10', '1', '4', '.767'],
+  ])
+  const groups = item('Group Statistics', [
+    ['', 'Group', 'N', 'Mean', 'Std. Deviation', 'S.E. Mean'],
+    ['y', '1', '2', '5.50', '.71', '.50'],
+    ['', '2', '2', '7.50', '.71', '.50'],
+  ])
+  const out = sentencesOf([groups, test, homogeneity])
+  assert.equal(out.sentences.length, 1, JSON.stringify(out.skipped))
+  assert.deepEqual(out.skipped, [])
+})
+
 console.log(`\nsentences: ${checks} checks passed`)

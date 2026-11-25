@@ -199,6 +199,19 @@ await check('pspp_advise argues the choice from the data', async () => {
   assert.equal(advise.item.title, '方法建议')
 })
 
+await check('every recommendation can be run as written', async () => {
+  // 复验抓到过：建议里的 how.params 用了不存在的键、或漏掉必填，照抄就报错。
+  // schema 那一层由 test/advise.mjs 拦；这里是把它们真的跑一遍 —— 有些过程
+  // 的必填项不在 schema 里（logistic 的 independents），只有引擎能判定。
+  const advise = await call('pspp_advise', {})
+  assert.ok(advise.recommendations.length >= 1)
+  for (const entry of advise.recommendations) {
+    const { tool, params } = entry.how
+    const value = await call(tool, params)
+    assert.ok(value, `${entry.analysis} 用 ${tool} 跑完没有返回`)
+  }
+})
+
 await check('pspp_repro writes a bundle that can be rerun', async () => {
   const target = join(dir, 'repro-out')
   const bundle = await call('pspp_repro', { path: target })
