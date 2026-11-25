@@ -1712,6 +1712,24 @@
     "多重对应分析：{0} 例，{1} 个类别，前两维解释 {2}%": "Multiple correspondence analysis: {0} cases, {1} categories, the first two dimensions explain {2}%",
     "多重对应分析：{0}、{1}": "Multiple correspondence analysis: {0}, {1}",
     "变量 = 类别": "Variable = Category",
-    "多重对应分析…": "Multiple Correspondence Analysis…"
+    "多重对应分析…": "Multiple Correspondence Analysis…",
+    "曲线估计": "Curve Estimation",
+    "曲线估计…": "Curve Estimation…",
+    "曲线估计：{0} 例，{1} 个模型，最佳 {2}（R² {3}）": "Curve estimation: {0} cases, {1} models, best {2} (R² {3})",
+    "自变量（横轴）": "Independent (X axis)",
+    "已选 {0} 个模型": "{0} models selected",
+    "非线性模型先线性化再拟合，表里的 R² 是线性化那个回归的；「原始尺度 R²」用的是原尺度的 y。": "Nonlinear models are linearized before fitting, so the R² column is that of the linearized regression; the original-scale R² uses y on its own scale.",
+    "对数、幂、S 要求自变量大于 0；复合、幂、S、增长、指数、Logistic 要求因变量大于 0，不满足的个案剔除并计数。": "Logarithmic, power and S need a positive independent variable; compound, power, S, growth, exponential and logistic need a positive dependent variable. Cases that fail are excluded and counted.",
+    "Logistic 上界 u（可留空）": "Logistic upper bound u (optional)",
+    "留空 = 因变量最大值 × 1.1": "blank = largest y times 1.1",
+    "Logistic 的 y 必须落在 0 与 u 之间；u 会改变 b0、b1 的含义，正式报告请明确给出。": "The logistic model needs y between 0 and u; u changes what b0 and b1 mean, so state it explicitly in a real report.",
+    "结果里会多画一张散点图，叠上 R² 最高的那条曲线。": "The result also draws a scatter plot with the best-fitting curve on top.",
+    "原始尺度 R²": "R² (original scale)",
+    "修正 R²": "Adjusted R²",
+    "表达式": "Expression",
+    "曲线估计要求数值自变量：{0} 是文本变量（先转成数值，或者改用分类分析）": "Curve estimation needs a numeric independent variable: {0} is text (convert it first, or use a categorical analysis)",
+    "曲线估计要指定因变量": "Curve estimation needs a dependent variable",
+    "曲线估计要指定自变量": "Curve estimation needs an independent variable",
+    "因变量与自变量不能是同一个变量": "The dependent and independent variables must differ"
   }
 }

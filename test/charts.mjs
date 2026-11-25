@@ -2,7 +2,7 @@
 // several charts into one picture. Pure: no engine, no browser.
 import assert from 'node:assert/strict'
 
-import { buildChartModel, composeChartGrid, renderSvg } from '../lib/charts.js'
+import { buildChartModel, composeChartGrid, computeScatter, renderSvg } from '../lib/charts.js'
 import { rasterizeSvg, svgToPng } from '../lib/raster.js'
 import { pngSize } from '../lib/office.js'
 
@@ -343,6 +343,30 @@ check('a biplot draws both sets of points with their labels', () => {
     kind: 'biplot', title: 't', rows: [{ label: 'A', x: 1, y: 2 }], columns: [{ label: 'B', x: 1.5, y: 2.5 }],
   })
   assert.doesNotMatch(positive, /stroke-dasharray="4 4"/, 'no crosshair when zero is outside the range')
+})
+
+check('a scatter plot draws the curve it is handed, and drops the part outside the box', () => {
+  const pairs = []
+  for (let index = 1; index <= 20; index += 1) pairs.push({ x: index, y: 2 * Math.exp(0.1 * index) })
+  const dataset = {
+    variables: [{ name: 'x', type: 'numeric' }, { name: 'y', type: 'numeric' }],
+    rows: pairs.map((row) => [row.x, row.y]),
+  }
+  const curve = []
+  for (let step = 0; step <= 40; step += 1) curve.push([1 + step * 0.5, 2 * Math.exp(0.1 * (1 + step * 0.5))])
+  // 再叠一段飞到画布外的点：渲染时要断开，不能画一条冲出绘图区的线。
+  curve.push([21, 400], [22, 900], [23, 2000])
+  const model = computeScatter(dataset, { x: 'x', y: 'y', curve })
+  assert.equal(model.curve.length, 44, 'the curve is carried on the model')
+  const svg = renderSvg(model)
+  assert.ok(svg.includes('<polyline'), 'the curve is drawn as a polyline')
+  const polylines = svg.match(/<polyline[^>]*>/g) ?? []
+  for (const line of polylines) {
+    for (const pair of line.match(/points="([^"]*)"/)[1].split(' ')) {
+      const [, y] = pair.split(',')
+      assert.ok(Number(y) >= 0 && Number(y) <= 360, `point stays inside the plot: ${pair}`)
+    }
+  }
 })
 
 console.log(`${checks} checks passed`)

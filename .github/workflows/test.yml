@@ -73,6 +73,7 @@ jobs:
           node test/distributions.mjs
           node test/correspondence.mjs
           node test/mca.mjs
+          node test/curves.mjs
           node test/poisson.mjs
           node test/wls.mjs
           node test/twosls.mjs

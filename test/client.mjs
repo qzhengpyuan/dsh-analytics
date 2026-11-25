@@ -2274,6 +2274,38 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   assert.match(clientSource, /api\('api\/mca', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/mca')
 
+  // 曲线估计：11 个模型一次全勾，Logistic 的上界可以留空。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const analysePopCurveFit = menuHost.querySelector('.ap-menu-pop')
+  const regressionGroupFit = [...analysePopCurveFit.querySelectorAll('button')].find((node) => node.textContent.startsWith('回归'))
+  await act(async () => {
+    regressionGroupFit?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const curveItemFit = [...(regressionGroupFit?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])]
+    .find((node) => node.textContent.startsWith('曲线估计'))
+  assert.ok(curveItemFit, 'the regression group lists curve estimation')
+  await act(async () => {
+    curveItemFit.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const curveDialogFit = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.match(curveDialogFit?.textContent ?? '', /曲线估计/, 'the dialog is titled like the procedure')
+  assert.match(curveDialogFit.textContent, /已选 11 个模型/, 'all eleven models start checked')
+  assert.match(curveDialogFit.textContent, /Logistic 上界 u/, 'the logistic bound is offered')
+  assert.match(curveDialogFit.textContent, /原始尺度 R²/, 'and the original-scale R² is explained')
+  const curveOkFit = [...curveDialogFit.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(curveOkFit.disabled, false, 'two numeric variables are enough to run')
+  const curveCancelFit = [...curveDialogFit.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    curveCancelFit.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.match(clientSource, /api\('api\/curve', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/curve')
+
 
 
   // 二阶段最小二乘：工具数不足时确定按钮不可点（识别不足是代数问题）。

@@ -2377,6 +2377,80 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
     }
 
     /**
+     * 曲线估计（SPSS 的「分析 → 回归 → 曲线估计」）。
+     *
+     * 11 个模型一次全试，表里按 R² 排不了（顺序固定按模型清单），最佳的一条
+     * 单独写进注文并叠到散点图上。Logistic 的上界留空时由宿主按因变量最大值
+     * × 1.1 兜底，对话框里说明这一点。
+     */
+    const CURVE_MODELS = [
+      ['linear', '线性'],
+      ['logarithmic', '对数'],
+      ['inverse', '逆'],
+      ['quadratic', '二次'],
+      ['cubic', '三次'],
+      ['compound', '复合'],
+      ['power', '幂'],
+      ['s', 'S'],
+      ['growth', '增长'],
+      ['exponential', '指数'],
+      ['logistic', 'Logistic'],
+    ]
+
+    function CurveDialog({ variables, onRun, onClose }) {
+      const numeric = variables.filter((variable) => variable.type !== 'string')
+      const [dependent, setDependent] = useState(numeric[0]?.name ?? '')
+      const [independent, setIndependent] = useState(numeric[1]?.name ?? numeric[0]?.name ?? '')
+      const [models, setModels] = useState(CURVE_MODELS.map(([key]) => key))
+      const [upper, setUpper] = useState('')
+      const toggle = (key) => setModels((current) => (current.includes(key)
+        ? current.filter((entry) => entry !== key)
+        : [...current, key]))
+      const ready = dependent && independent && dependent !== independent && models.length > 0
+      return h(Modal, {
+        title: '曲线估计',
+        wide: true,
+        okDisabled: !ready,
+        onCancel: onClose,
+        onOk: () => onRun({
+          dependent,
+          independent,
+          models,
+          upper: upper.trim() === '' ? undefined : Number(upper),
+        }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '因变量'),
+          h('select', { value: dependent, onChange: (event) => setDependent(event.target.value) },
+            numeric.map((variable) => h('option', { key: variable.name, value: variable.name }, variable.name))),
+          h('div', { className: 'ap-dlg-caption' }, '自变量（横轴）'),
+          h('select', { value: independent, onChange: (event) => setIndependent(event.target.value) },
+            numeric.map((variable) => h('option', { key: variable.name, value: variable.name }, variable.name))),
+          h('div', { className: 'ap-dlg-caption' }, '模型'),
+          h('div', { className: 'ap-chips' },
+            CURVE_MODELS.map(([key, label]) => h('button', {
+              key,
+              type: 'button',
+              className: `ap-chip${models.includes(key) ? ' ap-chip-on' : ''}`,
+              onClick: () => toggle(key),
+            }, label)))),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-hint' }, `已选 ${models.length} 个模型`),
+          h('div', { className: 'ap-hint' }, '非线性模型先线性化再拟合，表里的 R² 是线性化那个回归的；「原始尺度 R²」用的是原尺度的 y。'),
+          h('div', { className: 'ap-hint' }, '对数、幂、S 要求自变量大于 0；复合、幂、S、增长、指数、Logistic 要求因变量大于 0，不满足的个案剔除并计数。'),
+          h('div', { className: 'ap-dlg-caption' }, 'Logistic 上界 u（可留空）'),
+          h('input', {
+            type: 'number',
+            value: upper,
+            placeholder: '留空 = 因变量最大值 × 1.1',
+            onChange: (event) => setUpper(event.target.value),
+          }),
+          h('div', { className: 'ap-hint' }, 'Logistic 的 y 必须落在 0 与 u 之间；u 会改变 b0、b1 的含义，正式报告请明确给出。'),
+          h('div', { className: 'ap-hint' }, '结果里会多画一张散点图，叠上 R² 最高的那条曲线。'))))
+    }
+
+    /**
      * 分布计算器（SPSS 把它散在 CDF.* / IDF.* 函数里，这里给一个对话框）。
      *
      * 全部计算在宿主半做（lib/distributions.js），面板只收集参数，这样导出的
@@ -7629,6 +7703,24 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId, notify, setSt, setView, setDialog])
 
+      const runCurve = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/curve', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const model = value.result?.model ?? {}
+          const best = (model.parameters ?? []).find((entry) => entry.model === model.best)
+          notify(tr('曲线估计：{0} 例，{1} 个模型，最佳 {2}（R² {3}）', model.cases ?? 0,
+            (model.parameters ?? []).length, best?.label ?? model.best ?? '—', Number(best?.rSquare ?? 0).toFixed(4)))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId, notify, setSt, setView, setDialog])
+
       const runDistribution = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -8501,6 +8593,7 @@ let ITEM_CSV_PENDING = null
               { label: '泊松回归…（计数因变量）', action: () => setDialog({ kind: 'poisson' }) },
               { label: '权重估计…（加权最小二乘）', action: () => setDialog({ kind: 'wls' }) },
               { label: '二阶段最小二乘…（工具变量）', action: () => setDialog({ kind: 'twostage' }) },
+              { label: '曲线估计…', action: () => setDialog({ kind: 'curve' }) },
             ] },
             { label: '降维', sub: [
               { label: '因子…', action: () => runAnalysis('factor') },
@@ -9765,6 +9858,13 @@ let ITEM_CSV_PENDING = null
           ? h(WlsDialog, {
             variables,
             onRun: (payload) => runWls(payload),
+            onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'curve'
+          ? h(CurveDialog, {
+            variables,
+            onRun: (payload) => runCurve(payload),
             onClose: () => setDialog(null),
           })
           : null,

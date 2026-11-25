@@ -1290,6 +1290,19 @@ r = await call('POST', `${base}/api/multinomial`, { sessionId: 'mlr01', options:
 console.log('multinomial with a reference ->', r.code, r.json().result?.model?.reference,
   r.json().result?.model?.categories?.join(','))
 // Two-stage least squares: instruments that are no weaker than the endogenous set.
+// Curve estimation: a model summary plus a scatter plot carrying the best curve.
+r = await call('POST', `${base}/api/curve`, { sessionId: 'mlr01', options: { dependent: 'dose', independent: 'counts', models: ['linear', 'quadratic', 'exponential'] } })
+const curve = await r.json()
+console.log('curve ->', r.code, curve.result?.matrices?.[0]?.[0]?.join('|'), curve.result?.model?.best,
+  curve.result?.chart?.curve?.length)
+assert.equal(r.code, 200, 'api/curve answers')
+assert.equal(curve.result?.matrices?.length, 1, 'one summary table')
+assert.equal(curve.result?.model?.parameters?.length, 3, 'three models requested')
+assert.ok(['linear', 'quadratic', 'exponential'].includes(curve.result?.model?.best), 'the best is one of them')
+assert.ok((curve.result?.chart?.curve ?? []).length > 2, 'the chart carries a curve')
+assert.ok(curve.state?.items?.some((item) => item.kind === 'image'), 'and the chart is in the tree')
+r = await call('POST', `${base}/api/curve`, { sessionId: 'mlr01', options: { dependent: 'dose', independent: 'arm' } })
+assert.equal(r.code, 400, 'a text independent variable is refused')
 // Multiple correspondence analysis: an indicator matrix on top of the same core.
 // counts 是数值变量：按 SPSS 的规矩（只有名义/有序变量能进多重对应分析）先在
 // 变量视图里改成名义变量。

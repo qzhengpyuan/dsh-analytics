@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 35, names.join(' '))
+  assert.equal(names.length, 36, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -371,6 +371,20 @@ await check('pspp_correspondence maps two categorical variables', async () => {
   assert.equal(out.matrix[0][0], '维')
   assert.ok(Number.isFinite(out.chiSquare) && out.chiSquare >= 0, `chi-square ${out.chiSquare}`)
   assert.ok(out.rows.length >= 2 && out.columns.length >= 2, `${out.rows.length}x${out.columns.length}`)
+})
+
+await check('pspp_curve fits the requested models and returns the best one', async () => {
+  await open()
+  const out = await call('pspp_curve', {
+    dependent: 'score',
+    independent: 'time',
+    models: ['linear', 'quadratic', 'exponential'],
+  })
+  assert.equal(out.matrix[0][0], '模型')
+  assert.equal(out.models.length, 3)
+  assert.ok(out.models.every((entry) => Number.isFinite(entry.rSquare)), 'every model reports an R²')
+  assert.ok(['linear', 'quadratic', 'exponential'].includes(out.best), `best ${out.best}`)
+  assert.ok(out.chart?.kind === 'scatter', 'a scatter plot comes with it')
 })
 
 await check('pspp_mca maps the categories of several variables', async () => {
