@@ -40,6 +40,86 @@ const incidenceRows = (out) => table(out, '累积发生率').matrix.slice(1)
 const columnIndex = (out, name) => table(out, '累积发生率').matrix[0].indexOf(name)
 const cell = (out, row, name) => row[columnIndex(out, name)]
 
+check('a cause-specific log-rank treats the other causes as censored', () => {
+  // 变异复验抓到过：把别的病因也算成本原因的事件，χ² 从 0.2123 变成 3.8171。
+  // 不变量：全原因模型里原因 1 的检验，必须等于「把原因 2 改写成删失、只留原因 1」。
+  const rows = []
+  for (let index = 0; index < 6; index += 1) rows.push([index + 1, 1, index < 3 ? 'A' : 'B'])
+  for (let index = 0; index < 6; index += 1) rows.push([index + 1, 2, index < 3 ? 'B' : 'A'])
+  for (let index = 0; index < 4; index += 1) rows.push([index + 2, 0, index < 2 ? 'A' : 'B'])
+  const grouped = {
+    variables: [
+      { name: 't', type: 'numeric' },
+      { name: 's', type: 'numeric' },
+      { name: 'g', type: 'string' },
+    ],
+    rows,
+  }
+  const both = computeCompetingRisks(grouped, { time: 't', status: 's', group: 'g' })
+  const left = both.logRank.find((entry) => entry.cause === 1)
+  const censored = { ...grouped, rows: rows.map(([time, status, group]) => [time, status === 2 ? 0 : status, group]) }
+  const only = computeCompetingRisks(censored, { time: 't', status: 's', group: 'g', causes: [1] })
+  close(left.chiSquare, only.logRank[0].chiSquare, 1e-9, '别的病因必须按删失处理')
+  close(left.p, only.logRank[0].p, 1e-9, 'P 也要一致')
+})
+
+check('the Aalen variance keeps the (n − d) factor in its first term', () => {
+  // 变异复验抓到过：第一项分母去掉 (n−d)，逐点 SE 最大差 0.0062（CI 宽度差 0.024）。
+  // 单事件时间点上第一项恒为 0，所以用例必须有多于一个事件时间点才碰得到它。
+  // 这里按定义把两条方差项独立累加一遍（不读模块的中间量）。
+  // 剔薄的数据集第一项太小，两种分母在四位小数上看不出差别；这里堆到 25 例、
+  // 多个事件时间点，实测原件与变异件在第四位小数上就分开（最大差 0.0038）。
+  const pattern = [1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0]
+  const rows = []
+  for (let index = 0; index < 25; index += 1) rows.push([1 + (index % 12), pattern[index % pattern.length]])
+  for (let index = 0; index < 3; index += 1) rows.push([13 + index, 0])
+  const out = computeCompetingRisks(datasetOf(rows), { time: 't', status: 's' })
+  assert.ok(out.causes.length >= 2, '两条原因')
+  const eventTimes = [...new Set(rows.filter(([, status]) => status !== 0).map(([time]) => time))].sort((a, b) => a - b)
+  const atRisk = (time) => rows.filter(([other]) => other >= time).length
+  const deathsAll = (time) => rows.filter(([other, status]) => other === time && status !== 0).length
+  const deathsOf = (time, cause) => rows.filter(([other, status]) => other === time && status === cause).length
+  let compared = 0
+  for (const entry of out.causes) {
+    // causes 是对象（code/label），不是数字码。
+    const cause = typeof entry === 'object' && entry !== null ? entry.code : entry
+    // 先按定义把 F_k(t_i) 与 S(t_{i−1}) 全算出来。
+    const incidences = []
+    const survivals = []
+    let incidence = 0
+    let survival = 1
+    for (const time of eventTimes) {
+      const n = atRisk(time)
+      const d = deathsAll(time)
+      survivals.push({ time, before: survival })
+      incidence += (survival * deathsOf(time, cause)) / n
+      incidences.push({ time, value: incidence })
+      survival *= 1 - d / n
+    }
+    for (const row of incidenceRows(out)) {
+      const time = Number(row[columnIndex(out, '时间')])
+      // 原因列是「1（状态码 1）」这种带标签的串，直接 Number() 会得到 NaN，
+      // 于是整个循环被 continue 跳过、断言变成空转（第一版就是这么写的）。
+      const rowCause = Number(String(row[columnIndex(out, '原因')]).match(/^-?\d+/)?.[0])
+      if (!Number.isFinite(rowCause) || rowCause !== cause) continue
+      const upTo = incidences.filter((entry) => entry.time <= time)
+      const current = upTo[upTo.length - 1].value
+      let variance = 0
+      for (const entry of upTo) {
+        const n = atRisk(entry.time)
+        const d = deathsAll(entry.time)
+        const dk = deathsOf(entry.time, cause)
+        const before = survivals.find((item) => item.time === entry.time).before
+        if (n > d) variance += ((current - entry.value) ** 2 * d) / (n * (n - d))
+        variance += before ** 2 * ((n - dk) / n) * (dk / (n * n))
+      }
+      compared += 1
+      close(Number(cell(out, row, '标准误')), Math.sqrt(variance), 5e-5, `t=${time} 原因 ${cause} 的 SE`)
+    }
+  }
+  assert.ok(compared >= 10, `要真的比过若干行（比了 ${compared} 行），否则断言等于没写`)
+})
+
 check('cumulative incidence sums to the complement of the all-cause survival', () => {
   // 12 例：t 1..6 里的 6 个原因 1、t 2..4 的 3 个原因 2、t 3..5 的 3 个删失。
   const rows = []

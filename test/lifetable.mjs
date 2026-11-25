@@ -160,6 +160,16 @@ await check('a declared missing code is not a time value', () => {
   assert.equal(out.last, 2)
 })
 
+await check('an event on the last grid boundary is not dropped', () => {
+  // [1, 3] 宽 2 ⇒ 一段；3 正好是右端点。变异复验抓到过：最后一段不把右端点上的
+  // 事件收进来，那例死亡会被静默丢掉，S 从 0 变成 0.5。
+  const out = computeLifeTable(dataset([[1, 1, 'A'], [3, 1, 'A']]), { time: 't', status: 's', interval: 2 })
+  assert.equal(out.steps, 1)
+  assert.equal(cell(out, 1, '期内事件数'), '2')
+  assert.equal(cell(out, 1, '累积生存率'), '0.0000')
+  assert.equal(out.medians[1][1], '3')
+})
+
 await check('the interval width is chosen when it is left empty', () => {
   const out = computeLifeTable(dataset(rows), { time: 't', status: 's' })
   assert.ok(out.interval > 0, `the width must be positive: ${out.interval}`)

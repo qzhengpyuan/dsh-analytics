@@ -208,6 +208,73 @@ check('the strata table counts every level and the notes say who owns the risk s
   assert.equal(out.model.strata.length, 2)
 })
 
+check('the partial likelihood of a distinct-time fit matches the closed form', () => {
+  // 变异复验抓到过：把 logLikelihood 里的 deaths 因子丢掉，-2LL 从 319.7 变成 113.7，
+  // 而用例只对注文做文本匹配，数值从没被钉住。事件时间互不相同时 Breslow 就是标准
+  // PL：LL = Σ_事件 [β·x_i − log Σ_{t_j ≥ t_i} exp(β·x_j)]。
+  const out = computeCox(dataset(distinct), { time: 't', event: 'e', covariates: ['g'] })
+  const beta = Number(out.matrix[1][1])
+  let expected = 0
+  for (const [time, event, value] of distinct) {
+    if (event !== 1) continue
+    const risk = distinct.filter(([other]) => other >= time)
+    expected += beta * value - Math.log(risk.reduce((sum, [, , x]) => sum + Math.exp(beta * x), 0))
+  }
+  assert.ok(
+    Math.abs(out.model.logLikelihood - expected) < 5e-4,
+    `对数似然应等于偏似然：${out.model.logLikelihood} vs ${expected}`,
+  )
+  assert.ok(out.model.likelihoodRatio >= 0, `似然比 χ² 不能是负的（实测 ${out.model.likelihoodRatio}）`)
+})
+
+check('tied event times count every death in the Breslow log-likelihood', () => {
+  // 上面那条用互不相同的事件时间 —— 那样每个时间点只有一例，deaths 因子乘 1，
+  // 把因子丢掉也看不出来（变异复验正是这样漏掉的）。这里刻意造并列事件时间：
+  // 同一时刻 d 例事件时 LL 贡献 = Σ_事件 βx − d·log(Σ_风险 exp(βx))。
+  const rows = []
+  for (let time = 1; time <= 5; time += 1) {
+    for (let index = 0; index < 4; index += 1) {
+      rows.push([time, index < 2 ? 1 : 0, (time * 3 + index * 2) % 7])
+    }
+  }
+  const out = computeCox(dataset(rows), { time: 't', event: 'e', covariates: ['g'] })
+  const beta = Number(out.matrix[1][1])
+  let expected = 0
+  for (const time of [...new Set(rows.filter(([, event]) => event === 1).map(([t]) => t))]) {
+    const events = rows.filter(([t, event]) => t === time && event === 1)
+    const risk = rows.filter(([t]) => t >= time)
+    const s0 = risk.reduce((sum, [, , value]) => sum + Math.exp(beta * value), 0)
+    expected += events.reduce((sum, [, , value]) => sum + beta * value, 0) - events.length * Math.log(s0)
+  }
+  assert.ok(
+    Math.abs(out.model.logLikelihood - expected) < 5e-4,
+    `并列事件时间的对数似然：${out.model.logLikelihood} vs ${expected}`,
+  )
+})
+
+check('every strata row adds up and a stratum without events stays out of the likelihood', () => {
+  // 两条不变量：① 每层的「个案 = 事件 + 删失」（变异曾让删失列用全局数）；
+  // ② 0 事件的层不能进似然 —— 那里 s0/s1/s2 全为 0，log(0) 会把 -2LL 变成 Infinity。
+  const out = computeCox(strataDataset(stratifiedRows), { time: 't', event: 'e', covariates: ['x'], strata: 's' })
+  for (const line of out.strataTable.slice(1, -1)) {
+    assert.equal(Number(line[1]), Number(line[2]) + Number(line[3]), `分层表每行都要自洽：${line.join('|')}`)
+  }
+  const rows = []
+  for (let index = 0; index < 30; index += 1) {
+    rows.push([index + 1, index % 5 === 0 ? 1 : 0, index % 3, 'A'])
+    rows.push([index + 1, index % 4 === 0 ? 1 : 0, index % 5, 'B'])
+    // C 层全是删失：进不了似然，但不该让拟合出 NaN。
+    rows.push([index + 1, 0, index % 7, 'C'])
+  }
+  const sparse = computeCox(strataDataset(rows), { time: 't', event: 'e', covariates: ['x'], strata: 's' })
+  assert.equal(sparse.model.strata.length, 3, '三层都在摘要里')
+  assert.equal(sparse.model.emptyStrata.length, 1, '零事件的那一层要被点名')
+  assert.match(sparse.notes[0], /分了 3 层（其中 1 层没有事件、不进似然）/, sparse.notes[0])
+  assert.ok(sparse.notes.some((note) => /1 层一次事件都没有/.test(note)), '第二条注文也要点名')
+  assert.ok(Number.isFinite(sparse.model.logLikelihood), `零事件层不该把似然变成无穷：${sparse.model.logLikelihood}`)
+  assert.ok(Number.isFinite(Number(sparse.matrix[1][1])), '系数要有限')
+})
+
 check('stratifying is not the same model as putting the variable in as a covariate', () => {
   // 协变量必须是数值：把分层变量做成 0/1 哑变量再当协变量放进去，和「按它分层」
   // 是两个不同的假设（前者假设它的效应是比例风险），结果不该逐位相同。

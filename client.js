@@ -2128,6 +2128,45 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
           h('div', { className: 'ap-hint' }, '原因最多 6 类；数据里出现的其他状态码按删失处理，注文会点名。'))))
     }
 
+    function SurvivalMeanDialog({ variables, onRun, onClose }) {
+      const numeric = variables.filter((variable) => variable.type === 'numeric')
+      const [time, setTime] = useState(null)
+      const [event, setEvent] = useState(null)
+      const [group, setGroup] = useState('')
+      const ready = Boolean(time && event && time !== event)
+      return h(Modal, {
+        title: '生存时间的均值与中位数',
+        wide: true,
+        okDisabled: !ready,
+        onCancel: onClose,
+        onOk: () => onRun({ time, event, ...(group ? { group } : {}) }),
+      },
+      h('div', { className: 'ap-dlg' },
+        h('div', { className: 'ap-dlg-left' },
+          h('div', { className: 'ap-dlg-caption' }, '分组（可留空）'),
+          h('select', { value: group, onChange: (event2) => setGroup(event2.target.value) },
+            h('option', { value: '' }, '（不分组）'),
+            variables
+              .filter((variable) => variable.name !== time && variable.name !== event)
+              .map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name))),
+          h('div', { className: 'ap-hint' }, '均值是限制均值：只算到随访终点，不是到无穷的期望寿命。'),
+          h('div', { className: 'ap-hint' }, '曲线没降到 25%/50%/75% 以下的百分位记「未达到」。')),
+        h('div', { className: 'ap-dlg-right' },
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '生存时间（必选，数值）'),
+            h('select', { value: time ?? '', onChange: (event2) => setTime(event2.target.value || null) },
+              h('option', { value: '' }, '（选一个时间变量）'),
+              numeric.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-dlg-box' },
+            h('div', { className: 'ap-dlg-caption' }, '事件（必选：1 = 事件，其他 = 删失）'),
+            h('select', { value: event ?? '', onChange: (event2) => setEvent(event2.target.value || null) },
+              h('option', { value: '' }, '（选一个事件指示变量）'),
+              numeric.map((variable) => h('option', { key: variable.name, value: variable.name, translate: false }, variable.name)))),
+          h('div', { className: 'ap-hint' }, '这张表对应 SPSS 的 Kaplan–Meier 「均值和中位数」：中位、均值、标准误与 95% CI，外加 25%/50%/75% 百分位。'),
+          h('div', { className: 'ap-hint' }, '标准误用 Klein–Moeschberger 的限制均值方差；有删失时中位数与百分位可能偏大。'),
+          h('div', { className: 'ap-hint' }, '要画曲线请用「Kaplan–Meier…」；这边只出表。'))))
+    }
+
     function LifeTableDialog({ variables, onRun, onClose }) {
       const numeric = variables.filter((variable) => variable.type === 'numeric')
       const [time, setTime] = useState(null)
@@ -7903,6 +7942,23 @@ let ITEM_CSV_PENDING = null
         }
       }, [sessionId])
 
+      const runSurvivalMeans = useCallback(async (payload) => {
+        setBusy(true)
+        try {
+          const value = await api('api/survivalMeans', { sessionId, options: payload })
+          setSt(stateOf(value))
+          setView('output')
+          const result = value.result ?? {}
+          notify(tr('生存时间均值：{0} 组{1}', (result.groups ?? []).length,
+            (result.model?.logRank ?? null) ? tr('，附 log-rank 检验') : ''))
+          setDialog(null)
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId])
+
       const runLifeTable = useCallback(async (payload) => {
         setBusy(true)
         try {
@@ -8992,6 +9048,7 @@ let ITEM_CSV_PENDING = null
               { label: 'Cox 回归…（比例风险）', action: () => setDialog({ kind: 'cox' }) },
               { label: '竞争风险…（累积发生率）', action: () => setDialog({ kind: 'competing' }) },
               { label: '生命表…（分组生存率）', action: () => setDialog({ kind: 'lifetable' }) },
+              { label: '均值与百分位…（生存时间）', action: () => setDialog({ kind: 'survivalmean' }) },
             ] },
             { label: '质量控制', sub: [
               { label: '控制图…（X̄–R）', action: () => setDialog({ kind: 'chart', type: 'control' }) },
@@ -10197,6 +10254,12 @@ let ITEM_CSV_PENDING = null
           ? h(LifeTableDialog, {
             variables,
             onRun: (payload) => runLifeTable(payload),
+            onClose: () => setDialog(null),
+          })
+          : dialog?.kind === 'survivalmean'
+          ? h(SurvivalMeanDialog, {
+            variables,
+            onRun: (payload) => runSurvivalMeans(payload),
             onClose: () => setDialog(null),
           })
           : dialog?.kind === 'cox'

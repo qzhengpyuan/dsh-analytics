@@ -1322,6 +1322,21 @@ assert.equal(competingGrouped.result?.tables?.[1]?.matrix?.[0]?.[1], '分组', '
 r = await call('POST', `${base}/api/competing`, { sessionId: 'cr01', options: { time: 't', status: 'nope' } })
 assert.equal(r.code, 400, 'an unknown status variable is refused')
 
+// 生存时间的均值与百分位：同一份随访数据，事件列是 s（非 0 都算事件）。
+r = await call('POST', `${base}/api/survivalMeans`, { sessionId: 'cr01', options: { time: 't', event: 's' } })
+const survMeans = r.json()
+console.log('survivalMeans ->', r.code, survMeans.result?.matrix?.length, survMeans.result?.groups?.length)
+assert.equal(r.code, 200, 'api/survivalMeans answers')
+assert.equal(survMeans.result?.matrix?.[0]?.[0], '分组', 'the table starts with the group column')
+assert.equal(survMeans.result?.tables?.length, 2, 'means and percentiles')
+assert.equal(survMeans.result?.tables?.[1]?.matrix?.[0]?.[1], '25%', 'percentile columns are named (the first column is the group)')
+assert.ok(Number.isFinite(survMeans.result?.groups?.[0]?.mean), 'a restricted mean is reported')
+r = await call('POST', `${base}/api/survivalMeans`, { sessionId: 'cr01', options: { time: 't', event: 's', group: 'g' } })
+assert.equal(r.code, 200, 'api/survivalMeans answers with a group')
+assert.equal(r.json().result?.matrix?.length, r.json().result?.groups?.length + 1)
+r = await call('POST', `${base}/api/survivalMeans`, { sessionId: 'cr01', options: { time: 'nope', event: 's' } })
+assert.equal(r.code, 400, 'an unknown time variable is refused')
+
 // 生命表复用同一份随访数据：区间宽度 2、状态 0/1/2 都是事件（非 0），再按 g 分组。
 r = await call('POST', `${base}/api/lifetable`, { sessionId: 'cr01', options: { time: 't', status: 's', interval: 2 } })
 const lifetable = r.json()

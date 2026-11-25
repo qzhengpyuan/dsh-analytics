@@ -2,7 +2,7 @@
   "meta": {
     "title": "Analytics",
     "description": "dsh-analytics: an SPSS-style statistics workbench backed by a bundled GNU PSPP engine — data view, variable view, syntax, output viewer, analysis dialogs, and agent-readable datasets.",
-    "count": 1934
+    "count": 1952
   },
   "strings": {
     " 个个案": " cases",
@@ -1938,6 +1938,24 @@
     "（宽度是自动取的）": " (the width was chosen automatically)",
     "生命表把区间内的删失按半个个案处理，区间越宽误差越大；要逐事件的估计请用 Kaplan–Meier": "The life table counts censoring inside an interval as half a case, so wider intervals are less accurate; use Kaplan–Meier for an event-by-event estimate",
     "有 {0} 个个案因为时间/状态/分组缺失（或时间为负）被剔除": "{0} cases were dropped for a missing time/status/group value (or a negative time)",
-    "有分组的累积生存率始终没有降到 0.5 以下，中位生存期记为「未达到」": "Some groups never reach 0.5 cumulative survival; their median is reported as not reached"
+    "有分组的累积生存率始终没有降到 0.5 以下，中位生存期记为「未达到」": "Some groups never reach 0.5 cumulative survival; their median is reported as not reached",
+    "生存时间的均值与中位数": "Means and Medians for Survival Time",
+    "生存时间的百分位": "Percentiles of Survival Time",
+    "均值与百分位…（生存时间）": "Means and Percentiles… (survival time)",
+    "生存时间均值：{0} 组{1}": "Survival means: {0} groups{1}",
+    "，附 log-rank 检验": ", with a log-rank test",
+    "事件（必选：1 = 事件，其他 = 删失）": "Event (required: 1 = event, anything else = censored)",
+    "（选一个事件指示变量）": "(pick an event indicator)",
+    "均值是限制均值：只算到随访终点，不是到无穷的期望寿命。": "The mean is a restricted mean: it stops at the last follow-up time, not the expectation to infinity.",
+    "曲线没降到 25%/50%/75% 以下的百分位记「未达到」。": "A percentile the curve never reaches is reported as not reached.",
+    "这张表对应 SPSS 的 Kaplan–Meier 「均值和中位数」：中位、均值、标准误与 95% CI，外加 25%/50%/75% 百分位。": "This is the \"Means and Medians\" table of a Kaplan–Meier run: median, restricted mean, its standard error and 95% CI, plus the 25th/50th/75th percentiles.",
+    "标准误用 Klein–Moeschberger 的限制均值方差；有删失时中位数与百分位可能偏大。": "The standard error uses the Klein–Moeschberger restricted-mean variance; with censoring the median and percentiles can be too large.",
+    "要画曲线请用「Kaplan–Meier…」；这边只出表。": "Use \"Kaplan–Meier…\" to draw the curve; this procedure only prints tables.",
+    "删失数": "Censored",
+    "均值（截尾）": "Restricted Mean",
+    "截尾时间": "Truncation Time",
+    "25%": "25%",
+    "生存时间": "Survival Time",
+    "事件指示": "Event Indicator"
   }
 }

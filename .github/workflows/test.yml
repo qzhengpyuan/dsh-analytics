@@ -67,6 +67,7 @@ jobs:
           node test/cox.mjs
           node test/competing.mjs
           node test/lifetable.mjs
+          node test/survmean.mjs
           node test/discriminant.mjs
           node test/cluster.mjs
           node test/timeseries.mjs

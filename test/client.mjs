@@ -2089,6 +2089,40 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   })
   assert.equal([...menuHost.querySelectorAll('.ap-modal')].length, 0, 'and it closes again')
   assert.match(clientSource, /api\('api\/lifetable', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/lifetable')
+  // 生存时间的均值与百分位：同一组菜单下的下一个过程，只出表不出图。
+  await act(async () => {
+    analyseButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const meansPop = menuHost.querySelector('.ap-menu-pop')
+  const meansGroup = [...meansPop.querySelectorAll('button')].find((node) => node.textContent.startsWith('生存分析'))
+  await act(async () => {
+    meansGroup?.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const meansItem = [...(meansGroup?.parentElement?.querySelectorAll('.ap-sub-pop button') ?? [])]
+    .find((node) => node.textContent.startsWith('均值与百分位'))
+  assert.ok(meansItem, 'the survival group lists the means and percentiles procedure')
+  await act(async () => {
+    meansItem.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const meansDialog = [...menuHost.querySelectorAll('.ap-modal')].at(-1)
+  assert.ok(meansDialog, 'the means dialog opens from the menu')
+  assert.match(meansDialog.textContent, /^生存时间的均值与中位数/, 'the dialog is titled like the SPSS table')
+  assert.match(meansDialog.textContent, /事件（必选：1 = 事件，其他 = 删失）/, 'it asks for the event indicator')
+  assert.match(meansDialog.textContent, /均值是限制均值/, 'and says the mean is restricted')
+  assert.match(meansDialog.textContent, /Klein–Moeschberger/, 'and names the variance formula')
+  assert.match(meansDialog.textContent, /曲线没降到 25%/, 'and explains the not-reached percentiles')
+  const meansOk = [...meansDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '确定')
+  assert.equal(meansOk.disabled, true, 'nothing runs before both variables are chosen')
+  const meansCancel = [...meansDialog.querySelectorAll('button')].find((node) => node.textContent.trim() === '取消')
+  await act(async () => {
+    meansCancel.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  assert.equal([...menuHost.querySelectorAll('.ap-modal')].length, 0, 'and it closes again')
+  assert.match(clientSource, /api\('api\/survivalMeans', \{ sessionId, options: payload \}\)/, 'the dialog posts to api/survivalMeans')
   // 判别分析：PSPP 没有 DISCRIMINANT，四张表由插件拟合，菜单位置对标 SPSS 的分类。
   // 关掉对话框之后菜单是重新渲染的，早先抓到的 pop 已经脱开文档，得再点开一次。
   await act(async () => {

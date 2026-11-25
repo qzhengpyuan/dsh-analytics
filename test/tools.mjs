@@ -65,7 +65,7 @@ const open = () => call('pspp_open', { path: csv })
 
 await check('every tool declares parameters and an output renderer', () => {
   const names = tools.map((tool) => tool.name)
-  assert.equal(names.length, 40, names.join(' '))
+  assert.equal(names.length, 41, names.join(' '))
   for (const tool of tools) {
     assert.equal(tool.parameters?.type, 'object', `${tool.name} has no parameters schema`)
     assert.equal(typeof tool.output?.render, 'function', `${tool.name} has no renderer`)
@@ -185,6 +185,20 @@ await check('pspp_competing reports cumulative incidence and a cause-specific lo
   const grouped = await call('pspp_competing', { time: 'time', status: 'event', group: 'grp' })
   assert.ok(Array.isArray(grouped.logRank) && grouped.logRank.length === 1, 'one test per event type')
   assert.ok(grouped.logRank[0].df >= 1, 'df counts the groups minus one')
+})
+
+await check('pspp_survival_means reports the restricted mean and the percentiles', async () => {
+  const out = await call('pspp_survival_means', { time: 'time', event: 'event' })
+  assert.equal(out.matrix[0][0], '分组', JSON.stringify(out).slice(0, 300))
+  assert.ok(out.matrix.length >= 2, 'header plus at least one group')
+  const header = out.matrix[0]
+  const row = out.matrix[1]
+  const mean = Number(row[header.indexOf('均值（截尾）')])
+  const until = Number(row[header.indexOf('截尾时间')])
+  assert.ok(Number.isFinite(mean) && mean >= 0 && mean <= until, `限制均值 ${mean} 应落在 0 与 ${until} 之间`)
+  assert.equal(out.percentiles[0][0], '分组')
+  const grouped = await call('pspp_survival_means', { time: 'time', event: 'event', group: 'grp' })
+  assert.equal(grouped.matrix.length, grouped.groups.length + 1, 'one row per group plus the header')
 })
 
 await check('pspp_lifetable reports a life table with intervals and a median row', async () => {
