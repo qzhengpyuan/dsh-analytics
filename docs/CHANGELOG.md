@@ -1,3 +1,13 @@
+## 0.116.3
+
+修 0.116.2 复验（7 PASS / 1 FAIL）报的一条 P1 与一条 P2。
+
+- **P1 打开带多行标签的外部 `.sav` 会读坏字典**：`DISPLAY DICTIONARY` 用引号把标签包起来，标签里有 LF 时朴素地按行切会把一条记录劈成两半 —— 变量标签只剩前半截、后半截被当成一条新记录，于是多出一个幻影变量（实测 `A1_B1"`）、值标签被挪到它身上，接着 `save()` 报 `GET DATA: Unterminated string constant`。现在按 CSV 记录切行（`splitRecords`，引号内的换行算同一格，`""` 转义照样认），`parseCsv` 本来就支持引号内换行，所以整条记录能完整解析。
+- **P2 `valueLabels: null` 抛原始英文异常**：`updateVariable`/`updateVariables` 的守卫用 `typeof === 'object'` 判断，`null` 也满足，`Object.entries(null)` 抛 `TypeError: Cannot convert undefined or null to object`，HTTP 层 400 里直接带英文原文。改成 `patch.valueLabels && typeof === 'object'` —— `null` 与 `undefined` 一并当「不改」。
+- 用例：`test/build.mjs` 新增「a dictionary label with a line break is not cut in half」（引号内 LF 的变量标签与值标签都完整读回、变量个数不多）。
+
+全量 64 套件 / 958 ok（不装 poppler 957）/ 0 FAIL。
+
 ## 0.116.2
 
 收 0.116.1 复验报的三条既有观察（O-c/O-d/O-e），都是「写盘兜底了、内存层没兜住」。

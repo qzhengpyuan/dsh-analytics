@@ -1215,6 +1215,29 @@ check('value labels survive labels that collapse to ?????? in a Windows code pag
   assert.deepEqual(again.find((variable) => variable.name === 'gender').valueLabels, { F: 'Female', M: 'Male' })
 })
 
+check('a dictionary label with a line break is not cut in half', async () => {
+  // 外部工具生成的 .sav 可能带多行标签；DISPLAY DICTIONARY 用引号把它包起来，
+  // 朴素按行切会切出半个标签并多出一个幻影变量（复验 P1）。
+  const csv = [
+    'Table: Variables',
+    'Name,Position,Label,Measurement Level,Role,Width,Alignment,Print Format,Write Format',
+    'g,1,"第一行\n第二行",Nominal,Input,8,Right,F8.0,F8.0',
+    'v,2,值,Scale,Input,8,Right,F8.2,F8.2',
+    '',
+    'Table: Value Labels',
+    'Variable Value,,Label',
+    '"第一行\n第二行",1,"低\n档"',
+    ',2,高',
+    '',
+  ].join('\n')
+  const variables = await readDictionary(async () => ({ code: 0, stderr: '', outputText: csv }), 'x.sav')
+  assert.equal(variables.length, 2, JSON.stringify(variables.map((variable) => variable.name)))
+  assert.equal(variables[0].label, '第一行\n第二行')
+  assert.deepEqual(variables[0].valueLabels, { 1: '低\n档', 2: '高' })
+  assert.equal(variables[1].name, 'v')
+  assert.equal(variables[1].label, '值')
+})
+
 check('a label is flattened to one line before it reaches the .sav syntax', () => {
   // PSPP 的语法一行一条命令：标签里的换行会把字符串截断，整个保存失败。
   // \f、U+2028 在编辑器里看着也像换行，一并压平（复验 O2/O-b）。
