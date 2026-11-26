@@ -114,10 +114,6 @@ jobs:
   # out of `npm test` and out of the other jobs.
   e2e:
     runs-on: ubuntu-latest
-    env:
-      # The screenshot is the deliverable of this job; the suite keeps it in a
-      # stable path instead of the temporary workspace it deletes.
-      E2E_ARTIFACTS: ${{ runner.temp }}/e2e
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -143,6 +139,11 @@ jobs:
           tar -C engine -xzf engine.tgz
 
       - name: end-to-end (real Chromium)
+        # The screenshot is the deliverable of this job; the suite keeps it in a
+        # stable path instead of the temporary workspace it deletes. The context
+        # has to be on the step: `runner` is not available in a job-level env.
+        env:
+          E2E_ARTIFACTS: ${{ runner.temp }}/e2e
         run: node test/e2e.mjs
 
       - name: screenshot
