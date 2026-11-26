@@ -82,6 +82,7 @@
 | 0.116.3 | 修复验 P1：多行标签的外部 `.sav` 打开时字典会被劈成两半（幻影变量 + `GET DATA: Unterminated string constant`），改按 CSV 记录切行；P2：`valueLabels: null` 不再抛原始英文 `TypeError` | `build` 新增引号内换行的字典用例 |
 | 0.117.0 | 补「功效与样本量」面板对话框（原来只有工具）+ 「跟着做一遍」引导（`lib/guide.js`、`workspace.guideStep`、`api/guide`、`api/guide/run`、九步：示例数据→描述/频数/交叉表/t/相关/回归→功效→体检） | 新套件 `test/guide.mjs` 6 条；`routes` 整链逐步真跑；`client` 两段 jsdom（含切模式不发 `power`） |
 | 0.118.0 | 交接与门禁：`docs/SCOPE.md`（能力边界一页）、`docs/HANDOFF.md`（接手第一页）、`test/docs.mjs` 5 条（链接/版本戳/CHANGELOG 首段/PLAN 节序/SCOPE 三问）、PLAN §3 重写与 §2 排序 | 66 套件 / 969 ok |
+| 0.118.1 | 修 0.117.0 复验的三条 P2：打开示例数据先确认（宿主半默认拒绝「换掉已打开的数据集」）、英文界面引导标题进词典、竖排键值表第一列跟着翻（`keyValue`） | 66 套件 / 970 ok；三处都做过变异验证 |
 
 ## 3. 下一批候选（排序即优先级）
 

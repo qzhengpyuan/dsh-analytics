@@ -132,3 +132,12 @@ check('the panel table carries the numbers and how they were obtained', () => {
 })
 
 console.log(`\npower: ${checks} checks passed`)
+
+// 竖排键值表：第一列是标签（「方法」「把握度」），面板要在英文界面下连它一起
+// 翻，所以这张表必须带 keyValue 标记（复验 01170 的 P2-3）。
+check('the power table is marked as a key/value table so labels translate too', () => {
+  const table = powerTable({ method: 'ttest-two', effect: 0.5, alpha: 0.05, power: 0.8, mode: 'sample' })
+  assert.equal(table.keyValue, true, 'the power table is a key/value table')
+  assert.deepEqual(table.matrix[0], ['项目', '值'])
+  assert.ok(table.matrix.slice(1).every((row) => row.length === 2), 'every row is label + value')
+})

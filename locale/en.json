@@ -2,7 +2,7 @@
   "meta": {
     "title": "Analytics",
     "description": "dsh-analytics: an SPSS-style statistics workbench backed by a bundled GNU PSPP engine — data view, variable view, syntax, output viewer, analysis dialogs, and agent-readable datasets.",
-    "count": 2041
+    "count": 2056
   },
   "strings": {
     " 个个案": " cases",
@@ -2045,6 +2045,21 @@
     "正在跑…": "Running…",
     "这一步看什么：{0}": "What to look at: {0}",
     "清单是空的：插件版本可能太旧": "The list is empty: the plugin is probably too old",
-    "这一步做完了": "This step is done"
+    "这一步做完了": "This step is done",
+    "打开示例数据（员工 60 例）": "Open the sample data (60 employees)",
+    "每组例数（已定）": "Cases per group (fixed)",
+    "描述统计：三个连续变量的均值与标准差": "Descriptives: mean and standard deviation of three numeric variables",
+    "频数 + 条形图：两个分类变量的分布": "Frequencies and bar charts: the two categorical variables",
+    "交叉表 + 卡方：部门与是否参加培训": "Crosstab and chi-square: department by training",
+    "独立样本 t 检验：参加过培训的人月薪更高吗": "Independent-samples t test: do trained staff earn more",
+    "相关矩阵：工龄、月薪、绩效": "Correlation matrix: tenure, salary, performance",
+    "线性回归：用工龄与绩效解释月薪": "Linear regression: salary explained by tenure and performance",
+    "功效与样本量：60 例够不够": "Power and sample size: is 60 enough",
+    "数据体检：这份数据哪里会出事": "Data check-up: where this data will bite",
+    "替换并打开": "Replace and open",
+    "当前打开的是「{0}」（{1} 例），打开示例数据会把它换掉，而且不能撤销。": "「{0}」 is open ({1} cases); opening the sample data replaces it, and that cannot be undone.",
+    "要留着这份数据，先在「文件 → 保存」里存成 .sav；只想看示例、不想要当前数据，就点「替换并打开」。": "To keep this data, save it as .sav under File → Save first; if you only want the sample, choose Replace and open.",
+    "当前已经打开了一份数据，这一步会把它换掉，而且不能撤销。": "A dataset is already open; this step replaces it and that cannot be undone.",
+    "替换并继续": "Replace and continue"
   }
 }

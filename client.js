@@ -324,7 +324,7 @@ function PowerDialog({ sessionId, onDone, onClose, notify }) {
  * 结果句子摆出来。清单与执行都在宿主半（`lib/guide.js` + `workspace.guideStep`），
  * 面板只显示。
  */
-function GuideDialog({ sessionId, onDone, onClose, notify }) {
+function GuideDialog({ sessionId, hasData, onDone, onClose, notify }) {
   const [steps, setSteps] = React.useState(null)
   const [failure, setFailure] = React.useState('')
   const [done, setDone] = React.useState({})
@@ -341,10 +341,12 @@ function GuideDialog({ sessionId, onDone, onClose, notify }) {
     })()
     return () => { alive = false }
   }, [sessionId])
-  const doStep = async (step) => {
+  const [pending, setPending] = React.useState(null)
+  const doStep = async (step, replace = false) => {
+    setPending(null)
     setBusy(step.id)
     try {
-      const value = await api('api/guide/run', { sessionId, options: { id: step.id } })
+      const value = await api('api/guide/run', { sessionId, options: replace ? { id: step.id, replace: true } : { id: step.id } })
       onDone(value)
       const result = value?.result ?? {}
       setDone((prev) => ({ ...prev, [step.id]: { note: result.note ?? '', sentences: result.sentences ?? [] } }))
@@ -375,8 +377,19 @@ function GuideDialog({ sessionId, onDone, onClose, notify }) {
         h('button', {
           className: 'ap-btn',
           disabled: busy !== '',
-          onClick: () => doStep(step),
+          onClick: () => {
+            // 第 1 步会替换当前数据集：没有数据时直接跑，有数据时先问一句。
+            if (step.kind === 'sample' && hasData && !done[step.id]) setPending(step.id)
+            else doStep(step, step.kind === 'sample' && hasData)
+          },
         }, busy === step.id ? tr('正在跑…') : (done[step.id] ? tr('重做') : tr('做这一步')))),
+      pending === step.id
+        ? h('div', { className: 'ap-guide-result' },
+          h('div', { className: 'ap-guide-note' }, tr('当前已经打开了一份数据，这一步会把它换掉，而且不能撤销。')),
+          h('div', { className: 'ap-inline' },
+            h('button', { className: 'ap-btn ap-primary', onClick: () => doStep(step, true) }, tr('替换并继续')),
+            h('button', { className: 'ap-btn', onClick: () => setPending(null) }, tr('取消'))))
+        : null,
       h('div', { className: 'ap-hint' }, tr(step.why)),
       done[step.id]
         ? h('div', { className: 'ap-guide-result' },
@@ -385,6 +398,22 @@ function GuideDialog({ sessionId, onDone, onClose, notify }) {
         : null,
       h('div', { className: 'ap-hint' }, tr('这一步看什么：{0}', tr(step.look))))),
     (steps ?? []).length === 0 && !failure ? h('div', { className: 'ap-guide-empty' }, tr('清单是空的：插件版本可能太旧')) : null))
+}
+
+/**
+ * 「打开示例数据」的确认：示例数据会替换当前数据集，而且这一步不可撤销
+ * （新建数据集不进撤销栈）。取消是默认动作，替换要用户自己点。
+ */
+function SampleConfirmDialog({ cases, name, onConfirm, onClose }) {
+  return h(Modal, {
+    title: '打开示例数据',
+    okText: '替换并打开',
+    onOk: onConfirm,
+    onCancel: onClose,
+  },
+  h('div', { className: 'ap-repro' },
+    h('div', null, tr('当前打开的是「{0}」（{1} 例），打开示例数据会把它换掉，而且不能撤销。', name || tr('未命名数据'), String(cases))),
+    h('div', { className: 'ap-hint' }, tr('要留着这份数据，先在「文件 → 保存」里存成 .sav；只想看示例、不想要当前数据，就点「替换并打开」。'))))
 }
 
 /**
@@ -1646,8 +1675,16 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       const matrix = item?.table?.matrix
       if (!Array.isArray(matrix) || matrix.length === 0) return matrix
       if (item?.plugin !== true || !DICT) return matrix
+      // 竖排键值表（`keyValue`）第一列也是标签，必须一起翻；普通表只翻表头
+      // 行，因为正文里的变量名与类别值撞上词典键时不能动。
+      const keyValue = item?.table?.keyValue === true
       return matrix.map((row, index) => {
-        if (!Array.isArray(row) || index > 0) return row
+        if (!Array.isArray(row)) return row
+        if (index > 0) {
+          if (!keyValue || row.length === 0) return row
+          const [first, ...rest] = row
+          return [typeof first === 'string' ? tr(first) : first, ...rest]
+        }
         return row.map((cell) => (typeof cell === 'string' ? tr(cell) : cell))
       })
     }
@@ -7888,6 +7925,29 @@ let ITEM_CSV_PENDING = null
         return value.page
       }, [sessionId])
 
+      /**
+       * 打开内置示例数据。`replace` 为真时才允许换掉已经打开的数据集 ——
+       * 宿主半的 `openSample()` 同样默认拒绝，这里只是先问再传。
+       */
+      const openSampleData = useCallback(async (replace) => {
+        setBusy(true)
+        try {
+          const value = await api('api/sample', { sessionId, replace: replace === true })
+          setSt(stateOf(value))
+          const page = await loadRows(0, 500)
+          setRows(page.rows)
+          setTotal(page.total)
+          setSelected(null)
+          setView('output')
+          const result = value?.result ?? {}
+          notify(tr('已打开示例数据：{0} 例、{1} 个变量，跑了 {2} 张表', String(result.cases ?? ''), String(result.variables ?? ''), String(result.tables ?? '')))
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          setBusy(false)
+        }
+      }, [sessionId, loadRows, setSt, setRows, setTotal, setSelected, setView, notify])
+
       // Right-click target of the data sheet. The menu is plain DOM because it
       // has to land at the pointer, outside the table's own layout.
       const [cellMenu, setCellMenu] = useState(null)
@@ -9528,22 +9588,12 @@ let ITEM_CSV_PENDING = null
             { label: '快捷键一览…', action: () => setDialog({ kind: 'shortcuts' }) },
             { label: '跟着做一遍…（示例数据，九步）', action: () => setDialog({ kind: 'guide' }) },
             { label: '打开示例数据…', action: async () => {
-              setBusy(true)
-              try {
-                const value = await api('api/sample', { sessionId })
-                setSt(stateOf(value))
-                const page = await loadRows(0, 500)
-                setRows(page.rows)
-                setTotal(page.total)
-                setSelected(null)
-                setView('output')
-                const result = value?.result ?? {}
-                notify(tr('已打开示例数据：{0} 例、{1} 个变量，跑了 {2} 张表', String(result.cases ?? ''), String(result.variables ?? ''), String(result.tables ?? '')))
-              } catch (error) {
-                notify(error.message)
-              } finally {
-                setBusy(false)
+              // 换掉已经打开的数据集是不能撤销的：先问一句（宿主半也默认拒绝）。
+              if ((st?.dataset?.caseCount ?? 0) > 0) {
+                setDialog({ kind: 'sampleConfirm', cases: st.dataset.caseCount, name: st.dataset.name ?? '' })
+                return
               }
+              await openSampleData(false)
             } },
             { label: '检查更新…', action: () => { void checkForUpdate() } },
             { label: '关于 PSPP 分析', action: () => setDialog({ kind: 'about' }) },
@@ -10470,6 +10520,14 @@ let ITEM_CSV_PENDING = null
             onClose: () => setDialog(null),
           })
           : null,
+        dialog?.kind === 'sampleConfirm'
+          ? h(SampleConfirmDialog, {
+            cases: dialog.cases ?? 0,
+            name: dialog.name ?? '',
+            onConfirm: () => { setDialog(null); openSampleData(true) },
+            onClose: () => setDialog(null),
+          })
+          : null,
         dialog?.kind === 'power'
           ? h(PowerDialog, {
             sessionId,
@@ -10481,6 +10539,7 @@ let ITEM_CSV_PENDING = null
         dialog?.kind === 'guide'
           ? h(GuideDialog, {
             sessionId,
+            hasData: (st?.dataset?.caseCount ?? 0) > 0,
             onDone: (value) => { setSt(stateOf(value)); setView('output') },
             onClose: () => setDialog(null),
             notify,

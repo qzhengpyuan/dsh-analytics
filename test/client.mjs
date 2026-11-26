@@ -1125,10 +1125,12 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     items: [{ id: 't1', kind: 'table', title: '描述统计', table: { caption: '描述统计', matrix: [['', 'N', 'Mean'], ['salary', '60', '8000']] } }],
     log: [], history: { undo: 0, redo: 0 }, locale: 'zh',
   }
-  window.fetch = async (url) => {
+  let sampleBody = null
+  window.fetch = async (url, init) => {
     const target = String(url)
     if (target.includes('api/sample')) {
       sampleCalls += 1
+      sampleBody = JSON.parse(init.body)
       return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { cases: 60, variables: 8, tables: 8, charts: 3 }, state: sampleState }) }
     }
     if (target.includes('api/rows')) {
@@ -1147,13 +1149,54 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   const item = [...sampleHost.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.trim() === '打开示例数据…')
   assert.ok(item, 'the help menu offers 打开示例数据…')
   await act(async () => { item.click(); await new Promise((resolve) => setTimeout(resolve, 80)) })
+  // 已经打开的这份数据会被换掉，而且不能撤销：先弹确认，发请求前必须问过。
+  assert.equal(sampleCalls, 0, 'an open dataset is not replaced without asking')
+  assert.match(sampleHost.textContent, /会把它换掉/, sampleHost.textContent.slice(-300))
+  const replaceButton = [...sampleHost.querySelectorAll('.ap-modal button')].find((node) => node.textContent.trim() === '替换并打开')
+  assert.ok(replaceButton, 'the confirmation offers 「替换并打开」')
+  await act(async () => { replaceButton.click(); await new Promise((resolve) => setTimeout(resolve, 80)) })
   assert.equal(sampleCalls, 1, 'the sample is requested once')
+  assert.equal(sampleBody.replace, true, 'the replacement is sent explicitly')
   const toast = sampleHost.querySelector('.ap-toast')
   assert.ok(toast, 'the user is told what happened')
   assert.match(toast.textContent, /60 例、8 个变量，跑了 8 张表/, toast.textContent)
   // 只断言请求与文案是不够的：删掉 setView('output') 时这条必须变红（复验 N5）。
   assert.ok(sampleHost.querySelector('.ap-output'), '打开示例数据后应该停在输出视图')
   await act(async () => { sampleRoot.unmount() })
+}
+
+// 没有打开数据时「打开示例数据…」不该弹确认：那是多一次点击。
+{
+  const freshHost = window.document.createElement('div')
+  window.document.body.appendChild(freshHost)
+  const freshRoot = createRoot(freshHost)
+  let freshCalls = 0
+  let freshBody = null
+  const emptyState = { id: 'session-f', version: '0.118.1', engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true }, dataset: null, items: [], log: [], history: { undo: 0, redo: 0 }, locale: 'zh' }
+  const filledState = { ...emptyState, dataset: { name: '示例数据（员工）', variables: [{ name: 'salary', type: 'numeric' }], caseCount: 60 } }
+  window.fetch = async (url, init) => {
+    const target = String(url)
+    if (target.includes('api/sample')) {
+      freshCalls += 1
+      freshBody = JSON.parse(init.body)
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { cases: 60, variables: 8, tables: 8, charts: 3 }, state: filledState }) }
+    }
+    if (target.includes('api/rows')) return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, page: { rows: [[1, 2]], total: 60 } }) }
+    return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state: emptyState }) }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    freshRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const help = [...freshHost.querySelectorAll('.ap-menu-button')].find((node) => node.textContent.trim() === '帮助')
+  await act(async () => { help.click(); await new Promise((resolve) => setTimeout(resolve, 20)) })
+  const item = [...freshHost.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.trim() === '打开示例数据…')
+  await act(async () => { item.click(); await new Promise((resolve) => setTimeout(resolve, 80)) })
+  assert.equal(freshCalls, 1, 'with no dataset the sample opens straight away')
+  assert.equal(freshBody.replace, false, 'no replacement flag is sent when there is nothing to replace')
+  assert.equal(freshHost.querySelectorAll('.ap-modal').length, 0, 'no confirmation when nothing would be lost')
+  await act(async () => { freshRoot.unmount() })
 }
 
 // 数据 → 数据体检… / 分析 → 方法建议… / 文件 → 导出复现包…：这三条入口原来只
@@ -1406,6 +1449,53 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   await act(async () => { guideRoot.unmount() })
 }
 
+// 已经打开数据集时，引导第 1 步会把它换掉：先内联确认，确认后才带 replace 下发。
+{
+  const host = window.document.createElement('div')
+  window.document.body.appendChild(host)
+  const root2 = createRoot(host)
+  const busyState = {
+    id: 'session-g2', version: '0.118.1',
+    engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true },
+    dataset: { name: '我的数据', variables: [{ name: 'x', type: 'numeric' }], caseCount: 3 },
+    items: [], log: [], history: { undo: 0, redo: 0 }, locale: 'zh',
+  }
+  let guideRunBody = null
+  let guideRunCalls = 0
+  window.fetch = async (url, init) => {
+    const target = String(url)
+    if (target.includes('api/guide/run')) {
+      guideRunCalls += 1
+      guideRunBody = JSON.parse(init.body)
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { step: { id: 'open-sample' }, items: [], sentences: [], skipped: [], note: '已打开示例数据：60 例、8 个变量' }, state: busyState }) }
+    }
+    if (target.includes('api/guide')) {
+      const steps = [{ id: 'open-sample', kind: 'sample', title: '打开示例数据（员工 60 例）', why: '不用先准备数据', look: '数据视图里出现 8 个变量', syntax: null }]
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { steps, total: 1 }, state: busyState }) }
+    }
+    return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state: busyState }) }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    root2.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const help = [...host.querySelectorAll('.ap-menu-button')].find((node) => node.textContent.trim() === '帮助')
+  await act(async () => { help.click(); await new Promise((resolve) => setTimeout(resolve, 20)) })
+  const entry = [...host.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.trim() === '跟着做一遍…（示例数据，九步）')
+  await act(async () => { entry.click(); await new Promise((resolve) => setTimeout(resolve, 80)) })
+  const step = [...host.querySelectorAll('.ap-guide-step button')][0]
+  await act(async () => { step.click(); await new Promise((resolve) => setTimeout(resolve, 60)) })
+  assert.equal(guideRunCalls, 0, 'a step that replaces the data does not run unasked')
+  assert.match(host.textContent, /这一步会把它换掉/, host.textContent.slice(-300))
+  const go = [...host.querySelectorAll('.ap-guide-step button')].find((node) => node.textContent.trim() === '替换并继续')
+  assert.ok(go, 'the inline confirmation offers 「替换并继续」')
+  await act(async () => { go.click(); await new Promise((resolve) => setTimeout(resolve, 80)) })
+  assert.equal(guideRunCalls, 1)
+  assert.equal(guideRunBody.options.replace, true, 'the confirmed replacement is sent')
+  await act(async () => { root2.unmount() })
+}
+
 // 英文界面下「复制表格」必须复制译过的表头：表格渲染走了 tr()，复制曾直接把
 // 中文表头拼进 TSV（复验 O1）。正文是数据，必须原样。
 {
@@ -1484,6 +1574,46 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   assert.ok(copied, 'the copy button writes to the clipboard')
   assert.match(copied, /^Variable\tMinimum\tMaximum/, JSON.stringify(copied))
   assert.match(copied, /\n?score\t3\t9/, 'data cells are not translated')
+
+  // 竖排键值表（功效与样本量）的第一列也是标签，必须跟着翻；普通表只翻表头，
+  // 因为正文里的变量名与类别值撞上词典键时不能动（复验 01170 的 P2-3）。
+  const kvHost = window.document.createElement('div')
+  window.document.body.appendChild(kvHost)
+  const kvRoot = createRoot(kvHost)
+  const kvState = {
+    ...enState,
+    items: [{
+      id: 'power-1', kind: 'table', plugin: true, title: '功效与样本量',
+      table: {
+        caption: '功效与样本量',
+        keyValue: true,
+        matrix: [['项目', '值'], ['方法', '独立样本 t 检验（每组相同）'], ['每组例数', '64']],
+      },
+      notes: [],
+    }],
+  }
+  window.fetch = async (url) => {
+    const target = String(url)
+    if (target.includes('api/locale')) return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, locale: 'en', strings: dict }) }
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(target.includes('api/heartbeat') ? { ok: true, signal: enState.signal } : { ok: true, state: kvState }),
+    }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    kvRoot.render(React.createElement(registered.tabs[0].component, { ...props, scope: { sessionId: 'session-ins-en', cwd: '/tmp' }, tab: null }))
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  })
+  const kvOut = [...kvHost.querySelectorAll('.ap-view-tab')].find((node) => node.textContent === 'Output')
+  assert.ok(kvOut, 'the view tabs are English')
+  await act(async () => { kvOut.click(); await new Promise((resolve) => setTimeout(resolve, 80)) })
+  const kvText = kvHost.textContent
+  assert.match(kvText, /Power and sample size/, kvText.slice(0, 300))
+  assert.match(kvText, /Method/, 'the key column is translated')
+  assert.match(kvText, /Cases per group/, 'and so is every label in it')
+  await act(async () => { kvRoot.unmount() })
   await act(async () => { enRoot.unmount() })
 }
 

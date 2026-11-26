@@ -1592,8 +1592,20 @@ for (const id of ['pivot01', 'pivot02', 'dup01', 'out01', 'ex01', 'cmh01', 'glmc
 
 
 // 示例数据：新装好插件的人点「帮助 → 打开示例数据…」走的就是这条路。
+// 示例数据会替换已经打开的数据集，而且换掉就回不来了：先拒绝，明确 replace 才做。
+const guardedBefore = (await call('GET', `${base}/api/state?sessionId=${encodeURIComponent(sid)}`)).json().state
 r = await call('POST', `${base}/api/sample`, { sessionId: sid })
 {
+  assert.equal(r.code, 400, `已打开数据时应当拒绝，实际 ${r.code}`)
+  assert.match(r.text, /会把它换掉/)
+  assert.match(r.text, /不能撤销/)
+  // 拒绝必须是「什么都没发生」：数据集名称与例数都不许变。
+  const after = (await call('GET', `${base}/api/state?sessionId=${encodeURIComponent(sid)}`)).json().state
+  assert.deepEqual(after.dataset, guardedBefore.dataset)
+}
+r = await call('POST', `${base}/api/sample`, { sessionId: sid, replace: true })
+{
+  assert.equal(r.code, 200)
   const result = r.json().result ?? {}
   console.log('sample', r.code, result.cases, result.variables, result.tables)
   assert.equal(r.code, 200)
@@ -1629,7 +1641,8 @@ r = await call('POST', `${base}/api/guide`, { sessionId: sid })
   // 逐步真跑：每一步都必须出东西，语法步骤必须给出结果句子。
   const summaries = []
   for (const step of plan.steps) {
-    const ran = await call('POST', `${base}/api/guide/run`, { sessionId: sid, options: { id: step.id } })
+    const options = step.id === 'open-sample' ? { id: step.id, replace: true } : { id: step.id }
+    const ran = await call('POST', `${base}/api/guide/run`, { sessionId: sid, options })
     const result = ran.json().result ?? {}
     assert.equal(ran.code, 200, `step ${step.id} -> ${ran.code} ${ran.text.slice(0, 200)}`)
     assert.ok((result.items ?? []).length >= 1, `step ${step.id} produced nothing`)
@@ -1643,6 +1656,10 @@ r = await call('POST', `${base}/api/guide`, { sessionId: sid })
     summaries.push(`${step.id}:${result.items.length}/${(result.sentences ?? []).length}`)
   }
   console.log('guide ran', summaries.join(' '))
+  // 第 1 步会替换数据集：不带 replace 时也要被拦下（面板会先弹确认）。
+  const refused = await call('POST', `${base}/api/guide/run`, { sessionId: sid, options: { id: 'open-sample' } })
+  assert.equal(refused.code, 400)
+  assert.match(refused.text, /会把它换掉/)
   // 未知步骤要报中文并列出可用 id。
   const bad = await call('POST', `${base}/api/guide/run`, { sessionId: sid, options: { id: 'nope' } })
   assert.equal(bad.code, 400)
