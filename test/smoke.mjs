@@ -79,6 +79,24 @@ console.log('labels with line breaks saved:', flattened)
   if (/[\r\n]/.test(String(group.label ?? ''))) throw new Error(`variable label still has a line break: ${JSON.stringify(group.label)}`)
   if (/[\r\n]/.test(String(group.valueLabels?.['1'] ?? ''))) throw new Error(`value label still has a line break: ${JSON.stringify(group.valueLabels)}`)
   console.log('label after reload:', JSON.stringify(group.label), JSON.stringify(group.valueLabels))
+  // 单变量入口（插入/改属性/设值标签/批量补丁）也必须压行，不能只有写盘兜底
+  // （复验 O-c/O-e）。
+  const extra = reopened.addVariable({ name: 'h', type: 'numeric', width: 2, decimals: 0, label: '后加\n变量', valueLabels: { 7: '七\n类', 8: '  ' } })
+  if (/[\r\n]/.test(String(extra.label))) throw new Error(`addVariable kept a line break: ${JSON.stringify(extra.label)}`)
+  if (JSON.stringify(extra.valueLabels) !== '{"7":"七 类"}') throw new Error(`addVariable value labels: ${JSON.stringify(extra.valueLabels)}`)
+  reopened.setValueLabels('g', { 3: '第三\n档', 2: '' })
+  const afterLabels = reopened.dataset.variables.find((variable) => variable.name === 'g')
+  if (/[\r\n]/.test(String(afterLabels.valueLabels?.['3'] ?? ''))) throw new Error(`setValueLabels kept a line break: ${JSON.stringify(afterLabels.valueLabels)}`)
+  if (afterLabels.valueLabels?.['2'] !== undefined) throw new Error(`setValueLabels 没有删掉空标签：${JSON.stringify(afterLabels.valueLabels)}`)
+  reopened.updateVariable('h', { label: '改过\r\n的', valueLabels: { 7: '七\n类', 9: '九' } })
+  const afterPatch = reopened.dataset.variables.find((variable) => variable.name === 'h')
+  if (/[\r\n]/.test(String(afterPatch.label))) throw new Error(`updateVariable kept a line break: ${JSON.stringify(afterPatch.label)}`)
+  reopened.updateVariables(['h', 'g'], { valueLabels: { 5: '五\n档', 6: '  ' } })
+  for (const name of ['h', 'g']) {
+    const variable = reopened.dataset.variables.find((entry) => entry.name === name)
+    if (JSON.stringify(variable.valueLabels) !== '{"5":"五 档"}') throw new Error(`updateVariables value labels on ${name}: ${JSON.stringify(variable.valueLabels)}`)
+  }
+  console.log('single-variable entries flatten too:', JSON.stringify(afterPatch.label), JSON.stringify(afterPatch.valueLabels))
 }
 
 // The panel prints the engine's own version under 「关于」 and on the status

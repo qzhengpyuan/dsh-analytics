@@ -1,3 +1,16 @@
+## 0.116.2
+
+收 0.116.1 复验报的三条既有观察（O-c/O-d/O-e），都是「写盘兜底了、内存层没兜住」。
+
+- **O-c 单变量入口没压行**：`addVariable()`、`updateVariable()`、`setValueLabels()` 原来只做 `String()`/`trim()`，靠写盘层兜底 —— 内存里留着两行标签，面板与 `.sav` 对不上。三处都改用 `flattenLabel`；顺带 `addVariable()` 现在也接受 `valueLabels`（原来一律 `{}`，插入分类变量后只能再调一次设值标签）。
+- **O-e 批量接口忽略值标签补丁 + `label: null` 口径**：`updateVariables()` 的 `patch` 原来只认 label/format/measure/alignment/role/width/decimals/type/missing，传进来的 `valueLabels` 被静默丢掉；现在它和其他键一样生效。`label: null` 统一当「没有标签」（空串）—— 0.115.0 之前在批量入口会写成字面量 `"null"`。
+- 值标签的清洗抽成模块级 `labelsFromEntries()`：编码转字符串、标签压行、压完为空整条丢掉，建库/插入/改属性/批量/设值标签五处共用。
+- **O-d 有意保留**：打开外部生成的 `.sav` 时按磁盘原样读入，不就地改写用户数据，等下次保存才归一。已写进 `docs/FEATURES.md` 的「标签只留一行」一节，不打算改。
+
+用例：`test/smoke.mjs` 在真引擎里建库 → `addVariable`（带换行标签与值标签）→ `setValueLabels`（含空标签要删掉）→ `updateVariable` → `updateVariables`（两个变量批量），逐条断言单行与空标签被丢弃。
+
+全量 64 套件 / 957 ok（不装 poppler 956）/ 0 FAIL。
+
 ## 0.116.1
 
 收掉 0.116.0 复验留下的两条不阻断观察（标签清洗只在写盘层、`\f`/`\v`/U+2028 不压平）。
