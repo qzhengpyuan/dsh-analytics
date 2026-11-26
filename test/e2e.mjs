@@ -504,6 +504,58 @@ await check('图形 → 条形图：插件画的 SVG 有图元，坐标全是有
   assert.deepEqual(chart.bad, [], '图表 SVG 里有非有限坐标：' + chart.bad.join('；'))
 })
 
+// 「.html 打印预览不缺图」此前只能靠人眼：破图在 DOM 里仍是一个 <img>，
+// jsdom 没有布局、naturalWidth 恒 0 也用不上。真浏览器能给出确定答案 ——
+// 导出一份真报告，用另一个标签页以 file:// 打开，逐张图看它到底画没画出来。
+await check('报告成册的 HTML 在浏览器里打开：每张图都画出来，编号连续', async () => {
+  const reportPath = join(workDir, 'report.html')
+  const picked = await page.evaluate(async () => {
+    const response = await fetch('/analytics/api/state?sessionId=e2e')
+    const body = await response.json()
+    const items = body.state?.items ?? []
+    const table = items.find((item) => item.kind === 'table')
+    const figure = items.find((item) => item.kind === 'image' && /chart\.svg/.test(item.artifactUrl ?? ''))
+    return table && figure ? [table.id, figure.id] : null
+  })
+  assert.ok(picked, '输出里没有可装订的表与插件画出的图')
+  const written = await page.evaluate(async ({ path, items }) => {
+    const response = await fetch('/analytics/api/reportBook', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: 'e2e', path, items, title: '端到端报告' }),
+    })
+    return { status: response.status, body: await response.json() }
+  }, { path: reportPath, items: picked })
+  assert.equal(written.status, 200, '生成报告失败：' + JSON.stringify(written.body))
+  assert.ok(written.body.result?.figures >= 1, '报告里没有图')
+  const viewer = await browser.newPage()
+  try {
+    await viewer.goto(pathToFileURL(reportPath).href, { waitUntil: 'load' })
+    const seen = await viewer.evaluate(() => {
+      const images = [...document.querySelectorAll('img')]
+      return {
+        images: images.length,
+        broken: images.filter((image) => image.naturalWidth === 0).length,
+        missing: document.body.innerText.includes('图表缺失'),
+        headings: [...document.querySelectorAll('h2')].map((heading) => heading.textContent ?? ''),
+      }
+    })
+    assert.ok(seen.images >= 1, '报告里一张图都没有')
+    assert.equal(seen.broken, 0, seen.broken + ' 张图在浏览器里是破图（打印出来就是空白）')
+    assert.equal(seen.missing, false, '报告里写着图表缺失')
+    const numbers = (prefix) => seen.headings
+      .map((text) => new RegExp('^' + prefix + ' (\\d+)').exec(text)?.[1])
+      .filter(Boolean)
+      .map(Number)
+    for (const [prefix, label] of [['表', '表号'], ['图', '图号']]) {
+      const list = numbers(prefix)
+      assert.ok(list.length >= 1, label + '一个都没有')
+      assert.deepEqual(list, list.map((_, index) => index + 1), label + '不连续：' + list.join(','))
+    }
+  } finally {
+    await viewer.close()
+  }
+})
 // The panel's own SVG (toolbar icons) is React-rendered markup, not a string:
 // a NaN there is the 0.119.0 bug, and it is invisible unless it is counted.
 await check('截图、图元与页面错误清点', async () => {

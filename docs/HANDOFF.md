@@ -77,9 +77,9 @@ sha256sum dsh-analytics-pspp-X.Y.Z-linux-x64.tgz | tee SHA256SUMS | tee SHA256SU
 
 ## 6. 交接时的具体事实（2026-11-26）
 
-- 最新版本 **0.120.0**（tag `v0.120.0`，Release 三资产齐全，CI 绿，本机已热重载）。
+- 最新版本 **0.121.0**（tag `v0.121.0`，Release 三资产齐全，CI 绿，本机已热重载）。
 - **没有未修的 P0/P1**。最近一次独立复验（0.117.0，报告 `/mnt/E/临时文件/verify-01170/report.md`）结论是 6 条验收全 PASS、P0=0、P1=0、P2=3 —— 三条 P2 已在 0.118.1 修完并各自补了断言（含变异验证）。
-- **真浏览器门禁**：`npm run e2e`（8 条，真 Chromium + 真引擎）。它不是 `npm test` 的一部分：找不到 playwright 就 skip 并 exit 0。本机走的是 `~/.local/bin/playwright-cli` 自带的 playwright；CI 是独立 `e2e` job（`npm install --no-save playwright@1.65.1`）。截图默认落 `<tmp>/dsh-analytics-e2e/panel.png`。
+- **真浏览器门禁**：`npm run e2e`（9 条，真 Chromium + 真引擎）。它不是 `npm test` 的一部分：找不到 playwright 就 skip 并 exit 0。本机走的是 `~/.local/bin/playwright-cli` 自带的 playwright；CI 是独立 `e2e` job（`npm install --no-save playwright@1.65.1`）。截图默认落 `<tmp>/dsh-analytics-e2e/panel.png`。
 - 复验可复用的脚本在同目录：`guide-api.mjs`（引导整链 113 条）、`dialog.mjs`（功效对话框 27 条）、`indep-power.mjs`（独立复算样本量 8 条）、`i18n.mjs`（23 条）。
 - 工作树干净、无草稿分支；`~/.dsh/profiles/web/cordis.patch.yml` 末尾有连续多行 `# reload-nudge <版本>`，那是热重载痕迹，不要删。
 - 磁盘：`/mnt/E` 约 95% 已用，工程根累积每版约 35 MB 的 `.tgz` —— 删旧包要先问用户。
@@ -88,4 +88,4 @@ sha256sum dsh-analytics-pspp-X.Y.Z-linux-x64.tgz | tee SHA256SUMS | tee SHA256SU
 
 
 
-按 [PLAN.md](PLAN.md) §3 的顺序做：§3.3 未自证断言 → §3.5 npm 发布（阻塞在用户 `npm login`）。§3.1 最小端到端用例随 0.119.0 落地，§3.2 的边界说明随 0.118.0 落地，§3.4 同类缺陷普查随 0.120.0 落地。
+按 [PLAN.md](PLAN.md) §3 的顺序做：§3.3 剩下的「逐列字符串宽度推断 A 格式」（需真引擎用例）→ §3.5 npm 发布（阻塞在用户 `npm login`）。§3.1 最小端到端用例随 0.119.0 落地，§3.2 的边界说明随 0.118.0 落地，§3.4 同类缺陷普查随 0.120.0 落地，§3.3 的两条随 0.121.0 落地（只剩「逐列字符串 A 格式」需真引擎）。

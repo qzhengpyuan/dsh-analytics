@@ -1107,6 +1107,67 @@ await check('the HTML report keeps a ticked figure in the same order', () => {
   assert.ok(html.indexOf('表 1　T1') < html.indexOf('图 1　直方图'), 'and it comes after the table it was ticked after')
 })
 
+// §3.3 遗留（0.121.0）：成册只被一条 3 条目用例钉过编号，多表多图交替时
+// 两个序列各自连续、目录与正文一致，这一条把它们一起钉住。
+await check('a long mixed report keeps both number series continuous', () => {
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c6300010000050001', 'hex')
+  const table = (id, title) => ({ kind: 'table', id, title, table: { caption: title, matrix: [['', 'N'], ['a', '1']] } })
+  const figure = (id, title, url) => ({ kind: 'image', id, title, url })
+  const items = [
+    table('t1', '第一张表'),
+    figure('f1', '第一张图', '/analytics/api/artifact?runId=1&name=chart.png'),
+    table('t2', '第二张表'),
+    table('t3', '第三张表'),
+    figure('f2', '第二张图', '/analytics/api/artifact?runId=2&name=chart.png'),
+    table('t4', '第四张表'),
+  ]
+  const images = [
+    { url: '/analytics/api/artifact?runId=1&name=chart.png', bytes: png, width: 1, height: 1 },
+    { url: '/analytics/api/artifact?runId=2&name=chart.png', bytes: png, width: 1, height: 1 },
+  ]
+  const xml = unzip(buildReportDocx({ title: 'R', items, images }))['word/document.xml'].toString('utf8')
+  for (const [number, title] of [[1, '第一张表'], [2, '第二张表'], [3, '第三张表'], [4, '第四张表']]) {
+    assert.equal((xml.match(new RegExp(`表 ${number}　${title}`, 'g')) ?? []).length, 2, `表 ${number} appears in the contents and once as its heading`)
+  }
+  for (const [number, title] of [[1, '第一张图'], [2, '第二张图']]) {
+    assert.equal((xml.match(new RegExp(`图 ${number}　${title}`, 'g')) ?? []).length, 2, `图 ${number} appears in the contents and once as its heading`)
+  }
+  assert.doesNotMatch(xml, /表 5　|图 3　/, 'neither series runs past its items')
+  const html = buildReportHtml({ title: 'R', items, images })
+  for (const [number, title] of [[1, '第一张表'], [2, '第二张表'], [3, '第三张表'], [4, '第四张表']]) {
+    assert.equal((html.match(new RegExp(`表 ${number}　${title}`, 'g')) ?? []).length, 2, `the HTML keeps 表 ${number} in the contents and the body`)
+  }
+  for (const [number, title] of [[1, '第一张图'], [2, '第二张图']]) {
+    assert.equal((html.match(new RegExp(`图 ${number}　${title}`, 'g')) ?? []).length, 2, `and 图 ${number}`)
+  }
+  // The two formats are built from the same list: the reading order must agree.
+  const order = (text) => ['表 1　', '图 1　', '表 2　', '表 3　', '图 2　', '表 4　'].map((heading) => text.indexOf(heading))
+  const xmlOrder = order(xml)
+  const htmlOrder = order(html)
+  for (let index = 1; index < order.length; index += 1) {
+    assert.ok(xmlOrder[index - 1] < xmlOrder[index], `the docx follows the tick order at ${index}`)
+    assert.ok(htmlOrder[index - 1] < htmlOrder[index], `the HTML follows the tick order at ${index}`)
+  }
+})
+
+// 「打印预览不缺图」的可证伪部分：HTML 里每张图都必须是内嵌的 data: URI。
+// 指向 /analytics/... 的 src 在 file:// 打开的打印预览里就是一张破图，而
+// 这正是此前没人断言过的地方。
+await check('the HTML report embeds every figure, and says so when one is missing', () => {
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c6300010000050001', 'hex')
+  const items = [{ kind: 'image', id: 'f', title: '直方图', url: '/analytics/api/artifact?runId=1&name=chart.png' }]
+  const html = buildReportHtml({ title: 'R', items, images: [{ url: '/analytics/api/artifact?runId=1&name=chart.png', bytes: png }] })
+  const sources = [...html.matchAll(/<img src="([^"]*)"/g)].map((match) => match[1])
+  assert.equal(sources.length, 1, 'the figure is drawn once')
+  assert.match(sources[0], /^data:image\/png;base64,[A-Za-z0-9+/=]+$/, 'it is inlined, not linked')
+  assert.doesNotMatch(html, /src="\/(?:analytics|api)\//, 'no artifact URL survives into the file')
+  // Without the bytes the section says （图表缺失）— an empty box that prints as
+  // a blank page is the failure mode this text exists to prevent.
+  const bare = buildReportHtml({ title: 'R', items })
+  assert.match(bare, /图表缺失/, 'a missing figure is reported by name')
+  assert.doesNotMatch(bare, /<img src="\/(?:analytics|api)\//, 'and it does not fall back to a broken link')
+})
+
 if (failures.length > 0) {
   console.error(`${failures.length} failed, ${checks - failures.length} passed`)
 } else {
