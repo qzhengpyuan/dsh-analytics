@@ -2,7 +2,7 @@
 // several charts into one picture. Pure: no engine, no browser.
 import assert from 'node:assert/strict'
 
-import { buildChartModel, composeChartGrid, computeScatter, renderSvg } from '../lib/charts.js'
+import { assertFiniteNumbers, assertFiniteSvg, buildChartModel, composeChartGrid, computeScatter, renderSvg } from '../lib/charts.js'
 import { rasterizeSvg, svgToPng } from '../lib/raster.js'
 import { pngSize } from '../lib/office.js'
 
@@ -367,6 +367,56 @@ check('a scatter plot draws the curve it is handed, and drops the part outside t
       assert.ok(Number(y) >= 0 && Number(y) <= 360, `point stays inside the plot: ${pair}`)
     }
   }
+})
+
+// 0.120.0 §3.4：图表走 SVG 字符串，`.toFixed(1)` 遇到 NaN 会写出字面量
+// "NaN"，Chromium 判定属性非法后把那个图元整个丢掉，jsdom 一声不吭 ——
+// 与 0.119.0 工具栏四个圆点消失是同一个病根。所以每个画图入口都先断言
+// 模型里的数是有限数，再断言产出的每个属性值里没有 NaN/Infinity。
+check('every chart kind draws only finite coordinates', () => {
+  const nums = {
+    variables: [
+      { name: 'x', type: 'numeric', width: 8, decimals: 1, format: 'F8.1' },
+      { name: 'y', type: 'numeric', width: 8, decimals: 1, format: 'F8.1' },
+      { name: 'g', type: 'string', width: 8, format: 'A8' },
+    ],
+    rows: [[1, 2, '甲'], [2, 5, '甲'], [3, 9, '乙'], [4, 4, '乙'], [5, 7, ''], [6, 12, '乙']],
+  }
+  const cases = [
+    ['bar', { variable: 'y', by: 'g' }],
+    ['histogram', { variable: 'y', bins: 3 }],
+    ['scatterplot', { x: 'x', y: 'y' }],
+    ['boxplot', { variable: 'y', by: 'g' }],
+    ['line', { variable: 'y', by: 'x' }],
+    ['pie', { variable: 'g' }],
+    ['area', { variable: 'y', by: 'g' }],
+    ['ppplot', { variable: 'y' }],
+    ['pareto', { variable: 'g' }],
+    ['control', { variable: 'y', size: 2 }],
+  ]
+  for (const [kind, options] of cases) {
+    const model = buildChartModel(nums, kind, options)
+    assertFiniteNumbers(model, `图型 ${kind}`)
+    const svg = renderSvg(model)
+    assertFiniteSvg(svg, kind)
+    const primitives = svg.match(/<(rect|line|path|circle|text|polyline|polygon)\b/g) ?? []
+    assert.ok(primitives.length > 5, `${kind} draws more than a bare frame: ${primitives.length}`)
+  }
+})
+
+check('a NaN coordinate is refused at the entry point instead of being painted', () => {
+  const model = buildChartModel(dataset([3, 5, 8, 2]), 'bar', { variable: 'score' })
+  const broken = structuredClone(model)
+  broken.categories[0].value = NaN
+  assert.throws(() => renderSvg(broken), /不是有限数/, 'the model gate names the path')
+  // 第二道闸：布局算出来的 NaN 只能在这一层被抓到。
+  assert.throws(() => assertFiniteSvg('<svg><line x1="0" y1="NaN" x2="10" y2="10"/></svg>', '图'), /y1/)
+  assert.doesNotThrow(() => assertFiniteSvg('<svg><text x="1" y="2">NaN</text></svg>'), 'a category named NaN is text, not a coordinate')
+  assert.throws(
+    () => composeChartGrid(['<svg xmlns="x" width="560" height="360"><g transform="translate(NaN,0)"></g></svg>'], '1x2'),
+    /拼版 的 SVG 属性 transform/,
+    'the grid gate catches a bad translate',
+  )
 })
 
 console.log(`${checks} checks passed`)

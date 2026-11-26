@@ -1,3 +1,15 @@
+## 0.120.0
+
+一批「NaN 坐标普查」：0.119.0 的工具栏圆点不是孤例 —— 现在每个画图入口都先证明自己的数是有限数。
+
+- **两道闸，三个入口**：`lib/charts.js` 新增 `assertFiniteNumbers(value, where)`（递归走模型与数组，遇到 `NaN`/`±Infinity` 抛错并给出路径，例如 `groups[0].curve[1].ciLow`）与 `assertFiniteSvg(svg, kind)`（只查属性值里的 `NaN`/`Infinity`，类目名恰好是 `NaN` 的文本不误伤）。分别接在 `buildChartModel()`、`renderSvg()`、`composeChartGrid()`：模型坏在画之前就报，布局阶段才坏的在交给浏览器之前报。`api/chart` 于是给出 400，而不是把一张残缺的 SVG 写进输出目录。
+- **修 KM 生存曲线的置信带**：最后一个时间点上仍在险的个案全部发生事件时，S 精确为 0，Greenwood 项除以 `atRisk − deaths = 0` 变成 `∞`，`0 × ∞` 得 `NaN` ⇒ `ciLow`/`ciHigh` 进 SVG 就是 `"NaN"` 属性，浏览器把那整条置信带丢掉。S = 0 是事实而不是估计，现在带宽塌成一点 `(0, 0)`（`lib/survival.js`）。
+- **测试**：`test/charts.mjs` +2 —— 十种图型（bar / histogram / scatterplot / boxplot / line / pie / area / ppplot / pareto / control）逐一构建并渲染，断言模型与标记里都没有非有限数、图元数 > 5；NaN 坐标在模型闸 / 标记闸 / 拼版闸三处被拒。`test/survival.mjs` +1 —— S 落到 0 的曲线带宽是 `[0, 0]`，整张图无 `NaN`。
+- **e2e +1（第 ⑦ 条）**：从「图形 → 条形图…」菜单真跑一张插件自己画的 SVG（PSPP 自带的图是 PNG，藏不住这个缺陷），取 artifact 断言图元 ≥ 10、属性里没有 `NaN`/`Infinity`；最后一条 check 增加「面板里的 SVG 图元 > 10」（React 画的图标属于 0.119.0 那一类）。
+- 变异验证：把 `renderSvg` 的 y 缩放改成恒含 `NaN` ⇒ `test/charts.mjs` 多条变红（`图型 bar 的 SVG 属性 y1 不是有限数："NaN"`）、e2e 第 ⑦ 条变红（`api/chart` 400 + 控制台 400）；恢复源码后两处全绿。
+
+全量 66 套件 / 973 ok / 0 FAIL；另有 `test/e2e.mjs` 8 条（真浏览器，不进 `npm test`）。
+
 ## 0.119.0
 
 一批「真浏览器里点一遍」的门禁：新套件 `test/e2e.mjs`，以及它顺手抓出来的两个只有真机才看得见的缺陷。

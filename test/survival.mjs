@@ -153,4 +153,22 @@ check('percentiles decide on the unrounded survival, not the printed one', () =>
   assert.equal(percentileOf([{ time: 1, survival: 0.25, raw: 0.25004 }, { time: 2, survival: 0.2, raw: 0.2 }], 0.25), 2)
 })
 
+// 0.120.0 §3.4：最后一个时间点上所有仍在险的个案都发生事件时，S 精确为 0、
+// Greenwood 项除以 0 —— 旧代码算出 0 × ∞ = NaN，渲染成 "NaN" 属性后被浏览器
+// 默默丢掉整条置信带。S = 0 是事实而不是估计，置信带应当塌成一点。
+check('a curve that ends at zero gets a collapsed band, not NaN', () => {
+  const rows = [[1, 1], [2, 1], [3, 1]]
+  const model = computeKaplanMeier(dataset(rows), { time: 't', event: 'e' })
+  const curve = model.groups[0].curve
+  assert.equal(curve.at(-1).survival, 0, 'the last step reaches zero')
+  assert.deepEqual([curve.at(-1).ciLow, curve.at(-1).ciHigh], [0, 0], 'the band collapses to the point')
+  for (const point of curve) {
+    for (const key of ['time', 'survival', 'raw', 'atRisk', 'deaths', 'ciLow', 'ciHigh']) {
+      assert.ok(Number.isFinite(point[key]), `${key} is finite at t=${point.time}: ${point[key]}`)
+    }
+  }
+  const svg = renderSvg(model)
+  assert.doesNotMatch(svg, /NaN|Infinity/, 'no non-finite attribute reaches the markup')
+})
+
 console.log(`${checks} checks passed`)

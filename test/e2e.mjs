@@ -467,10 +467,64 @@ await check('分析 → 描述统计 → 描述…：选中变量后运行，输
   assert.match(text, /月薪|salary/, '新表里没有刚选中的变量')
 })
 
-await check('截图与页面错误清点', async () => {
+// A chart the plugin draws itself is SVG text: `.toFixed(1)` on NaN writes the
+// literal "NaN" into an attribute, the browser drops that element, and neither
+// the screen nor the console says a word. (PSPP's own charts arrive as PNGs, so
+// the artifact check has to target 图形's own output.) Draw one through the menu
+// and inspect both what the page drew and what the artifact contains.
+await check('图形 → 条形图：插件画的 SVG 有图元，坐标全是有限数', async () => {
+  const before = await itemCount()
+  await menuButton('图形').click()
+  await page.locator('.ap-menu-pop button').filter({ hasText: '条形图…' }).click()
+  await page.waitForSelector('.ap-modal', { timeout: 5000 })
+  const dialog = page.locator('.ap-modal')
+  await dialog.locator('label.ap-dlg-var').filter({ hasText: 'salary' }).click()
+  await dialog.locator('.ap-modal-foot .ap-primary').click()
+  await page.waitForFunction((wanted) => document.querySelectorAll('.ap-item').length > wanted, before, { timeout: 120000 })
+  await page.waitForSelector('.ap-root img[src*="chart.svg"]', { timeout: 30000 })
+  const chart = await page.evaluate(async () => {
+    const image = document.querySelector('.ap-root img[src*="chart.svg"]')
+    if (!image) return null
+    const response = await fetch(image.src)
+    const text = await response.text()
+    const bad = []
+    for (const match of text.matchAll(/\b([A-Za-z][\w:-]*)="([^"]*)"/g)) {
+      if (/NaN|Infinity/.test(match[2])) bad.push(match[1] + '="' + match[2] + '"')
+    }
+    const primitives = (text.match(/<(rect|line|path|circle|text|polyline|polygon)\b/g) ?? []).length
+    return { status: response.status, bytes: text.length, primitives, bad: bad.slice(0, 5), title: image.alt }
+  })
+  assert.ok(chart, '输出里没有插件画的 SVG 图表（img[src*="chart.svg"]）')
+  assert.equal(chart.status, 200, '取图表 SVG 返回 ' + chart.status + '：' + chart.title)
+  // A one-bar mean figure is legitimately small (frame, three gridlines, the
+  // bar, its value and the axis titles): a few hundred bytes of markup. Being
+  // small only matters if it is small because elements went missing.
+  assert.ok(chart.bytes > 800, '图表 SVG 只有 ' + chart.bytes + ' 字节，可能是一张空图')
+  assert.ok(chart.primitives >= 10, '图表 SVG 只有 ' + chart.primitives + ' 个图元，坐标可能被丢掉了：' + chart.title)
+  assert.deepEqual(chart.bad, [], '图表 SVG 里有非有限坐标：' + chart.bad.join('；'))
+})
+
+// The panel's own SVG (toolbar icons) is React-rendered markup, not a string:
+// a NaN there is the 0.119.0 bug, and it is invisible unless it is counted.
+await check('截图、图元与页面错误清点', async () => {
   await page.screenshot({ path: join(artifacts, 'panel.png'), fullPage: false })
   const shot = await stat(join(artifacts, 'panel.png'))
   assert.ok(shot.size > 20000, '截图只有 ' + shot.size + ' 字节，可能是一张空白页')
+
+  const drawn = await page.evaluate(() => {
+    const bad = []
+    let primitives = 0
+    for (const element of document.querySelectorAll('.ap-root svg, .ap-root svg *')) {
+      primitives += 1
+      for (const attribute of element.attributes) {
+        if (/NaN|Infinity/.test(attribute.value)) bad.push(element.tagName + ' ' + attribute.name + '="' + attribute.value + '"')
+      }
+    }
+    return { primitives, bad }
+  })
+  assert.ok(drawn.primitives > 10, '面板里的 SVG 图元只有 ' + drawn.primitives + ' 个，图标可能就是被丢掉的')
+  assert.deepEqual(drawn.bad, [], '面板 SVG 里有非有限坐标：' + drawn.bad.join('；'))
+
   const errors = await page.evaluate(() => window.__E2E_ERRORS__ ?? [])
   assert.deepEqual(errors, [], '页面抛错：' + errors.join(' | '))
   // A missing locale dictionary or a rejected fetch shows up as a console error
