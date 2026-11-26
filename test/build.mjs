@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { buildAnalysis, buildTransform, buildChart, analysisExtras, itemsForAgent } from '../lib/tools.js'
 import { computeBar, computeHistogram, computeScatter, computeBox, computeLine, computePie, computeDualLine, renderSvg, buildChartModel, tCritical95, studentTwoSidedP, welchTest, significanceLabel } from '../lib/charts.js'
-import { decodeText, guessDelimiter, importDelimited, parseMissingValues, readDictionary, writeSav } from '../lib/dataset.js'
+import { decodeText, flattenLabel, guessDelimiter, importDelimited, parseMissingValues, readDictionary, writeSav } from '../lib/dataset.js'
 import { stringifyCsv } from '../lib/csv.js'
 import { describeFsError, describeEngineError } from '../lib/fserr.js'
 import { sanitizeTableHtml } from '../lib/html.js'
@@ -1213,6 +1213,18 @@ check('value labels survive labels that collapse to ?????? in a Windows code pag
   const named = csv.replace('??????,F,Female', 'gender,F,Female')
   const again = await readDictionary(async () => ({ code: 0, stderr: '', outputText: named }), 'x.sav')
   assert.deepEqual(again.find((variable) => variable.name === 'gender').valueLabels, { F: 'Female', M: 'Male' })
+})
+
+check('a label is flattened to one line before it reaches the .sav syntax', () => {
+  // PSPP 的语法一行一条命令：标签里的换行会把字符串截断，整个保存失败。
+  // \f、U+2028 在编辑器里看着也像换行，一并压平（复验 O2/O-b）。
+  assert.equal(flattenLabel('第一行\n第二行'), '第一行 第二行')
+  assert.equal(flattenLabel('a\r\nb\tc'), 'a b c')
+  assert.equal(flattenLabel('x\fy\u2028z\u2029w\u0085v'), 'x y z w v')
+  assert.equal(flattenLabel("it's\nok"), "it's ok")
+  assert.equal(flattenLabel('  \n\t '), '', '纯空白的标签压完是空串，调用方要整条跳过')
+  assert.equal(flattenLabel(null), '')
+  assert.equal(flattenLabel(undefined), '')
 })
 
 check('CMH is stripped from the syntax but remembered as requested', async () => {

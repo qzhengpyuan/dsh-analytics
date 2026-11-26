@@ -48,15 +48,24 @@ for (const row of values) workspace.appendCase({ gender: row[0], age: row[1], sc
 // A label with a line break used to break the whole save: PSPP syntax is one
 // command per line, so a raw newline inside a quoted label ended the string and
 // the .sav never got written (`VALUE LABELS: Unterminated string constant`).
-// Labels are flattened to a single line now (复验 O2).
+// Labels are flattened to a single line now (复验 O2) — in memory too, so the
+// panel never shows a two-line label that the file cannot hold (复验 O-a).
 await mkdir(join(root, 'labels', 'smoke-labels'), { recursive: true })
 const broken = new Workspace({ id: 'smoke-labels', engine, root: join(root, 'labels'), config: { timeoutMs: 60000 } })
 await broken.createDataset({
   variables: [
-    { name: 'g', type: 'numeric', width: 2, decimals: 0, label: '第一行\n第二行', valueLabels: { 1: '低\n（<30）', 2: '高' } },
+    // \f、U+2028 在编辑器里看着也像换行，一并压平（复验 O-b）。
+    { name: 'g', type: 'numeric', width: 2, decimals: 0, label: '第一行\n第二行\f三', valueLabels: { 1: '低\n（<30）', 2: '高\u2028档' } },
     { name: 'v', type: 'numeric', width: 5, decimals: 1, label: '值' },
   ],
 })
+{
+  const built = broken.dataset.variables.find((variable) => variable.name === 'g')
+  if (/[\r\n\t\f\v\u2028\u2029\u0085]/.test(String(built.label ?? ''))) {
+    throw new Error(`the in-memory label still has a line break: ${JSON.stringify(built.label)}`)
+  }
+  console.log('label in memory:', JSON.stringify(built.label), JSON.stringify(built.valueLabels))
+}
 broken.appendCase({ g: 1, v: 3 })
 broken.appendCase({ g: 2, v: 5 })
 const flattened = await broken.save(join(root, 'labels', 'flattened.sav'))
