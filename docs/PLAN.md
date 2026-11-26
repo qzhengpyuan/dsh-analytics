@@ -68,109 +68,61 @@
 | 0.105.0 | 同质子集（Piepho insert-absorb 字母标记）作为两两比较的第二张表；复验 P1（零事件组不再拖垮整张 KM 表）+ 四条 P2（百分位用未舍入 S、时依丢行分原因计数与入口点名、共线报错去重、各组 RMST 截断点提醒）；面板「受引擎限制」文案改准 | 论文要的字母表有了；合法数据不再被整体拒绝 |
 | 0.106.0 | 三个面向 agent 的工具：`pspp_profile`（数据体检：ID 列/常量列/数字存成文本/日期存成文本/重复列/离群/量纲）、`pspp_sentences`（表→可粘进稿子的句子，Levene 选行、`.000`→`p < 0.001`、卡方无 Pearson 行时点名实际检验、配对统计不当变量）、`pspp_numbers`（结构化数值，占位符 null）；`api/profile|sentences|numbers` 三个接口；工具 41 → 44 | 让「对话即分析」这条线真的省掉 agent 自己解析表格的工作 |
 | 0.107.0 | 面向 agent 的第二批：`pspp_advise`（方法建议：按数据形状排过程、0/1 结局不当连续测量、生存只在像随访时间时提）、`pspp_repro`（复现包：变量字典 + 引擎收到的真语法 + 日志 + 怎么重跑）；`api/advise|repro` 两个接口；工具 44 → 46；另修复验抓到的六个句子缺陷（脚注上标、`p < 0.001` 判错、Levene 选行、英文频数句、被消费的表仍进 skipped、分组描述统计抄第一组）与「默认读数吃到刚追加的插件表」 | 「对话即分析」有前后两头了：先问该跑什么，交稿能重跑 |
-| 0.117.0 | 补「功效与样本量」面板对话框（原来只有工具）+ 「跟着做一遍」引导（`lib/guide.js`、`workspace.guideStep`、`api/guide`、`api/guide/run`、九步：示例数据→描述/频数/交叉表/t/相关/回归→功效→体检） | 新套件 `test/guide.mjs` 6 条；`routes` 整链逐步真跑；`client` 两段 jsdom（含切模式不发 `power`） |
-| 0.116.3 | 修复验 P1：多行标签的外部 `.sav` 打开时字典会被劈成两半（幻影变量 + `GET DATA: Unterminated string constant`），改按 CSV 记录切行；P2：`valueLabels: null` 不再抛原始英文 `TypeError` | `build` 新增引号内换行的字典用例 |
-| 0.116.2 | 收 0.116.1 复验三条既有观察：单变量入口（`addVariable`/`updateVariable`/`setValueLabels`）改走 `flattenLabel`、`addVariable` 接受 `valueLabels`、`updateVariables` 不再丢弃 `valueLabels` 补丁、`label:null` 当无标签；`labelsFromEntries` 统一清洗五处 | `open(.sav)` 保留磁盘原样这条写进 FEATURES，属有意不改 |
-| 0.116.1 | 收 0.116.0 复验两条观察：标签压行从写盘层提到建库/批量改变量入口（内存与 `.sav` 一致），`flattenLabel` 另压 `\f`/`\v`/U+2028/U+2029/U+0085；写盘层与内存层共用一份 | `build` 加纯函数断言，`smoke` 的用例扩成「内存单行 → 存盘 → 重开一致」 |
-| 0.116.0 | 修 0.115.0 复验的 4 条观察：标签里的换行压成单行（原来整个保存会报 `Unterminated string constant`）、英文界面「复制表格」复制译过的表头、CHANGELOG 词条数写准、面板用例的示例数据夹具改成 8 表 3 图 | 两条新用例都做过变异验证；标签换行一条走真引擎存盘再重开 |
-| 0.115.0 | 修 0.114.0 复验：KM 建议的分组参数改 `group`（原 `by` 会画成一条总曲线）、示例数据的值标签不再被丢、表数不把图算进去、补数据体检/方法建议的表头词条、示例数据的视图切换断言做实（含变异验证） | 复验员报的 1 P1 + 3 P2 + 1 观察全部收口 |
-| 0.114.0 | 内置示例数据（60 例员工、8 变量，固定种子）+ 帮助 →「打开示例数据…」：一键新建并跑描述统计/频数图/t 检验/相关（`api/sample`、`workspace.openSample()`） | 装完插件第一分钟就有东西可看，不用先找数据 |
-| 0.113.0 | 修 0.111.0 复验的 P1 + 7 条 P2：Cox 的协变量只收数值列（没有就改推 KM 曲线）、大数不再留指数写法、编号判据覆盖 pid/文本编号/重复取值、连号规则加 n≥10（小样本真实测量不再被误判）、水平数改用 `levelCount`、泊松不发空自变量、skipped 的流水表白名单收窄 | 「建议能照抄执行」再加一条：协变量类型也要对 |
-| 0.112.0 | 面板补三个入口，把原来只给 agent 用的工具搬到界面上：数据 →「数据体检…」（变量表 + 注文 + 复制表格）、分析 →「方法建议…」（结局/分组 + 每条建议的做法 + 注文）、文件 →「导出复现包…」（目录 + 是否带上 data.sav；空目录先拦下）；顺手把本文档的版本行按 0.111→0.108 排好 | 用户抱怨「插件只有 agent 能用、人看不到」时，这三处就是回应：证据（体检）、方向（建议）、交付（复现包）都能点开 |
-| 0.111.0 | 修 0.110.0 复验（1 FAIL + 2 P1 + 3 P2）：英文 Mann-Whitney 按 p 说「是否有差异」；编号列不再当结局（名字判定不看例数、序列判定 n≥2、回退链排除编号、分组候选排除编号），只剩编号的表只给注文；无自变量时不发空 `independents` 的 Logistic；logistic 的 95% CI 也过 `readableNumber`；引擎流水表不再进 `skipped`（同名只列一次）；改正「943 vs 944」的计数口径 | 复验的反例两个形状（20 例 id+grp、8 例 id+score+grp）都成了用例 |
-| 0.110.0 | 句子多认三类表（Logistic 优势比与 CI、Mann-Whitney / Kruskal-Wallis 两种版式、Cronbach's α）+ 科学计数法转可读数字；面板「视图 → 结果句子…」（句数、全部复制、逐句复制、列不出的表）；修 0.109.0 复验的 4 条 P1（复现包 `at`/`title` 取错字段、二分结局仍推 GLM、文本自变量推多项 Logistic、删失数据推秩检验且按事件分组）与 5 条 P2（Cox 协变量含时间/事件列、Logistic 丢分组、编号列进回归、多因变量句子变量名不一致、`Number(null)` 假绿断言） | 复验的「P1 全修」判据是各自新增一条用例，不靠复验再兜 |
-| 0.109.0 | 修 0.107.0 的复验结论（7 FAIL + 4 风险）：建议的参数改成工具真认的键、补必填；二分结局不再推 GLM/秩检验；ID 列（且只有连续编号才算）不当结局；带删失的生存数据不推均值检验与线性回归；GLM 只收数值因子（文本因子会被引擎丢掉）；多因变量时 Descriptives/ANOVA 每个变量各出句、方差齐性表不再进 skipped；复现包的 README 措辞、`runs[].at`/`title`、`EEXIST` 中文 | 「建议必须能照抄执行」现在是两条用例（schema 校验 + 真跑一遍），不再靠复验兜 |
 | 0.108.0 | `pspp_power`（功效与样本量）：t/配对/单样本（d）、方差分析（f）、相关（r）、两比例、卡方（w）；非中心 t 用卡方混合积分、非中心 F/χ² 用 Poisson 权重不完全 Beta/Gamma；`api/power`；工具 46 → 47；共用特殊函数抽到 `lib/dist.js` | 写方法学一节的「每组需要多少例」现在能在插件里算，且与 G*Power 对得上 |
+| 0.109.0 | 修 0.107.0 的复验结论（7 FAIL + 4 风险）：建议的参数改成工具真认的键、补必填；二分结局不再推 GLM/秩检验；ID 列（且只有连续编号才算）不当结局；带删失的生存数据不推均值检验与线性回归；GLM 只收数值因子（文本因子会被引擎丢掉）；多因变量时 Descriptives/ANOVA 每个变量各出句、方差齐性表不再进 skipped；复现包的 README 措辞、`runs[].at`/`title`、`EEXIST` 中文 | 「建议必须能照抄执行」现在是两条用例（schema 校验 + 真跑一遍），不再靠复验兜 |
+| 0.110.0 | 句子多认三类表（Logistic 优势比与 CI、Mann-Whitney / Kruskal-Wallis 两种版式、Cronbach's α）+ 科学计数法转可读数字；面板「视图 → 结果句子…」（句数、全部复制、逐句复制、列不出的表）；修 0.109.0 复验的 4 条 P1（复现包 `at`/`title` 取错字段、二分结局仍推 GLM、文本自变量推多项 Logistic、删失数据推秩检验且按事件分组）与 5 条 P2（Cox 协变量含时间/事件列、Logistic 丢分组、编号列进回归、多因变量句子变量名不一致、`Number(null)` 假绿断言） | 复验的「P1 全修」判据是各自新增一条用例，不靠复验再兜 |
+| 0.111.0 | 修 0.110.0 复验（1 FAIL + 2 P1 + 3 P2）：英文 Mann-Whitney 按 p 说「是否有差异」；编号列不再当结局（名字判定不看例数、序列判定 n≥2、回退链排除编号、分组候选排除编号），只剩编号的表只给注文；无自变量时不发空 `independents` 的 Logistic；logistic 的 95% CI 也过 `readableNumber`；引擎流水表不再进 `skipped`（同名只列一次）；改正「943 vs 944」的计数口径 | 复验的反例两个形状（20 例 id+grp、8 例 id+score+grp）都成了用例 |
+| 0.112.0 | 面板补三个入口，把原来只给 agent 用的工具搬到界面上：数据 →「数据体检…」（变量表 + 注文 + 复制表格）、分析 →「方法建议…」（结局/分组 + 每条建议的做法 + 注文）、文件 →「导出复现包…」（目录 + 是否带上 data.sav；空目录先拦下）；顺手把本文档的版本行按 0.111→0.108 排好 | 用户抱怨「插件只有 agent 能用、人看不到」时，这三处就是回应：证据（体检）、方向（建议）、交付（复现包）都能点开 |
+| 0.113.0 | 修 0.111.0 复验的 P1 + 7 条 P2：Cox 的协变量只收数值列（没有就改推 KM 曲线）、大数不再留指数写法、编号判据覆盖 pid/文本编号/重复取值、连号规则加 n≥10（小样本真实测量不再被误判）、水平数改用 `levelCount`、泊松不发空自变量、skipped 的流水表白名单收窄 | 「建议能照抄执行」再加一条：协变量类型也要对 |
+| 0.114.0 | 内置示例数据（60 例员工、8 变量，固定种子）+ 帮助 →「打开示例数据…」：一键新建并跑描述统计/频数图/t 检验/相关（`api/sample`、`workspace.openSample()`） | 装完插件第一分钟就有东西可看，不用先找数据 |
+| 0.115.0 | 修 0.114.0 复验：KM 建议的分组参数改 `group`（原 `by` 会画成一条总曲线）、示例数据的值标签不再被丢、表数不把图算进去、补数据体检/方法建议的表头词条、示例数据的视图切换断言做实（含变异验证） | 复验员报的 1 P1 + 3 P2 + 1 观察全部收口 |
+| 0.116.0 | 修 0.115.0 复验的 4 条观察：标签里的换行压成单行（原来整个保存会报 `Unterminated string constant`）、英文界面「复制表格」复制译过的表头、CHANGELOG 词条数写准、面板用例的示例数据夹具改成 8 表 3 图 | 两条新用例都做过变异验证；标签换行一条走真引擎存盘再重开 |
+| 0.116.1 | 收 0.116.0 复验两条观察：标签压行从写盘层提到建库/批量改变量入口（内存与 `.sav` 一致），`flattenLabel` 另压 `\f`/`\v`/U+2028/U+2029/U+0085；写盘层与内存层共用一份 | `build` 加纯函数断言，`smoke` 的用例扩成「内存单行 → 存盘 → 重开一致」 |
+| 0.116.2 | 收 0.116.1 复验三条既有观察：单变量入口（`addVariable`/`updateVariable`/`setValueLabels`）改走 `flattenLabel`、`addVariable` 接受 `valueLabels`、`updateVariables` 不再丢弃 `valueLabels` 补丁、`label:null` 当无标签；`labelsFromEntries` 统一清洗五处 | `open(.sav)` 保留磁盘原样这条写进 FEATURES，属有意不改 |
+| 0.116.3 | 修复验 P1：多行标签的外部 `.sav` 打开时字典会被劈成两半（幻影变量 + `GET DATA: Unterminated string constant`），改按 CSV 记录切行；P2：`valueLabels: null` 不再抛原始英文 `TypeError` | `build` 新增引号内换行的字典用例 |
+| 0.117.0 | 补「功效与样本量」面板对话框（原来只有工具）+ 「跟着做一遍」引导（`lib/guide.js`、`workspace.guideStep`、`api/guide`、`api/guide/run`、九步：示例数据→描述/频数/交叉表/t/相关/回归→功效→体检） | 新套件 `test/guide.mjs` 6 条；`routes` 整链逐步真跑；`client` 两段 jsdom（含切模式不发 `power`） |
+| 0.118.0 | 交接与门禁：`docs/SCOPE.md`（能力边界一页）、`docs/HANDOFF.md`（接手第一页）、`test/docs.mjs` 5 条（链接/版本戳/CHANGELOG 首段/PLAN 节序/SCOPE 三问）、PLAN §3 重写与 §2 排序 | 66 套件 / 969 ok |
 
-## 3. 下一批详细规划
+## 3. 下一批候选（排序即优先级）
 
-排序即优先级。每项都写清：**做什么 / 为什么 / 怎么算做完 / 落点**。
+> 0.57–0.63 那六批的详细清单已全部落地（过程在 CHANGELOG，能力在 FEATURES），
+> 这里只留下**还没做的**。每项写清：做什么 / 为什么 / 怎么算做完 / 落点。
 
-### 3.1 批 0.57.3 —— 复验收尾（送验中，半天）
+### 3.1 最小端到端用例（半天到一天，风险最高）
 
-0.57.2 已修完 0.57.0 报告的 P1/P2/P3×3，等 `lead-0572-verify-0115` 回执。
+**做什么**：真浏览器里点「帮助 → 打开示例数据」→「分析 → 描述统计」→ 看到表。
 
-- [ ] 报告回来后只处理新发现的 P0–P2；P3 并进下一批。
-- [x] 模板可跑性：21 条逐条把 `<>` 换成真实变量跑真引擎（0.57.1 探针）—— 20 条出表/改数据，"第 21 条"`LOGISTIC REGRESSION` 停下的原因是因变量非二分（引擎原话），不是模板写错；这条口径要写进判据，别把数据问题算成 21/21 不成立。
-- [x] 图表行勾选框（0.57.2）：输出树里图与表一样有框，取消勾选后成册里该图消失。
-- [x] `api/update` 归因：插件侧已放到自家闸门之前，但宿主 `/api` 围栏仍要启动令牌（实测 `api/version` 同样 401）⇒ 外部脚本拿不到是宿主行为，不再当插件 bug 追。
-- [ ] 仍未自证：成册在**多表多图混合**时的编号连续（已有一条 3 条目用例，多图待补）、`.html` 打印预览不缺图（需真机）。
+**为什么**：`test/client.mjs` 是 jsdom，断言的是请求与文案；真机渲染（侧栏宽度、滚动、菜单遮挡）一条都没覆盖，而 0.30.0 的「菜单点不开」正是在真机上才出现的。
 
-### 3.2 批 0.58.0 —— 导入向导（已完成，0.58.0 发布）
+**怎么做**：本机 `POST /auth/login` 恒 401（`dsh-auth-gate` 的服务端内存 secret 与文件不同步，重启才同步，而 dsh web 不能重启）⇒ 两条路：① 用 `test/e2e.mjs` 自带一个只挂 `analytics` 页签的最小宿主页面（`createServer` + 同一个 bundle），Playwright 打开它截图；② 伪造 cookie（HMAC key = 解码后 32 字节 secret）—— 这条路依赖启动期 secret，脆。
+**判据**：截图里能看到示例数据的频数表；菜单展开后子项不被侧栏裁掉；`dist` 里新增的 e2e 脚本在 CI 里只跑 Linux（Chromium 依赖 260 MB，不进 engine job）。
 
-**为什么提前**：它要动 `buildTable` 的两个既有口径（首行即表头、列类型靠推断），而这两条已被 `test/client.mjs` / `test/poll.mjs` 的文案断言锁住；越晚动，越多新用例建在旧假设上。
+**落点**：`test/e2e.mjs`、`package.json`（`e2e` 脚本，不进 `test` 链）、`.github/workflows/test.yml`（可选 job）。
 
-- [x] 向导：编码、分隔符、跳过前 N 行、首行是否变量名、逐列变量名与类型、前 20 行预览，改任一项重读。**日期类型没做**（PSPP 里日期是格式不是类型，留到 0.61 之后看需求）。
-- [x] 缺失值标记：`NA`、`-9` 登记成用户缺失值，随 `.sav` 落盘（`MISSING VALUES`）。
-- [x] 工作表选择：向导里直接列工作表名；`test/import.mjs` 覆盖「第二张表」与「按名字选」，索引路径由 `previewImport` 的数字分支覆盖。
-- [x] 判据（评审补的三条）：
-  - `V-e` GBK 的 CSV 带中文表头「年龄」→ 变量名 ASCII、label 为「年龄」、notes 里有一条改名说明。
-  - `V-f` 声明 `-9` 为用户缺失值 → `writeSav()` 后再 `GET FILE` 读回字典，`MISSING VALUES` 仍在（只断言内存变量不算）。
-  - `V-g` `skipRows` 生效后，凡文案里出现「第 N 行 / 第一行」的地方行号必须跟着变（否则用户看到错误行号）。
-- [ ] 风险：逐列强制「字符串」时 `lib/dataset.js:313` 的宽度推断要走 A 格式分支，这条路目前没有真引擎用例。
-- [ ] 落点：`lib/dataset.js`、`lib/xlsx.js`、`lib/routes.js`（`api/previewImport`）、`client.js`、`pspp_import` 参数。
+### 3.2 停手归档说明（已完成，0.118.0）
 
-### 3.3 批 0.59.0 —— 图表工作台（已完成，0.59.0 发布）
+**做什么**：`docs/SCOPE.md`：能干什么（SPSS 常用过程的对齐清单 + 插件自算的过程）、不能干什么（PSPP 2.1.3 缺的 13 族 + 侧栏宽度放不下的 UI）、怎么装（`scripts/install.mjs` 一条命令 + 私有包名）、怎么验（`npm test` 计数口径）。
 
-**评审改了两处**：① 「误差条」不是一个独立类型（`lib/tools.js:1271` 的枚举是 `bar/histogram/scatterplot/boxplot/line/pie/area`，误差线是 bar 的一个模式，见 `lib/charts.js` 的 `ERROR_BAR_LABELS`）；② 「重绘为其它类型」拆到 0.60.0 单独立项。
+**为什么**：用户多次问「这些工作有什么价值」；一份能直接贴给别人看的边界说明，比继续堆功能更能回答它。
 
-**落地时的第三个判断**：不做「图表构建器」对话框。七种类型各自的对话框已经在 `图形` 菜单里，误差线早已在条形图「选项」里，再套一层「先选类型再填目标框」只是菜单套菜单，反而多两次点击。本批做真正缺的两件：副标题、多图拼版。
+**判据**：README 顶部链到它；FEATURES 里「缺什么」不重复写第三遍。
 
-- [x] 图注副标题：`lib/charts.js` 的 `applyChartOverrides` 认 `subtitle`（空串删除），`renderSvg` 画在标题下 `y=36`；`updateChart` 白名单加 `subtitle`；`pspp_chart` 加 `subtitle`。
-- [x] 一页多图拼版：`图形 → 图表拼版…`，2×2 / 1×2 / 2×1，**按勾选顺序**左上→右下；`composeChartGrid()` 生成单文档单背景（不嵌嵌套 `svg`），`lib/raster.js` 补组 `transform` 支持，导出 PNG 与浏览器一致；`pspp_chart` 加 `grid: {items, layout}`。
-- [x] 用户的标题/副标题不再被 `localize()` 再翻一次（`addChart`/`updateChart` 只在 `options.title === undefined` 时翻生成的标题）。
-- [x] 判据（评审四条 + 实施修正）：
-  - `V-h` 条形图 + 误差线 ±1 SD → 模型 `categories` 带 `errorLow/errorHigh`（真引擎与模型侧早有用例，本批未改）。
-  - `V-i` **改用像素尺寸而非宽高比**：评审算的「2×2 ≈ 1.0」不成立 —— 每格是 560×360，2×2 拼版是 1148×748，宽高比仍是 1.53。`test/charts.mjs` 断言 `1x2` 拼版像素恰为 `1148 × 376`、左右两格都有墨迹、中间 16 px 间隙全空。**仍不能断言 docx EMU extent**（`MAX_IMAGE_CX = 5_040_000` 会 clamp）。
-  - `V-j` `applyChartOverrides(m,{ subtitle:'x' }).subtitle === 'x'` 且 `renderSvg` 含该文本、位置在标题下方。
-  - `V-k` 英文界面下用户输入的标题与副标题原样保留。
-- [x] 落点：`client.js`（拼版对话框、副标题字段、图形菜单）、`lib/charts.js`（`subtitle` + `composeChartGrid`）、`lib/raster.js`（组偏移）、`lib/workspace.js`（`addChartGrid`、标题本地化口径）、`lib/routes.js`（`api/chartGrid`）、`lib/tools.js`、词条 17 条、新套件 `test/charts.mjs`。
+### 3.3 未自证的断言（按需）
 
-### 3.4 批 0.60.0 —— 重绘与图表细节（已完成，0.60.0 发布）
+- 成册在**多表多图混合**时的编号连续（现只有一条 3 条目用例）。
+- `.html` 打印预览不缺图（需真机）。
+- 逐列强制「字符串」时 `lib/dataset.js` 的宽度推断走 A 格式分支（**没有真引擎用例**，见 §3.2 批 0.58.0 遗留）。
 
-- [x] 「重绘为其它类型」：输出页图上的「重绘…」，选类型后用同一组变量重画；`pspp_chart` 加 `redrawOf`，保留 `sourceRunId` 与 `chartSpec.redrawnFrom`，旧图仍在输出树里；拼版拒绝重绘并说明原因。
-- [x] PNG 导出倍率：图上 1×/2×/3×/4× 下拉，随 `api/chart/export` 的 `scale` 到服务端（`svgToPng`，上限 4）。
-- [ ] Word/Excel 内嵌尺寸按倍率算 —— **不做**：内嵌图走 `MAX_IMAGE_CX = 5_040_000` 封顶（约 14 cm），与用户选的 PNG 倍率无关；把倍率传进 docx 只会让同一张图在不同导出里尺寸不一致。
-- [x] 判据：`V-l` 重绘后旧图仍在、新图 `kind` 变、`sourceRunId` 与原图一致（`test/routes.mjs` 的 `api/chart/redraw` 组）；`V-m` scale=3 的 PNG 像素是 scale=1 的 3 倍（`test/charts.mjs` 的 `svgToPng` + `pngSize`）。
+### 3.4 发布到 npm（阻塞在用户）
 
-### 3.5 批 0.61.0 —— 分析补齐第二轮（评审建议砍成两半，1 天 + 1 天）
+`npm whoami` 无凭据、包名 `dsh-analytics-pspp` 未被占用 ⇒ 要用户 `npm login` 后 `npm publish`。未登录前一概不做。
 
-**第一批（统计量）**
+### 3.5 候补（未排期，按需插入）
 
-- [x] 交叉表统计量补齐：风险估计（RR/OR + CI）、Cochran–Mantel–Haenszel、Somers' d、Kendall tau-b/c、Eta、r×c 精确检验（2×2 Fisher 已有）—— **早已实现，不必重做**。证据：`client.js` 的 `crosstabs` spec 已含 `chisq/phi/cc/lambda/uc/gamma/btau/ctau/somersd/eta/corr/risk/kappa/exact/exactchi/cmh`；RR/OR 由 `lib/risk.js` 算（PSPP 对字符串变量跑 `RISK` 会段错，数值 2×2 仍走引擎的 `Risk Estimate` 表）；CMH 与 Breslow–Day 在 `lib/cmh.js`，由 `lib/workspace.js` 的 `annotateLayeredCmh` 挂在分层交叉表上；2×2 精确检验用引擎自带的 Fisher 行。复核方法：`grep -n "somersd\|exactchi\|annotateLayeredCmh" client.js lib/*.js`。
-- [ ] 判据：每个统计量都有真引擎输出与手算对照（`test/tables.mjs`/`test/exact.mjs`）。
-
-**第二批（对话框）**
-
-- [x] GLM 的模型选择（0.61.0）：自动 / 只要主效应 / 自定义 `/DESIGN`。
-- [x] GLM 的协变量（WITH）与保存（`/SAVE`）—— **引擎不支持，明确不做**：PSPP 2.1.3 的 `GLM` 对 `WITH` 与 `/SAVE` 都报 `Syntax error expecting MISSING, INTERCEPT, CRITERIA, METHOD, or DESIGN.`（探针实测），对话框 hint 指向「分析 → 回归 → 线性回归」。
-- [x] 回归诊断图（0.61.0）：残差散点（带 y = 0 虚线）与标准化残差正态 P-P 图，按同一次拟合自算（`lib/regression.js` 的 `regressionPlots`），进输出树、能进成册报告。
-- [x] 回归的保存（预测值/残差）：早已由 `/SAVE=PRED RESID` 支持；杠杆值 PSPP 不输出，不做。
-- [x] 替换缺失值（0.67.0）：五种方法与 SPSS 同名（序列平均值 / 临近点的平均值 / 临近点的中位数 / 线性插值 / 线性趋势处的点），临近点两种可设两侧各取几个（`span`，默认 2，夹在 1–100）。**PSPP 2.1.3 没有 `RMV`**（探针：`RMV: RMV is not yet implemented.`，rc=1），所以整条链路都在插件里算：对话框 → `api/missing` 的 `span` → `workspace.replaceMissingValues` → `lib/mva.js` 的 `replaceMissing(dataset, names, method, {span})`；`pspp_transform` 的 `method` 枚举同步扩展。判据：`test/mva.mjs` 三条（偏斜邻域下均值 34.333… 对中位数 2、趋势法还原 1/3/5、`span: 0` 回落与错误文案列全六种方法）、`test/routes.mjs` 一条走 HTTP（`nearbyMedian` + `span: 2` 把四格填成 `1.5/2/2/51`，值从 `api/rows` 读回）、`test/client.mjs` 断言选项顺序用 SPSS 中文名、`span` 以数字下发、均值法不附带 `span`。
-- [x] 判据：`test/smoke.mjs` 用真引擎跑 `/DESIGN=a b`（只要主效应）与 `/DESIGN=a b a*b`（自动）两条；`test/routes.mjs` 覆盖 `api/regressionPlot` 两张图；`test/regression.mjs` 覆盖两张图的模型结构；`test/client.mjs` 打开回归对话框断言「图」组。自定义设计只剩「为空时中文报错」这一条纯字符串分支（`client.js:2752`）。
-
-### 3.6 批 0.62.0 —— 数据编辑器增强（1 天）
-
-- [x] 计算变量表达式构建器（0.62.0）：函数与变量按钮插入 + 括号/未知名校验（`checkExpression`）。
-- [x] 变量视图多选批量改类型/小数位/宽度/测量（0.62.0）：`updateVariables` 一次 `pushHistory`，左栏一次请求。
-- [x] 导入跳过表尾行（0.62.0，报告 P3-5）：`skipTailRows` 走 CSV 与工作表两条路径。
-- [x] 值标签批量编辑：**早已有**（「数据 → 批量导入值标签」，`parseValueLabelLines` 容忍空行、中文等号与 `VALUE LABELS` 语法），补记在此以免重复做。
-- [x] 判据：`test/routes.mjs` 的 `updateMany` 组证明「一次撤销全还原」；`test/client.mjs` 证明批量对话框只发用户设过的字段。
-
-### 3.7 批 0.63.0 —— 可发现性与分发（1 天）
-
-- [x] README 实机截图（0.67.0）：Win10 复验时截了四张（`01-panel-output` / `02-panel-data` / `03-dialog-descriptives` 2× / `04-report-book`，均为 1000×800 或 1320×880，像素自检 ink 占比 2.5%–99.8%），落到 `docs/screenshots/{panel-output,panel-data,dialog-descriptives,report-book}.png`，README 新增「界面」小节两张两列表格引用。附带发现：`docs/screenshots/` 原有 23 张图**没有任何 Markdown 引用**（只有 CHANGELOG 提过），故 README 里这句话同时把目录挂出来了。
-- [x] 三个同名入口文案区分（0.63.0）：左栏「统计分析（数据面板）」、文件页签「统计分析 · 数据文件」、右栏「统计分析」。
-- [x] 帮助菜单补齐（0.63.0）：快捷键一览、关于（版本/引擎/目录/许可）与真实的 `Alt+1…4` 视图切换。
-- [ ] npm 发布：换名（`dsh-analytics-pspp` 已作包名）+ `npm login`；发布前 `npm pack` 后解包复核。
-- [ ] 判据：README 图片能显示、`npm view dsh-analytics-pspp version` 与最新 tag 一致。
-
-### 3.8 候补（未排期，按需插入）
-
-- 面板大表虚拟化的实机观感（滚动条/spacer 高度/底色）——需 Win10 取证后再改。
+- 面板大表虚拟化的实机观感：需真机取证（与 3.1 同一套装置）。
 - 宿主侧 93 条 `${}` 拼接报错的英文覆盖（按需补，不阻塞）。
-- 最小端到端用例（真 Chromium 点菜单 → 看到表）：本机缺认证会话，需先解决。
 - 引擎升级评估（PSPP 2.1.3 → 新版）：构建成本高（74 分钟/约 240 分钟 CI），只在需要新过程时做。
+
 
 ## 4. 明确不做
 
@@ -182,6 +134,7 @@
 
 | 日期 | 谁 | 改了什么 |
 | --- | --- | --- |
+| 2026-11-26 | lead | 重写 §3：0.57–0.63 六批已全部落地，压缩成「下一批候选」五条（最小端到端用例 / 停手归档说明 / 未自证断言 / npm 发布阻塞 / 候补）；0.117.0 功效对话框与引导已发布 |
 | 2026-11-22 | lead | 建文件：0.24–0.57.0 压成回顾表，排 0.57.1–0.62.0 六批 |
 | 2026-11-22 | win10 | 评审 r1（`X:\临时文件\win10-plan-review.md`）：0.57 收尾必须第一个；导入向导提前到图表工作台之前；误差条不是独立类型；重绘拆出；拼版断言只能钉 PNG 像素；`subtitle` 是新字段；工作表选择已有代码只需补用例 |
 | 2026-11-22 | lead | 合并评审 r1：3.1 收尾、0.58 导入向导、0.59 图表（拆出重绘）、0.60 重绘、0.61 分析两半、0.62 编辑器、0.63 分发 |

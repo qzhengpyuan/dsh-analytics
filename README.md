@@ -2,6 +2,8 @@
 
 PSPP 作为 DeepSeek Harness 插件自带引擎的统计分析工作台：**不连接系统里另装的 PSPP**，插件目录里自带一份可搬迁的 PSPP 引擎（`engine/<平台>-<架构>/`，本机 `engine/linux-x64/` 23 MB，已实测在屏蔽 `/usr/lib64/pspp` 与 `/usr/share/pspp` 后仍能运行）。
 
+先看 **[能干什么、不能干什么](docs/SCOPE.md)**（一页说明：装了能得到什么、哪些统计方法引擎里没有、数据不出本机）。
+
 界面在 DSH 原生右侧栏里以 **统计分析** 标签页出现（通过 `dsh-better-sidebar` 的 `registerTab` 注册），按 SPSS 的操作范式组织：菜单栏 + 工具栏 + 数据视图 / 变量视图 / 语法 / 输出查看器 + 分析对话框。名字里的 analytics 说的是用途，真正干活的是自带的 GNU PSPP 引擎。
 
 ## 界面
