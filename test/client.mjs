@@ -1272,6 +1272,140 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   await act(async () => { insRoot.unmount() })
 }
 
+// 分析 → 功效与样本量…：PSPP 里根本没有这个功能，全在插件里算；面板这条入口
+// 以前只在工具里，普通人点不到。
+{
+  const powerHost = window.document.createElement('div')
+  window.document.body.appendChild(powerHost)
+  const powerRoot = createRoot(powerHost)
+  let powerBody = null
+  const idleState = { id: 'session-p', version: '0.117.0', engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true }, dataset: null, items: [], log: [], history: { undo: 0, redo: 0 }, locale: 'zh' }
+  window.fetch = async (url, init) => {
+    const target = String(url)
+    if (target.includes('api/power')) {
+      powerBody = JSON.parse(init.body)
+      const text = JSON.stringify({
+        ok: true,
+        result: {
+          method: 'ttest-two', mode: 'sample', alpha: 0.05, effect: 0.5, groups: 2,
+          nPerGroup: 64, total: 128, power: 0.8014,
+          note: '按 α = 0.05、双侧、目标把握度 0.8 估算',
+          suggestion: '取每组 70 例（多留 6 例余地）',
+        },
+        state: idleState,
+      })
+      return { ok: true, status: 200, text: async () => text }
+    }
+    return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state: idleState }) }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    powerRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const openFrom = async (menuName, itemName) => {
+    const button = [...powerHost.querySelectorAll('.ap-menu-button')].find((node) => node.textContent.trim() === menuName)
+    assert.ok(button, `the menu bar has ${menuName}`)
+    await act(async () => { button.click(); await new Promise((resolve) => setTimeout(resolve, 20)) })
+    const item = [...powerHost.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.trim() === itemName)
+    assert.ok(item, `${menuName} offers ${itemName}`)
+    await act(async () => { item.click(); await new Promise((resolve) => setTimeout(resolve, 60)) })
+  }
+  await openFrom('分析', '功效与样本量…（引擎里没有，插件已补）')
+  assert.ok(powerHost.querySelector('.ap-modal'), 'the power dialog opens')
+  assert.match(powerHost.textContent, /求样本量/, 'it defaults to solving for a sample size')
+  const clickOk = async (label) => {
+    await act(async () => {
+      const ok = [...powerHost.querySelectorAll('.ap-modal button')].find((node) => node.textContent.trim() === label)
+      assert.ok(ok, `the dialog has a ${label} button`)
+      ok.click()
+      await new Promise((resolve) => setTimeout(resolve, 80))
+    })
+  }
+  await clickOk('确定')
+  assert.ok(powerBody, 'the dialog sends a request')
+  assert.equal(powerBody.options.method, 'ttest-two', 'method travels as the engine-free method id')
+  assert.equal(powerBody.options.mode, 'sample')
+  assert.equal(powerBody.options.effect, 0.5, 'the effect size is a number, not a string')
+  assert.equal(powerBody.options.power, 0.8, 'the target power is sent')
+  assert.match(powerHost.textContent, /每组 64 例/, powerHost.textContent.slice(-200))
+  // 换成「求把握度」时应该改问每组例数，并且不再发目标把握度。
+  await openFrom('分析', '功效与样本量…（引擎里没有，插件已补）')
+  const modeSelect = [...powerHost.querySelectorAll('.ap-modal select')][1]
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set.call(modeSelect, 'power')
+    modeSelect.dispatchEvent(new window.Event('change', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  assert.match(powerHost.textContent, /每组例数/, 'asking for power switches the field')
+  powerBody = null
+  await clickOk('确定')
+  assert.equal(powerBody.options.mode, 'power')
+  assert.equal(powerBody.options.n, 30, 'the cases per group is sent')
+  assert.equal(powerBody.options.power, undefined, 'the target power is not sent when solving for power')
+  await act(async () => { powerRoot.unmount() })
+}
+
+// 帮助 → 跟着做一遍…：清单与执行都在宿主半，面板只显示；每点一步要真跑一次，
+// 跑完把「结果句子」摆出来。
+{
+  const guideHost = window.document.createElement('div')
+  window.document.body.appendChild(guideHost)
+  const guideRoot = createRoot(guideHost)
+  const idleState = { id: 'session-g', version: '0.117.0', engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true }, dataset: null, items: [], log: [], history: { undo: 0, redo: 0 }, locale: 'zh' }
+  let runBody = null
+  let listCalls = 0
+  const steps = [
+    { id: 'open-sample', kind: 'sample', title: '打开示例数据（员工 60 例）', why: '不用先准备数据', look: '数据视图里出现 8 个变量', syntax: null },
+    { id: 'describe', kind: 'syntax', title: '描述统计', why: '先看量纲', look: '每行一个变量', syntax: 'DESCRIPTIVES salary.' },
+  ]
+  window.fetch = async (url, init) => {
+    const target = String(url)
+    if (target.includes('api/guide/run')) {
+      runBody = JSON.parse(init.body)
+      const text = JSON.stringify({
+        ok: true,
+        result: {
+          step: steps[0],
+          items: [],
+          sentences: [{ kind: 'descriptives', table: 'Descriptive Statistics', text: '月薪（元）：n = 60，M = 10568.8333' }],
+          skipped: [],
+          note: '已打开示例数据：60 例、8 个变量',
+        },
+        state: idleState,
+      })
+      return { ok: true, status: 200, text: async () => text }
+    }
+    if (target.includes('api/guide')) {
+      listCalls += 1
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, result: { steps, total: steps.length }, state: idleState }) }
+    }
+    return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, state: idleState }) }
+  }
+  globalThis.fetch = window.fetch
+  await act(async () => {
+    guideRoot.render(React.createElement(registered.tabs[0].component, props))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  })
+  const helpButton = [...guideHost.querySelectorAll('.ap-menu-button')].find((node) => node.textContent.trim() === '帮助')
+  await act(async () => { helpButton.click(); await new Promise((resolve) => setTimeout(resolve, 20)) })
+  const guideItem = [...guideHost.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.trim() === '跟着做一遍…（示例数据，九步）')
+  assert.ok(guideItem, 'the help menu offers the walkthrough')
+  await act(async () => { guideItem.click(); await new Promise((resolve) => setTimeout(resolve, 80)) })
+  assert.equal(listCalls, 1, 'the plan is fetched once')
+  assert.match(guideHost.textContent, /共 2 步，已完成 0 步/, guideHost.textContent.slice(0, 300))
+  assert.match(guideHost.textContent, /不用先准备数据/, 'each step explains why')
+  const runButton = [...guideHost.querySelectorAll('.ap-guide-step button')][0]
+  assert.equal(runButton.textContent.trim(), '做这一步')
+  await act(async () => { runButton.click(); await new Promise((resolve) => setTimeout(resolve, 80)) })
+  assert.equal(runBody.options.id, 'open-sample', 'the step id travels, the syntax does not')
+  assert.match(guideHost.textContent, /月薪（元）：n = 60/, 'the plain-Chinese sentence is shown')
+  assert.match(guideHost.textContent, /已打开示例数据：60 例、8 个变量/, 'the note is shown')
+  assert.equal([...guideHost.querySelectorAll('.ap-guide-step button')][0].textContent.trim(), '重做', 'a finished step says so')
+  assert.match(guideHost.textContent, /已完成 1 步/, guideHost.textContent.slice(0, 300))
+  await act(async () => { guideRoot.unmount() })
+}
+
 // 英文界面下「复制表格」必须复制译过的表头：表格渲染走了 tr()，复制曾直接把
 // 中文表头拼进 TSV（复验 O1）。正文是数据，必须原样。
 {

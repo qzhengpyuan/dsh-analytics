@@ -201,6 +201,192 @@ function ReproDialog({ sessionId, onClose, notify }) {
     busy ? h('div', { className: 'ap-hint' }, tr('正在写入…')) : null))
 }
 
+const POWER_METHODS = [
+  ['ttest-one', '单样本 t 检验（效应量 Cohen\'s d）'],
+  ['ttest-two', '独立样本 t 检验（Cohen\'s d，两组例数相同）'],
+  ['ttest-paired', '配对 t 检验（Cohen\'s d）'],
+  ['correlation', 'Pearson 相关（效应量 r）'],
+  ['anova', '单因素方差分析（效应量 f）'],
+  ['proportions', '两独立比例（给 p1 与 p2）'],
+  ['chisquare', '卡方拟合优度（效应量 w）'],
+]
+
+/** 每种方法的效应量提示：d / r / f / w 的量级不一样，混着写会得出差十倍的结果。 */
+const POWER_EFFECT_HINT = {
+  'ttest-one': 'd 是均值与检验值之差除以标准差：0.2 小、0.5 中、0.8 大。',
+  'ttest-two': 'd 是两组均值之差除以合并标准差：0.2 小、0.5 中、0.8 大。',
+  'ttest-paired': 'd 是差值的均值除以差值的标准差。',
+  correlation: 'r 是预期的相关系数绝对值：0.1 小、0.3 中、0.5 大。',
+  anova: 'f 是各组均值差异除以标准差：0.10 小、0.25 中、0.40 大；分组数用下面的「分组数」。',
+  proportions: '不用效应量：直接给两组的预期比例 p1 与 p2。',
+  chisquare: 'w 是偏离均匀分布的程度：0.1 小、0.3 中、0.5 大；自由度用下面的「自由度」。',
+}
+
+/**
+ * 「功效与样本量」——PSPP 2.1.3 完全没有这个功能（没有 POWER 过程），
+ * 所以整条链路都在插件里算：这里只收集形状，`api/power` 返回表与数字。
+ * 方法与 PSPP 无关，也就不需要数据集，没打开数据也能用。
+ */
+function PowerDialog({ sessionId, onDone, onClose, notify }) {
+  const [method, setMethod] = React.useState('ttest-two')
+  const [mode, setMode] = React.useState('sample')
+  const [alpha, setAlpha] = React.useState('0.05')
+  const [target, setTarget] = React.useState('0.8')
+  const [effect, setEffect] = React.useState('0.5')
+  const [n, setN] = React.useState('30')
+  const [groups, setGroups] = React.useState('3')
+  const [df, setDf] = React.useState('1')
+  const [p1, setP1] = React.useState('0.3')
+  const [p2, setP2] = React.useState('0.5')
+  const [busy, setBusy] = React.useState(false)
+  const needsEffect = method !== 'proportions'
+  const run = async () => {
+    const options = { method, mode, alpha: Number(alpha) }
+    if (needsEffect) {
+      options.effect = Number(effect)
+    } else {
+      options.p1 = Number(p1)
+      options.p2 = Number(p2)
+    }
+    if (mode === 'sample') options.power = Number(target)
+    else options.n = Number(n)
+    if (method === 'anova') options.groups = Number(groups)
+    if (method === 'chisquare') options.df = Number(df)
+    setBusy(true)
+    try {
+      const value = await api('api/power', { sessionId, options })
+      onDone(value)
+      const result = value?.result ?? {}
+      if (result.nPerGroup !== undefined) {
+        notify(tr('每组 {0} 例（合计 {1}），把握度 {2}', String(result.nPerGroup), String(result.total ?? ''), Number(result.power ?? 0).toFixed(3)))
+      } else {
+        notify(tr('每组 {0} 例时把握度 {1}', String(result.n ?? ''), Number(result.power ?? 0).toFixed(3)))
+      }
+      onClose()
+    } catch (error) {
+      notify(error.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return h(Modal, {
+    title: '功效与样本量',
+    wide: true,
+    onCancel: onClose,
+    onOk: run,
+    okDisabled: busy,
+  },
+  h('div', { className: 'ap-dlg' },
+    h('div', { className: 'ap-dlg-left' },
+      h('div', { className: 'ap-dlg-caption' }, '方法'),
+      h('select', { value: method, onChange: (event) => setMethod(event.target.value) },
+        POWER_METHODS.map(([value, label]) => h('option', { key: value, value }, tr(label)))),
+      h('div', { className: 'ap-dlg-caption' }, '算什么'),
+      h('select', { value: mode, onChange: (event) => setMode(event.target.value) },
+        h('option', { value: 'sample' }, tr('求样本量（给把握度）')),
+        h('option', { value: 'power' }, tr('求把握度（给每组例数）'))),
+      h('div', { className: 'ap-hint' }, tr(POWER_EFFECT_HINT[method] ?? '')),
+      h('div', { className: 'ap-hint' }, tr('双侧检验、每组例数相同。效应量拿不准时按「小」算，得出的样本量才是保守的。'))),
+    h('div', { className: 'ap-dlg-right' },
+      h('div', { className: 'ap-dlg-box' },
+        h('div', { className: 'ap-dlg-caption' }, 'α（双侧）'),
+        h('input', { type: 'number', min: '0', max: '1', step: '0.01', value: alpha, onChange: (event) => setAlpha(event.target.value) })),
+      mode === 'sample'
+        ? h('div', { className: 'ap-dlg-box' },
+          h('div', { className: 'ap-dlg-caption' }, '目标把握度'),
+          h('input', { type: 'number', min: '0', max: '1', step: '0.01', value: target, onChange: (event) => setTarget(event.target.value) }))
+        : h('div', { className: 'ap-dlg-box' },
+          h('div', { className: 'ap-dlg-caption' }, '每组例数'),
+          h('input', { type: 'number', min: '2', step: '1', value: n, onChange: (event) => setN(event.target.value) })),
+      needsEffect
+        ? h('div', { className: 'ap-dlg-box' },
+          h('div', { className: 'ap-dlg-caption' }, '效应量'),
+          h('input', { type: 'number', step: 'any', value: effect, onChange: (event) => setEffect(event.target.value) }))
+        : h('div', { className: 'ap-dlg-box' },
+          h('div', { className: 'ap-dlg-caption' }, '两组预期比例 p1 / p2'),
+          h('div', { className: 'ap-inline' },
+            h('input', { type: 'number', min: '0', max: '1', step: '0.01', value: p1, onChange: (event) => setP1(event.target.value) }),
+            h('input', { type: 'number', min: '0', max: '1', step: '0.01', value: p2, onChange: (event) => setP2(event.target.value) }))),
+      method === 'anova'
+        ? h('div', { className: 'ap-dlg-box' },
+          h('div', { className: 'ap-dlg-caption' }, '分组数'),
+          h('input', { type: 'number', min: '2', step: '1', value: groups, onChange: (event) => setGroups(event.target.value) }))
+        : null,
+      method === 'chisquare'
+        ? h('div', { className: 'ap-dlg-box' },
+          h('div', { className: 'ap-dlg-caption' }, '自由度'),
+          h('input', { type: 'number', min: '1', step: '1', value: df, onChange: (event) => setDf(event.target.value) }))
+        : null)))
+}
+
+/**
+ * 「跟着做一遍」：把示例数据能做的一串分析排成顺序，每点一次就跑一步并把
+ * 结果句子摆出来。清单与执行都在宿主半（`lib/guide.js` + `workspace.guideStep`），
+ * 面板只显示。
+ */
+function GuideDialog({ sessionId, onDone, onClose, notify }) {
+  const [steps, setSteps] = React.useState(null)
+  const [failure, setFailure] = React.useState('')
+  const [done, setDone] = React.useState({})
+  const [busy, setBusy] = React.useState('')
+  React.useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const value = await api('api/guide', { sessionId })
+        if (alive) setSteps(value?.result?.steps ?? [])
+      } catch (error) {
+        if (alive) setFailure(error.message)
+      }
+    })()
+    return () => { alive = false }
+  }, [sessionId])
+  const doStep = async (step) => {
+    setBusy(step.id)
+    try {
+      const value = await api('api/guide/run', { sessionId, options: { id: step.id } })
+      onDone(value)
+      const result = value?.result ?? {}
+      setDone((prev) => ({ ...prev, [step.id]: { note: result.note ?? '', sentences: result.sentences ?? [] } }))
+      notify(result.note || tr('这一步做完了'))
+    } catch (error) {
+      notify(error.message)
+    } finally {
+      setBusy('')
+    }
+  }
+  const finished = Object.keys(done).length
+  return h(Modal, {
+    title: '跟着做一遍（示例数据）',
+    wide: true,
+    okText: '关闭',
+    onCancel: onClose,
+    onOk: onClose,
+  },
+  h('div', { className: 'ap-guide' },
+    h('div', { className: 'ap-guide-head' },
+      h('span', null, steps === null ? tr('正在读取…') : tr('共 {0} 步，已完成 {1} 步', String(steps.length), String(finished))),
+      h('span', { className: 'ap-hint' }, tr('每一步都会真的跑一遍，结果留在输出视图里；做完可以回来看这一句是什么意思。'))),
+    failure ? h('div', { className: 'ap-guide-empty' }, failure) : null,
+    (steps ?? []).map((step, index) => h('div', { key: step.id, className: `ap-guide-step${done[step.id] ? ' ap-guide-done' : ''}` },
+      h('div', { className: 'ap-guide-title' },
+        h('span', { className: 'ap-guide-no' }, String(index + 1)),
+        h('span', null, tr(step.title)),
+        h('button', {
+          className: 'ap-btn',
+          disabled: busy !== '',
+          onClick: () => doStep(step),
+        }, busy === step.id ? tr('正在跑…') : (done[step.id] ? tr('重做') : tr('做这一步')))),
+      h('div', { className: 'ap-hint' }, tr(step.why)),
+      done[step.id]
+        ? h('div', { className: 'ap-guide-result' },
+          h('div', { className: 'ap-guide-note' }, tr(done[step.id].note)),
+          done[step.id].sentences.slice(0, 4).map((sentence, at) => h('div', { key: at, className: 'ap-guide-sentence' }, sentence.text)))
+        : null,
+      h('div', { className: 'ap-hint' }, tr('这一步看什么：{0}', tr(step.look))))),
+    (steps ?? []).length === 0 && !failure ? h('div', { className: 'ap-guide-empty' }, tr('清单是空的：插件版本可能太旧')) : null))
+}
+
 /**
  * 「查找过程」——SPSS 的 Search for a Procedure。输入框过滤整条菜单路径，
  * 上下键选、回车执行；结果里保留完整路径，因为同名条目（比如三个
@@ -1061,6 +1247,19 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-ins-notes { max-height:180px; overflow:auto; font-size:11px; color:var(--ap-muted); }
 .ap-ins-note { padding:1px 0; }
 .ap-ins-empty { font-size:11px; color:var(--ap-muted); }
+.ap-inline { display:flex; gap:6px; }
+.ap-inline input { width:100%; }
+.ap-guide { display:flex; flex-direction:column; gap:8px; max-height:60vh; overflow:auto; }
+.ap-guide-head { display:flex; flex-direction:column; gap:2px; }
+.ap-guide-step { border:1px solid var(--ap-border); border-radius:4px; padding:6px 8px; display:flex; flex-direction:column; gap:4px; }
+.ap-guide-done { border-color:var(--ap-accent); }
+.ap-guide-title { display:flex; align-items:center; gap:6px; font-weight:600; font-size:12px; }
+.ap-guide-title button { margin-left:auto; }
+.ap-guide-no { display:inline-flex; width:16px; height:16px; align-items:center; justify-content:center; border-radius:50%; background:var(--ap-button); font-size:10px; }
+.ap-guide-result { display:flex; flex-direction:column; gap:2px; background:var(--ap-field); border-radius:3px; padding:4px 6px; }
+.ap-guide-note { font-size:11px; color:var(--ap-text-2); }
+.ap-guide-sentence { font-size:12px; line-height:1.5; }
+.ap-guide-empty { font-size:11px; color:var(--ap-muted); }
 .ap-repro { display:flex; flex-direction:column; gap:8px; }
 .ap-repro .ap-field input { width:100%; }
 .ap-sent-empty { color:var(--ap-text-3); padding:8px; }
@@ -9248,6 +9447,8 @@ let ITEM_CSV_PENDING = null
               { label: '表 1：基线特征…', action: () => setDialog({ kind: 'publication', tableKind: 'baseline' }) },
               { label: '表 2：组间比较…', action: () => setDialog({ kind: 'publication', tableKind: 'compare' }) },
             ] },
+            { label: '功效与样本量…（引擎里没有，插件已补）', action: () => setDialog({ kind: 'power' }) },
+            { sep: true },
             { label: 'ROC 曲线…', action: () => runAnalysis('roc') },
             { label: '分类', sub: [
               { label: '系统聚类…（层次聚类 + 树状图）', action: () => runAnalysis('hierarchicalCluster') },
@@ -9325,6 +9526,7 @@ let ITEM_CSV_PENDING = null
           label: '帮助', items: [
             { label: '查找过程…（Ctrl+Shift+F）', action: () => setDialog({ kind: 'commands' }) },
             { label: '快捷键一览…', action: () => setDialog({ kind: 'shortcuts' }) },
+            { label: '跟着做一遍…（示例数据，九步）', action: () => setDialog({ kind: 'guide' }) },
             { label: '打开示例数据…', action: async () => {
               setBusy(true)
               try {
@@ -10266,6 +10468,22 @@ let ITEM_CSV_PENDING = null
             sessionId,
             kind: dialog.kind,
             onClose: () => setDialog(null),
+          })
+          : null,
+        dialog?.kind === 'power'
+          ? h(PowerDialog, {
+            sessionId,
+            onDone: (value) => { setSt(stateOf(value)); setView('output') },
+            onClose: () => setDialog(null),
+            notify,
+          })
+          : null,
+        dialog?.kind === 'guide'
+          ? h(GuideDialog, {
+            sessionId,
+            onDone: (value) => { setSt(stateOf(value)); setView('output') },
+            onClose: () => setDialog(null),
+            notify,
           })
           : null,
         dialog?.kind === 'repro'

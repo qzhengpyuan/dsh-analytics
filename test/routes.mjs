@@ -1611,6 +1611,48 @@ r = await call('POST', `${base}/api/sample`, { sessionId: sid })
   assert.ok((after.json().result?.items ?? []).length >= 1)
 }
 
+// 跟着做一遍：清单来自宿主半，每一步都真跑（示例数据 → 七条语法/计算）。
+// 这条路径是面板「帮助 → 跟着做一遍…」的唯一后端，必须整条走通。
+r = await call('POST', `${base}/api/guide`, { sessionId: sid })
+{
+  const plan = r.json().result ?? {}
+  console.log('guide plan', r.code, plan.total, plan.steps.map((step) => step.id).join(','))
+  assert.equal(r.code, 200)
+  assert.equal(plan.total, plan.steps.length)
+  assert.ok(plan.steps.length >= 9, `引导至少要九步，实际 ${plan.steps.length}`)
+  assert.equal(plan.steps[0].id, 'open-sample')
+  assert.equal(plan.steps[plan.steps.length - 1].id, 'profile')
+  for (const step of plan.steps) {
+    assert.ok(step.title && step.why && step.look, `step ${step.id} is incomplete`)
+    if (step.kind === 'syntax') assert.match(step.syntax, /\.$/)
+  }
+  // 逐步真跑：每一步都必须出东西，语法步骤必须给出结果句子。
+  const summaries = []
+  for (const step of plan.steps) {
+    const ran = await call('POST', `${base}/api/guide/run`, { sessionId: sid, options: { id: step.id } })
+    const result = ran.json().result ?? {}
+    assert.equal(ran.code, 200, `step ${step.id} -> ${ran.code} ${ran.text.slice(0, 200)}`)
+    assert.ok((result.items ?? []).length >= 1, `step ${step.id} produced nothing`)
+    assert.ok(result.note && result.note.trim().length > 0, `step ${step.id} has no note`)
+    if (step.kind === 'syntax' || step.kind === 'sample') {
+      assert.ok((result.sentences ?? []).length >= 1, `step ${step.id} produced no sentence`)
+    } else {
+      assert.deepEqual(result.sentences, [], `step ${step.id} must not pretend plugin tables are engine output`)
+      assert.deepEqual(result.skipped, [])
+    }
+    summaries.push(`${step.id}:${result.items.length}/${(result.sentences ?? []).length}`)
+  }
+  console.log('guide ran', summaries.join(' '))
+  // 未知步骤要报中文并列出可用 id。
+  const bad = await call('POST', `${base}/api/guide/run`, { sessionId: sid, options: { id: 'nope' } })
+  assert.equal(bad.code, 400)
+  assert.match(bad.text, /没有这一步：nope/)
+  assert.match(bad.text, /open-sample/)
+  // 每一步都留在输出里，面板能回看。
+  const state = r.json().state
+  assert.ok(state.dataset, 'the walkthrough leaves a dataset open')
+}
+
 r = await call('POST', `${base}/api/close`, { sessionId: 'pivot01' })
 
 r = await call('POST', `${base}/api/close`, { sessionId: sid })

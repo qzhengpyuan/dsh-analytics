@@ -2,7 +2,7 @@
   "meta": {
     "title": "Analytics",
     "description": "dsh-analytics: an SPSS-style statistics workbench backed by a bundled GNU PSPP engine — data view, variable view, syntax, output viewer, analysis dialogs, and agent-readable datasets.",
-    "count": 2006
+    "count": 2041
   },
   "strings": {
     " 个个案": " cases",
@@ -2010,6 +2010,41 @@
     "示例数据（员工）": "Sample data (employees)",
     "打开示例数据": "Open sample data",
     "最小": "Minimum",
-    "最大": "Maximum"
+    "最大": "Maximum",
+    "单样本 t 检验（效应量 Cohen's d）": "One-sample t test (effect size Cohen's d)",
+    "独立样本 t 检验（Cohen's d，两组例数相同）": "Independent-samples t test (Cohen's d, equal group sizes)",
+    "配对 t 检验（Cohen's d）": "Paired t test (Cohen's d)",
+    "Pearson 相关（效应量 r）": "Pearson correlation (effect size r)",
+    "单因素方差分析（效应量 f）": "One-way ANOVA (effect size f)",
+    "两独立比例（给 p1 与 p2）": "Two independent proportions (give p1 and p2)",
+    "卡方拟合优度（效应量 w）": "Chi-square goodness of fit (effect size w)",
+    "d 是均值与检验值之差除以标准差：0.2 小、0.5 中、0.8 大。": "d is the mean minus the test value, divided by the standard deviation: 0.2 small, 0.5 medium, 0.8 large.",
+    "d 是两组均值之差除以合并标准差：0.2 小、0.5 中、0.8 大。": "d is the difference of means over the pooled standard deviation: 0.2 small, 0.5 medium, 0.8 large.",
+    "d 是差值的均值除以差值的标准差。": "d is the mean of the differences divided by their standard deviation.",
+    "r 是预期的相关系数绝对值：0.1 小、0.3 中、0.5 大。": "r is the expected absolute correlation: 0.1 small, 0.3 medium, 0.5 large.",
+    "f 是各组均值差异除以标准差：0.10 小、0.25 中、0.40 大；分组数用下面的「分组数」。": "f is the spread of group means over the standard deviation: 0.10 small, 0.25 medium, 0.40 large; set the number of groups below.",
+    "不用效应量：直接给两组的预期比例 p1 与 p2。": "No effect size: give the expected proportions p1 and p2.",
+    "w 是偏离均匀分布的程度：0.1 小、0.3 中、0.5 大；自由度用下面的「自由度」。": "w is the deviation from a uniform distribution: 0.1 small, 0.3 medium, 0.5 large; set the degrees of freedom below.",
+    "功效与样本量…（引擎里没有，插件已补）": "Power and sample size… (missing in the engine, added by the plugin)",
+    "算什么": "Compute",
+    "求样本量（给把握度）": "Sample size (given power)",
+    "求把握度（给每组例数）": "Power (given cases per group)",
+    "双侧检验、每组例数相同。效应量拿不准时按「小」算，得出的样本量才是保守的。": "Two-sided test, equal group sizes. When the effect size is only a guess, use the small value: the sample size you get is then conservative.",
+    "α（双侧）": "α (two-sided)",
+    "目标把握度": "Target power",
+    "两组预期比例 p1 / p2": "Expected proportions p1 / p2",
+    "分组数": "Number of groups",
+    "每组 {0} 例（合计 {1}），把握度 {2}": "{0} cases per group ({1} in total), power {2}",
+    "每组 {0} 例时把握度 {1}": "With {0} cases per group the power is {1}",
+    "跟着做一遍（示例数据）": "Guided walkthrough (sample data)",
+    "跟着做一遍…（示例数据，九步）": "Guided walkthrough… (sample data, nine steps)",
+    "共 {0} 步，已完成 {1} 步": "{0} steps, {1} done",
+    "每一步都会真的跑一遍，结果留在输出视图里；做完可以回来看这一句是什么意思。": "Each step really runs and the output stays in the output view, so you can come back and read what it means.",
+    "做这一步": "Run this step",
+    "重做": "Run again",
+    "正在跑…": "Running…",
+    "这一步看什么：{0}": "What to look at: {0}",
+    "清单是空的：插件版本可能太旧": "The list is empty: the plugin is probably too old",
+    "这一步做完了": "This step is done"
   }
 }

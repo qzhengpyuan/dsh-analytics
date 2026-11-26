@@ -48,6 +48,7 @@ jobs:
         run: |
           set -euo pipefail
           node test/build.mjs
+          node test/guide.mjs
           node test/engine.mjs
           node test/tables.mjs
           node test/regression.mjs
