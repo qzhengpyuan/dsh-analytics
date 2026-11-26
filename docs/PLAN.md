@@ -89,9 +89,11 @@
 > 0.57–0.63 那六批的详细清单已全部落地（过程在 CHANGELOG，能力在 FEATURES），
 > 这里只留下**还没做的**。每项写清：做什么 / 为什么 / 怎么算做完 / 落点。
 
-### 3.1 最小端到端用例（半天到一天，风险最高）
+### 3.1 最小端到端用例（半天到一天，风险最高，建议第一个做）
 
 **做什么**：真浏览器里点「帮助 → 打开示例数据」→「分析 → 描述统计」→ 看到表。
+
+**装置（推荐方案，已核对过可行性）**：`test/e2e.mjs` 自己起一个最小宿主 —— `node:http` 监听随机端口，返回一个只做三件事的页面：① 加载 `dist/client.js` 的 bundle（`window.__ModuleLoader__.load` 描述符，写法照 `test/client.mjs` 顶部）；② 提供假的 `betterSidebar` / `sidebarRight` host 对象；③ 把 `lib/routes.js` 的 handler 挂在 `/analytics/api`。这样不碰现有 dsh web（不能重启），也不需要 cookie。浏览器用 `playwright-cli`（skill 里有）或 `npx playwright`（Chromium 约 260 MB，只在需要时下载）。
 
 **为什么**：`test/client.mjs` 是 jsdom，断言的是请求与文案；真机渲染（侧栏宽度、滚动、菜单遮挡）一条都没覆盖，而 0.30.0 的「菜单点不开」正是在真机上才出现的。
 
