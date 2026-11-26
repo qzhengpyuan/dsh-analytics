@@ -107,6 +107,52 @@ jobs:
       - name: package tarball (verify)
         run: npx --yes dsh-plugin-toolkit@latest verify . --no-mount
 
+  # The only job that renders the panel in a real browser. jsdom cannot see a
+  # menu popup hanging off a 480px sidebar, and an SVG attribute React only
+  # warns about is not an exception there either — both were shipped broken for
+  # releases before this job existed. Chromium is a 260 MB download, so it stays
+  # out of `npm test` and out of the other jobs.
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      # The screenshot is the deliverable of this job; the suite keeps it in a
+      # stable path instead of the temporary workspace it deletes.
+      E2E_ARTIFACTS: ${{ runner.temp }}/e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: install (playwright is --no-save on purpose)
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund
+          # Not a devDependency: `npm test` must stay browser-free. --no-save
+          # leaves package.json and the lockfile alone.
+          npm install --no-save --no-audit --no-fund playwright@1.65.1
+          npx playwright install --with-deps chromium
+
+      - name: engine (linux-x64 from the engine-v1 release)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p engine
+          gh release download engine-v1 --repo "${{ github.repository }}" --pattern engine-linux-x64.tgz --output engine.tgz --clobber
+          tar -C engine -xzf engine.tgz
+
+      - name: end-to-end (real Chromium)
+        run: node test/e2e.mjs
+
+      - name: screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshot
+          path: ${{ runner.temp }}/e2e
+          if-no-files-found: ignore
+
   # The PDF path replays an analysis with an appended ECHO, so nothing in
   # JavaScript can prove the table notes reach the page: this job reads the PDF
   # back with pdftotext. It needs a PSPP engine, which the release ships.

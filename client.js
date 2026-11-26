@@ -849,7 +849,6 @@ body[data-ds-dark-theme] .ap-root {
 .ap-menu-button { background:none; border:0; height:24px; padding:0 8px; font:inherit; color:var(--ap-text);
   cursor:default; border-radius:0; }
 .ap-menu-button:hover, .ap-menu-button.ap-open { background:var(--ap-hover); }
-.ap-menu-pop.ap-flip { left:auto; right:0; }
 .ap-menu-pop { position:absolute; top:100%; left:0; min-width:220px; background:var(--ap-panel); border:1px solid var(--ap-line-2);
   box-shadow:2px 2px 2px color-mix(in srgb, var(--ap-text) 22%, transparent); padding:2px 0; z-index:40; }
 /* 22px 行高；快捷键靠右、灰字（renderMenuItems 把「（Ctrl+Z）」拆进 .ap-keys） */
@@ -1165,7 +1164,9 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-has-sub > .ap-sub-pop { display:none; position:absolute; left:100%; top:-4px; min-width:200px;
   background:var(--ap-panel); border:1px solid var(--ap-line-2); box-shadow:2px 2px 2px color-mix(in srgb, var(--ap-text) 22%, transparent); padding:2px 0; z-index:45; }
 .ap-has-sub:hover > .ap-sub-pop { display:block; }
-.ap-flip .ap-has-sub > .ap-sub-pop { left:auto; right:100%; }
+.ap-has-sub > .ap-sub-pop.ap-sub-left { left:auto; right:100%; }
+/* 两边都放不下（380px 的侧栏）时压在弹层上：重叠但每一项都点得到，比被裁掉强。 */
+.ap-has-sub > .ap-sub-pop.ap-sub-overlap { left:0; top:0; }
 .ap-menu-pop button:disabled { color:var(--ap-text-3); }
 /* ── 对话框：520px、13px 加粗标题、页脚 确定/粘贴/重置/取消/帮助 ───────── */
 .ap-modal-mask { position:absolute; inset:0; background:var(--dsw-alias-bg-mask-1, rgba(15,20,30,.35)); display:flex; align-items:center;
@@ -1867,9 +1868,16 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
         height: 16,
         'aria-hidden': 'true',
         focusable: 'false',
-      }, parts.map((part, index) => (part[1] === 'dot'
-        ? h('circle', { key: index, cx: Number(part[0].split(' ')[0]), cy: Number(part[0].split(' ')[1]), r: 1.1, fill: 'currentColor', stroke: 'none' })
-        : h('path', { key: index, d: part[0], fill: 'none', stroke: 'currentColor', 'stroke-width': 1.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }))))
+      }, parts.map((part, index) => {
+        if (part[1] === 'dot') {
+          // 「M2.2 4.4」是移动命令的写法：直接 Number() 得到 NaN，Chromium 于是把
+          // cx/cy 判成非法长度 —— 这几个图标上的点从来没画出来过，而且每重绘一次
+          // 就往控制台丢一条错误（jsdom 不校验 SVG 数值，所以一直没人发现）。
+          const [cx, cy] = part[0].replace(/^[Mm]/, '').split(/[\s,]+/).map(Number)
+          return h('circle', { key: index, cx, cy, r: 1.1, fill: 'currentColor', stroke: 'none' })
+        }
+        return h('path', { key: index, d: part[0], fill: 'none', stroke: 'currentColor', 'stroke-width': 1.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })
+      }))
     }
 
     function matrixHtml(matrix, className = '', edits = null, limit = 0) {
@@ -1986,6 +1994,9 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
       globalThis.__AP_TEST_HOOKS__.freshDialogFlags = freshDialogFlags
       globalThis.__AP_TEST_HOOKS__.localizedTableMatrix = localizedTableMatrix
       globalThis.__AP_TEST_HOOKS__.localizedTableCaption = localizedTableCaption
+      // 图标里的点曾经算出 cx=NaN（chromium 判成非法长度、点根本没画出来，
+      // jsdom 也不报错）。把画图函数露出来，纯函数套件里就能守住这件事。
+      globalThis.__AP_TEST_HOOKS__.apIcon = apIcon
     }
 
     /**
@@ -7562,6 +7573,11 @@ let ITEM_CSV_PENDING = null
       const [menu, setMenu] = useState(null)
       const [dialog, setDialog] = useState(null)
       const [toast, setToast] = useState(null)
+      // 弹层与子菜单的位置都是量出来的：侧栏只有 380–520px，而弹层 220px、子菜单
+      // 还要再占 200px。menuOffset 是顶层弹层为回到面板内要挪的距离，subSide 是子
+      // 菜单挑的那一边（right / left / overlap）。
+      const [menuOffset, setMenuOffset] = useState(0)
+      const [subSide, setSubSide] = useState('right')
       const rootRef = useRef(null)
       const menuBarRef = useRef(null)
       // Which multiple response set the panel is reading, and how its
@@ -9603,6 +9619,36 @@ let ITEM_CSV_PENDING = null
 
       MENU_SOURCE = menus
 
+      // 弹层默认贴在菜单按钮左边往右展开；侧栏只有 380–520px，靠「菜单在栏里的
+      // 序号」猜放不放得下必然有一半是错的。开菜单时量一次真实位置：顶层弹层被夹回
+      // 面板内，子菜单按剩余空间挑边，两边都放不下就压在弹层上 —— 宁可重叠，不可
+      // 裁掉（裁掉的那一项用户根本点不到）。
+      // 依赖只放 menu 与两个结果：menus 每次渲染都是新数组，放进去等于每渲染重量。
+      useLayoutEffect(() => {
+        if (!menu) {
+          if (menuOffset !== 0) setMenuOffset(0)
+          if (subSide !== 'right') setSubSide('right')
+          return
+        }
+        const pane = rootRef.current
+        const bar = menuBarRef.current
+        if (!pane || !bar) return
+        const head = pane.getBoundingClientRect()
+        const item = [...bar.querySelectorAll('.ap-menu-item')][menus.findIndex((entry) => entry.label === menu)]
+        if (!item) return
+        const left = item.getBoundingClientRect().left - head.left
+        const popWidth = Math.max(220, Math.round(bar.querySelector('.ap-menu-pop')?.getBoundingClientRect().width ?? 0))
+        // 夹回面板内：宽于面板时贴左边（超出的部分由弹层自己的滚动承担）。
+        const popLeft = Math.max(0, Math.min(left, head.width - popWidth))
+        const offset = Math.round(popLeft - left)
+        const room = 200 + 8
+        const side = popLeft + popWidth + room <= head.width
+          ? 'right'
+          : popLeft - room >= 0 ? 'left' : 'overlap'
+        if (offset !== menuOffset) setMenuOffset(offset)
+        if (side !== subSide) setSubSide(side)
+      }, [menu, menuOffset, subSide])
+
       const variables = st?.dataset?.variables ?? []
       const allItems = st?.items ?? []
       // Output search narrows the document list to the items whose title, table
@@ -9662,7 +9708,7 @@ let ITEM_CSV_PENDING = null
           disabled: item.disabled === true,
           onClick: () => { if (!item.sub) runAction(item.action) },
         }, ...menuLabel(item.label), item.sub ? h('span', { className: 'ap-sub' }, '▸') : null),
-        item.sub ? h('div', { className: 'ap-sub-pop' }, renderMenuItems(item.sub)) : null))
+        item.sub ? h('div', { className: `ap-sub-pop ap-sub-${subSide}` }, renderMenuItems(item.sub)) : null))
 
       // SPSS puts the open dataset's shape at the left of the status bar and
       // the engine/status chatter at the right. Keeping the two strings apart
@@ -9812,16 +9858,18 @@ let ITEM_CSV_PENDING = null
         })()
           : null,
         h('div', { className: 'ap-menu', ref: menuBarRef },
-          menus.map((entry, index) => h('div', { key: entry.label, className: 'ap-menu-item' },
+          menus.map((entry) => h('div', { key: entry.label, className: 'ap-menu-item' },
             h('button', {
               className: `ap-menu-button ${menu === entry.label ? 'ap-open' : ''}`,
               onClick: () => setMenu(menu === entry.label ? null : entry.label),
             }, entry.label),
             menu === entry.label
               ? h('div', {
-                // The sidebar is narrow: right-side menus must grow leftwards
-                // or their popup runs off the edge of the panel.
-                className: `ap-menu-pop ${index >= menus.length - 3 ? 'ap-flip' : ''}`,
+                // The sidebar is narrow: the popup is clamped back into the
+                // panel and the submenu picks whichever side still has room.
+                // Both are measured when the menu opens, not guessed.
+                className: 'ap-menu-pop',
+                style: menuOffset ? { left: menuOffset } : undefined,
               }, renderMenuItems(entry.items))
               : null))),
         !showToolbar ? null : h('div', {

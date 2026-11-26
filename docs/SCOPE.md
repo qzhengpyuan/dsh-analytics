@@ -37,16 +37,17 @@ PSPP 2.1.3 里这些过程**整个不存在**（原文见 FEATURES §13.1），�
 - **语法层限制**：`REGRESSION` 只认 `/METHOD=ENTER`（`STEPWISE`/`BACKWARD`/`FORWARD`/`/ENTER=`/`/TEST=` 全部报错，0.55.2 用真引擎逐条验过），所以面板不提供逐步回归入口。
 - **界面宽度**：侧栏 380–520 px，SPSS 那种右侧竖排选项按钮与多栏子对话框放不下 ⇒ 只保证**条目重叠处的行为一致**，不逐像素复刻 SPSS 的 207 个菜单条目。
 - **界面语言**：外壳（菜单/对话框/提示/通知/导出外壳）有中英两套；**表注正文、建议正文、引导正文、变量名与数据值保持中文/原样** —— 它们含具体数字与变量名，整句翻译会失真。
-- **真机端到端**：`npm test` 的界面部分跑在 jsdom 里，真浏览器里的渲染（侧栏裁切、滚动观感）目前只有历史截图，没有自动化用例。
+- **真机端到端**：`npm test` 的界面部分跑在 jsdom 里；真浏览器里的版式（菜单/子菜单会不会被 380–520 px 的侧栏裁掉、控制台有没有报错）由 `npm run e2e` 单独覆盖（真 Chromium + 真引擎，480 px 与 380 px 两个宽度）。它不在 `npm test` 里，没装 playwright 时 skip。**像素观感与滚动手感仍只靠人看截图**。
 
 ## 5. 怎么验
 
 ```bash
-npm test        # 65 个套件，全绿时 964 条 ok 断言（不装 poppler 963）
+npm test        # 66 个套件，全绿时 970 条 ok 断言（不装 poppler 969）
+npm run e2e     # 真浏览器 7 条（真 Chromium + 真引擎，不进 npm test；没装 playwright 时 skip）
 ```
 
 - 纯函数套件（图表模型、Word/Excel XML、字典、统计量、缺失值、聚类、生存、判别…）+ jsdom 面板套件 + **真引擎**套件（smoke/routes/flow/poll/repro 直接跑包内 PSPP）。
-- CI 三条腿：`unit`（ubuntu，纯函数 + jsdom + 打包自检）、`engine`（ubuntu，真引擎 smoke/routes/flow/tools/weight/pdf-notes + poppler 回读 PDF）、`engine (矩阵)`（ubuntu / windows-latest / macos-15 各一份，下载该平台的引擎产物后跑同一批真引擎套件）。`pdf-notes` 在 Windows 与 macOS 上因为没有 `pdftotext` 会打一行 skip 并 exit 0，由 `engine` 那条腿的 poppler 回读补上。
+- CI 四条腿：`unit`（ubuntu，纯函数 + jsdom + 打包自检）、`e2e`（ubuntu，真 Chromium 跑 `test/e2e.mjs`，截图留 artifact）、`engine`（ubuntu，真引擎 smoke/routes/flow/tools/weight/pdf-notes + poppler 回读 PDF）、`engine (矩阵)`（ubuntu / windows-latest / macos-15 各一份，下载该平台的引擎产物后跑同一批真引擎套件）。`pdf-notes` 在 Windows 与 macOS 上因为没有 `pdftotext` 会打一行 skip 并 exit 0，由 `engine` 那条腿的 poppler 回读补上。
 - 断言纪律：新增断言必须做过删除式变异验证（把修复删掉要变红）。
 
 ## 6. 数据与隐私

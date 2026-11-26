@@ -1,3 +1,16 @@
+## 0.119.0
+
+一批「真浏览器里点一遍」的门禁：新套件 `test/e2e.mjs`，以及它顺手抓出来的两个只有真机才看得见的缺陷。
+
+- **新 `test/e2e.mjs`（7 条，不进 `npm test`）**：自己起一个最小宿主 —— `node:http` 随机端口，页面依次加载 React 19 的四个 CJS 产物（包成 `window.__def`）、真 `client.js` bundle 与一小段 harness；harness 提供假的 `betterSidebar`/`sidebarRight`、把插件 `apply(ctx)` 挂上、取 `registerTab` 登记的那个 `component` 渲染进 480 px 宽的 `#side`；`/analytics/*` 直接交给 `lib/routes.js` 的 handler，统计用包里那份 PSPP。断言：① 面板渲染（10 个菜单、宽 480、无页面错误）② 每一个顶层菜单的弹层都完整落在侧栏内 ③ 收窄到 380 px 后菜单与子菜单仍放得下 ④ 帮助 → 打开示例数据后输出里有 `Descriptive Statistics` / `Statistics` / `chart: ` ⑤ 分析 → 描述统计的子菜单在栏内 ⑥ 描述… 对话框选 salary 跑完多一张表 ⑦ 截图 > 20 KB 且控制台无错。截图落 `<tmp>/dsh-analytics-e2e/panel.png`；失败时保留临时工作目录并打印页面错误、控制台与 DOM 前 1200 字符。
+  - 浏览器不是硬依赖：`E2E_PLAYWRIGHT` 指定模块，否则依次找 `playwright`、`playwright-cli` 自带的、全局 `npm root -g` 里的；都没有就打印一行 skip 并 exit 0。Chromium 也按「playwright 期望的版本 → 缓存里版本号最高的 chromium-NNNN → 系统 chrome」回退（本机的 playwright-cli 期望 1247，缓存里只有 1255）。
+- **修 工具栏图标的点是 `cx="NaN"`**：`ICON_PATHS` 里点的坐标写成 `'M2.2 4.4'`，而解析是 `Number(part[0].split(' ')[0])` ⇒ `Number('M2.2')` 是 NaN。Chromium 把 `cx` 判成非法长度、标签/描述/相关/回归四个图标的点**从来没画出来过**，每次重绘还往控制台丢一条 `Error: <circle> attribute cx: Expected length, "NaN"`。jsdom 不校验 SVG 数值，所以 970 条断言一直绿。解析改成先去掉命令符再取坐标；`test/client.mjs` 加一段纯函数断言（`__AP_TEST_HOOKS__.apIcon` 画出四个图标的 1/3/3/3 个点、坐标是有限数且等于 `[[5.4,5.6]]` 与 `[[2.2,4.4],[2.2,8],[2.2,11.6]]`）。
+- **修 菜单弹层与子菜单被侧栏裁掉**：原来按「菜单在栏里的序号 ≥ 倒数第三个就左翻」猜，实测 480 px 下「分析」的子菜单右溢 141.1 px（子项点不到），380 px 下「分析」的顶层弹层左溢 5.2 px。改成开菜单时量一次：顶层弹层夹回面板内（`menuOffset`），子菜单按剩余空间挑边（`subSide` = right / left / overlap），两边都不够就压在弹层上 —— 宁可重叠，不裁掉。
+- 变异验证（三处修复各自删掉，对应用例逐条变红）：`dot-nan` → `client` 的 cx 断言 + e2e 的控制台清点；`no-subcss` → e2e 的子菜单两条（右溢 199.4 px）；`no-clamp` → e2e 的菜单两条（480 px 下实用程序 22.1 / 设置 86.1 / 帮助 126.1 px，380 px 下五条）。
+- 接线：`package.json` 加 `e2e` 脚本（不进 `test` 链）；`.github/workflows/test.yml` 加独立 `e2e` job（ubuntu + node 22，`npm install --no-save playwright@1.65.1` + `npx playwright install --with-deps chromium`，拉 `engine-v1` 的 linux-x64 引擎，跑 `node test/e2e.mjs`，截图作为 artifact）。
+
+全量 66 套件 / 970 ok（不装 poppler 969）/ 0 FAIL；另有 `test/e2e.mjs` 7 条（真浏览器，不进 `npm test`）。
+
 ## 0.118.1
 
 修 0.117.0 复验报告的三条 P2（0 P0 / 0 P1）。

@@ -214,6 +214,28 @@ assert.match(bundleSource, /error\.retry = \(\) => api\(path/, 'the force retry 
 
 const hooks = globalThis.__AP_TEST_HOOKS__
 
+// 工具栏图标里的点是 <circle>。坐标曾经算成 NaN —— Chromium 把 cx/cy 判成非法
+// 长度、点从来没画出来过，而 jsdom 不校验 SVG 数值，所以纯 jsdom 套件一直绿。
+// 浏览器那一层由 test/e2e.mjs 兜；这一条让 unit job 也能立刻变红。
+{
+  const counts = { labels: 1, descriptives: 3, correlation: 3, regression: 3 }
+  const dots = []
+  for (const [name, wanted] of Object.entries(counts)) {
+    const icon = hooks.apIcon(name)
+    assert.equal(icon.type, 'svg', name + ' 图标不是 svg')
+    const circles = (icon.props.children ?? []).filter((child) => child && child.type === 'circle')
+    assert.equal(circles.length, wanted, name + ' 的点数是 ' + circles.length + '，应当是 ' + wanted)
+    for (const circle of circles) {
+      assert.equal(Number.isFinite(circle.props.cx), true, name + ' 的点 cx 是 ' + circle.props.cx)
+      assert.equal(Number.isFinite(circle.props.cy), true, name + ' 的点 cy 是 ' + circle.props.cy)
+    }
+    dots.push(circles.map((circle) => [circle.props.cx, circle.props.cy]))
+  }
+  // 坐标就是图标表里写的那个点：换一种解析方式也要落在同一个位置。
+  assert.deepEqual(dots[0], [[5.4, 5.6]], '标签图标的点坐标变了')
+  assert.deepEqual(dots[1], [[2.2, 4.4], [2.2, 8], [2.2, 11.6]], '描述图标的三个点坐标变了')
+}
+
 // The file dialog is the one place the panel sees raw host paths. On Windows
 // they are 'C:\data\x.sav' with backslashes and a drive letter; a '/' split
 // made '.. 上级目录' reopen the same folder and built children like

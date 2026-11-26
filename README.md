@@ -192,6 +192,7 @@ PSPP 2.1.3 的语法差异：`REGRESSION /STATISTICS=TOL`（含 `ALL`）会报�
 
 ```bash
 npm test                     # build（纯函数）+ engine（平台解析）+ client（jsdom 挂 bundle）+ smoke + routes
+npm run e2e                  # 真浏览器 7 条（真 Chromium + 真引擎；没装 playwright 时 skip）
 npm run doctor               # dsh-plugin-toolkit 的九项清单检查（engines.dsh / files 覆盖 / 根导出等）
 npm run verify:pack          # 打 tarball → 装进临时目录 → 确认装完的副本里有面板代码（跳过 mount；需 npm ≤ 11，见下）
 npm run engine:fetch         # 拉本机平台的预编译引擎（engine-v* Release）
