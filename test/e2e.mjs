@@ -504,6 +504,25 @@ await check('图形 → 条形图：插件画的 SVG 有图元，坐标全是有
   assert.deepEqual(chart.bad, [], '图表 SVG 里有非有限坐标：' + chart.bad.join('；'))
 })
 
+// 方法建议的「一键运行」只有真浏览器能验完整：点了按钮以后面板要真的换成输出
+// 视图、宿主真的跑了一次、对话框真的关掉。jsdom 里这三步都只是内部状态。
+await check('分析 → 方法建议…：点「运行」真的跑一条建议，对话框关掉、输出多出表', async () => {
+  const before = await itemCount()
+  await menuButton('分析').click()
+  await page.locator('.ap-menu-pop button').filter({ hasText: '方法建议…' }).click()
+  await page.waitForSelector('.ap-ins-table', { timeout: 10000 })
+  const run = page.locator('.ap-ins-table button').filter({ hasText: '运行' }).first()
+  await run.waitFor({ timeout: 5000 })
+  await run.click()
+  await page.waitForFunction((wanted) => document.querySelectorAll('.ap-item').length > wanted, before, { timeout: 120000 })
+  assert.equal(await page.locator('.ap-modal').count(), 0, '跑完要关掉建议对话框')
+  const toast = await page.locator('.ap-root').innerText()
+  assert.match(toast, /已运行第 \d+ 条建议/, '要告诉用户跑了哪条：' + toast.slice(0, 300))
+  // 运行本身不能再落一张建议表（index 重算时 append:false）。
+  const adviceRows = await page.locator('.ap-item').filter({ hasText: '方法建议' }).count()
+  assert.ok(adviceRows >= 1, '建议表本身仍在输出里')
+})
+
 // 「.html 打印预览不缺图」此前只能靠人眼：破图在 DOM 里仍是一个 <img>，
 // jsdom 没有布局、naturalWidth 恒 0 也用不上。真浏览器能给出确定答案 ——
 // 导出一份真报告，用另一个标签页以 file:// 打开，逐张图看它到底画没画出来。

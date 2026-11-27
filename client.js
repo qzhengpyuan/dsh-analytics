@@ -36,7 +36,7 @@ window.__ModuleLoader__.load({
  * 认不出的表进 skipped），区别只是这里给人看、能逐句复制。
  */
 function SentencesDialog({ sessionId, language, onClose }) {
-  const [state, setState] = React.useState({ loading: true, sentences: [], skipped: [], error: null })
+  const [state, setState] = React.useState({ loading: true, sentences: [], apa: [], skipped: [], error: null })
   React.useEffect(() => {
     let alive = true
     void (async () => {
@@ -46,9 +46,15 @@ function SentencesDialog({ sessionId, language, onClose }) {
         // 面板永远显示 0 句（jsdom 断言抓到）。
         const payload = value?.result ?? value ?? {}
         if (!alive) return
-        setState({ loading: false, sentences: payload.sentences ?? [], skipped: payload.skipped ?? [], error: null })
+        setState({
+          loading: false,
+          sentences: payload.sentences ?? [],
+          apa: payload.apa?.lines ?? [],
+          skipped: payload.skipped ?? [],
+          error: null,
+        })
       } catch (error) {
-        if (alive) setState({ loading: false, sentences: [], skipped: [], error: error.message })
+        if (alive) setState({ loading: false, sentences: [], apa: [], skipped: [], error: error.message })
       }
     })()
     return () => { alive = false }
@@ -57,6 +63,7 @@ function SentencesDialog({ sessionId, language, onClose }) {
     try { void navigator.clipboard?.writeText(text) } catch { /* 剪贴板不可用时只能选中手工复制 */ }
   }
   const all = state.sentences.map((entry) => entry.text).join('\n')
+  const apaAll = state.apa.map((entry) => entry.text).join('\n')
   return h(Modal, {
     title: '结果句子',
     wide: true,
@@ -83,6 +90,19 @@ function SentencesDialog({ sessionId, language, onClose }) {
       state.sentences.map((entry, index) => h('div', { key: `${entry.kind}:${index}`, className: 'ap-sent-row' },
         h('span', { className: 'ap-sent-text' }, entry.text),
         h('button', { className: 'ap-sent-copy', onClick: () => copy(entry.text) }, tr('复制'))))),
+    state.apa.length > 0
+      ? h('div', { className: 'ap-sent-apa' },
+        h('div', { className: 'ap-sent-head' },
+          h('span', { className: 'ap-sent-count' }, tr('APA 写法：{0} 行（p 与 r 不写前导 0，效应量能算才算）', String(state.apa.length))),
+          h('button', {
+            className: 'ap-sent-copy',
+            onClick: () => copy(apaAll),
+          }, tr('全部复制'))),
+        h('div', { className: 'ap-sent-list' },
+          state.apa.map((entry, index) => h('div', { key: `apa:${entry.kind}:${index}`, className: 'ap-sent-row' },
+            h('span', { className: 'ap-sent-text' }, entry.text),
+            h('button', { className: 'ap-sent-copy', onClick: () => copy(entry.text) }, tr('复制'))))))
+      : null,
     state.skipped.length > 0
       ? h('div', { className: 'ap-sent-empty' }, tr('还有 {0} 张表认不出来：{1}', String(state.skipped.length), state.skipped.join('、')))
       : null))
@@ -95,8 +115,12 @@ function SentencesDialog({ sessionId, language, onClose }) {
  *
  * 结果从 `api/profile` / `api/advise` 来，形状是 `{ok, result:{item, table, …}}`。
  */
-function InsightDialog({ sessionId, kind, onClose }) {
+function InsightDialog({ sessionId, kind, onClose, notify, onRan }) {
   const [state, setState] = React.useState({ loading: true, result: null, error: null })
+  // 方法建议可以一键跑：第几条就发第几号，参数由宿主当场重算（见 routes 的
+  // `api/advise/run`）。`busy` 记正在跑的行号（1 起，0 = 空闲）。
+  const [busy, setBusy] = React.useState(0)
+  const [runError, setRunError] = React.useState(null)
   React.useEffect(() => {
     let alive = true
     void (async () => {
@@ -118,6 +142,26 @@ function InsightDialog({ sessionId, kind, onClose }) {
   // 复制出来还是中文表头（复验 O1）。正文是数据，一律原样。
   const header = (matrix[0] ?? []).map((cell) => (typeof cell === 'string' ? tr(cell) : cell))
   const body = matrix.slice(1)
+  // 只有方法建议带可执行的 `how`；数据体检没有。宿主在 api/advise 里逐条标了
+  // `runnable`，这里只照它显示按钮，不在客户端猜哪些工具能跑。
+  const runnable = kind === 'advise'
+    ? (state.result?.recommendations ?? []).map((entry) => entry.runnable === true)
+    : []
+  const actionColumn = runnable.some(Boolean)
+  const runRow = async (index) => {
+    setBusy(index + 1)
+    setRunError(null)
+    try {
+      const value = await api('api/advise/run', { sessionId, index })
+      notify?.(tr('已运行第 {0} 条建议：{1}', String(index + 1), value?.result?.analysis ?? ''))
+      if (onRan) onRan(value)
+      else onClose()
+    } catch (error) {
+      setRunError(error.message)
+    } finally {
+      setBusy(0)
+    }
+  }
   const copy = () => {
     const text = [header.join('\t'), ...body.map((row) => row.join('\t'))].join('\n')
     try { void navigator.clipboard?.writeText(text) } catch { /* 剪贴板不可用时只能手工选中 */ }
@@ -146,11 +190,26 @@ function InsightDialog({ sessionId, kind, onClose }) {
     !state.loading && !state.error && matrix.length === 0
       ? h('div', { className: 'ap-ins-empty' }, tr('这次没有可显示的内容'))
       : null,
+    runError
+      ? h('div', { className: 'ap-ins-empty' }, runError)
+      : null,
     matrix.length > 0
       ? h('div', { className: 'ap-ins-table' }, h('table', { className: 'ap-tbl-grid' },
-        h('thead', null, h('tr', null, header.map((label, index) => h('th', { key: index }, tr(String(label)))))),
+        h('thead', null, h('tr', null,
+          header.map((label, index) => h('th', { key: index }, tr(String(label)))),
+          actionColumn ? h('th', { key: 'action' }, tr('操作')) : null)),
         h('tbody', null, body.map((row, rowIndex) => h('tr', { key: rowIndex },
-          row.map((value, columnIndex) => h('td', { key: columnIndex }, tr(String(value)))))))))
+          row.map((value, columnIndex) => h('td', { key: columnIndex }, tr(String(value)))),
+          actionColumn
+            ? h('td', { key: 'action', className: 'ap-ins-action' }, runnable[rowIndex] === true
+              ? h('button', {
+                className: 'ap-tool',
+                disabled: busy > 0,
+                title: tr('照这条建议的参数跑一次；参数由宿主按当前数据重算'),
+                onClick: () => runRow(rowIndex),
+              }, busy === rowIndex + 1 ? tr('运行中…') : tr('运行'))
+              : h('span', { className: 'ap-ins-muted' }, tr('让 agent 跑')))
+            : null)))))
       : null,
     notes.length > 0
       ? h('div', { className: 'ap-ins-notes' }, notes.map((note, index) => h('div', { key: index, className: 'ap-ins-note' }, tr(String(note)))))
@@ -1277,6 +1336,11 @@ body[data-ds-dark-theme] .ap-hl-num { color:#c3a6e8; }
 .ap-ins-notes { max-height:180px; overflow:auto; font-size:11px; color:var(--ap-muted); }
 .ap-ins-note { padding:1px 0; }
 .ap-ins-empty { font-size:11px; color:var(--ap-muted); }
+.ap-ins-action { white-space:nowrap; }
+.ap-ins-action .ap-tool { font-size:11px; padding:1px 8px; }
+.ap-ins-muted { font-size:11px; color:var(--ap-text-3); }
+/* APA 写法与句子分两段：上面是「说了什么」，下面是「怎么写成稿子」。 */
+.ap-sent-apa { display:flex; flex-direction:column; gap:6px; padding-top:8px; border-top:1px solid var(--ap-line); }
 .ap-inline { display:flex; gap:6px; }
 .ap-inline input { width:100%; }
 .ap-guide { display:flex; flex-direction:column; gap:8px; max-height:60vh; overflow:auto; }
@@ -10565,6 +10629,13 @@ let ITEM_CSV_PENDING = null
           ? h(InsightDialog, {
             sessionId,
             kind: dialog.kind,
+            notify,
+            onRan: (value) => {
+              // 跑完直接切到输出：用户点「运行」要的就是那张表，不是还停在建议上。
+              setSt(stateOf(value))
+              setView('output')
+              setDialog(null)
+            },
             onClose: () => setDialog(null),
           })
           : null,

@@ -1250,21 +1250,40 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
       outcome: 'score',
       group: 'arm',
       recommendations: [
-        { analysis: '独立样本 t 检验', why: '分组有两个水平', how: { tool: 'pspp_analyze', params: {} }, caveats: [] },
+        { analysis: '独立样本 t 检验', why: '分组有两个水平', how: { tool: 'pspp_analyze', params: {} }, caveats: [], runnable: true },
+        { analysis: '导出成册', why: '结果要成文', how: { tool: 'pspp_report_book', params: {} }, caveats: [], runnable: false },
       ],
       notes: ['数据：arm 缺失 0'],
       table: {
         caption: '方法建议',
-        matrix: [['顺序', '建议用的过程', '为什么', '怎么做'], ['1', '独立样本 t 检验', '分组有两个水平', 'pspp_analyze']],
+        matrix: [
+          ['顺序', '建议用的过程', '为什么', '怎么做'],
+          ['1', '独立样本 t 检验', '分组有两个水平', 'pspp_analyze'],
+          ['2', '导出成册', '结果要成文', 'pspp_report_book'],
+        ],
         notes: ['要注意：先看方差齐性'],
       },
     },
   }
-  window.fetch = async (url) => {
+  const adviseRuns = []
+  window.fetch = async (url, init) => {
     const target = String(url)
+    const emptyState = { id: 'session-i', version: '0.112.0', engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true }, dataset: null, items: [], log: [], history: { undo: 0, redo: 0 }, locale: 'zh' }
+    if (target.includes('api/advise/run')) {
+      adviseRuns.push(JSON.parse(init?.body ?? '{}'))
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          ok: true,
+          result: { index: 0, analysis: '独立样本 t 检验', tool: 'pspp_analyze' },
+          state: emptyState,
+        }),
+      }
+    }
     const text = target.includes('api/profile') ? JSON.stringify(profileAnswer)
       : target.includes('api/advise') ? JSON.stringify(adviseAnswer)
-        : JSON.stringify({ ok: true, state: { id: 'session-i', version: '0.112.0', engine: { source: 'bundled', bin: '/tmp/pspp', bundled: true }, dataset: null, items: [], log: [], history: { undo: 0, redo: 0 }, locale: 'zh' } })
+        : JSON.stringify({ ok: true, state: emptyState })
     return { ok: true, status: 200, text: async () => text }
   }
   globalThis.fetch = window.fetch
@@ -1293,11 +1312,24 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
     await new Promise((resolve) => setTimeout(resolve, 40))
   })
   await openFrom('分析', '方法建议…')
-  assert.match(insHost.textContent, /1 条建议/, insHost.textContent.slice(0, 200))
+  assert.match(insHost.textContent, /2 条建议/, insHost.textContent.slice(0, 200))
   assert.match(insHost.textContent, /独立样本 t 检验/, 'the recommendation is on screen')
+  // 一键运行：只有 runnable 的建议给按钮，发出去的只是序号。
+  const runButtons = [...insHost.querySelectorAll('.ap-ins-table button')].filter((node) => node.textContent.trim() === '运行')
+  assert.equal(runButtons.length, 1, '两条建议里只有可执行的那条有按钮')
+  assert.match(insHost.textContent, /让 agent 跑/, '跑不了的建议要说清找谁，而不是留一个死按钮')
+  await act(async () => {
+    runButtons[0].click()
+    await new Promise((resolve) => setTimeout(resolve, 80))
+  })
+  assert.equal(adviseRuns.length, 1, '点一次只发一个请求')
+  assert.equal(adviseRuns[0].index, 0, '客户端只发序号，参数由宿主重算')
+  assert.equal(adviseRuns[0].params, undefined, '客户端不能替宿主决定跑什么')
+  assert.match(insHost.textContent, /已运行第 1 条建议/, '跑完要说清跑了哪条')
+  assert.equal(insHost.querySelector('.ap-ins-table'), null, '跑完关掉建议，切到输出')
   await act(async () => {
     const close = [...insHost.querySelectorAll('.ap-modal button')].find((node) => node.textContent.trim() === '关闭')
-    close.click()
+    if (close) close.click()
     await new Promise((resolve) => setTimeout(resolve, 40))
   })
   // 导出复现包：空目录先被拦下，填了目录才发请求。
@@ -1660,6 +1692,13 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
               { kind: 'descriptives', table: 'Descriptive Statistics', values: { variable: 'y', n: 20, mean: 19.5 }, text: 'y：n = 20，M = 19.5000，SD = 5.77。' },
               { kind: 'ttest-independent', table: 'Independent Samples Test', values: { t: -2.83, p: 0.106 }, text: '独立样本 t 检验（y）：差异不显著，t(2.00) = -2.83，p = 0.106。' },
             ],
+            apa: {
+              language: 'zh',
+              lines: [
+                { kind: 'ttest-independent', table: 'Independent Samples Test', text: '独立样本 t 检验（y）：t(2) = -2.83, p = .106' },
+              ],
+              skipped: ['descriptives'],
+            },
             skipped: ['Ranks'],
           },
         }),
@@ -1682,12 +1721,16 @@ console.log('ok  client bundle: tab + viewer registration, menu bar, empty strip
   const entry = [...sentHost.querySelectorAll('.ap-menu-pop button')].find((node) => node.textContent.trim() === '结果句子…')
   assert.ok(entry, 'the view menu offers 结果句子…')
   await act(async () => { entry.click(); await new Promise((resolve) => setTimeout(resolve, 80)) })
-  const rows = [...sentHost.querySelectorAll('.ap-sent-row')]
-  assert.equal(rows.length, 2, `每句一行：${sentHost.textContent.slice(0, 200)}`)
+  const lists = [...sentHost.querySelectorAll('.ap-sent-list')]
+  assert.equal(lists.length, 2, '句子一段、APA 一段')
+  assert.equal(lists[0].querySelectorAll('.ap-sent-row').length, 2, `每句一行：${sentHost.textContent.slice(0, 200)}`)
   assert.match(sentHost.textContent, /独立样本 t 检验/, '句子正文要真的渲染出来')
+  assert.match(sentHost.textContent, /APA 写法：1 行/, 'APA 段要说明有几种写法')
+  assert.equal(lists[1].querySelectorAll('.ap-sent-row').length, 1, 'APA 一行')
+  assert.match(sentHost.textContent, /t\(2\) = -2\.83, p = \.106/, 'APA 串原样渲染')
   assert.match(sentHost.textContent, /还有 1 张表认不出来/, '认不出的表要列出来')
   const copyButtons = [...sentHost.querySelectorAll('.ap-sent-copy')]
-  assert.ok(copyButtons.length >= 3, `全部复制 + 每句一个复制：${copyButtons.length}`)
+  assert.ok(copyButtons.length >= 5, `两段各自「全部复制」+ 每行一个复制：${copyButtons.length}`)
   const close = [...sentHost.querySelectorAll('.ap-modal button')].find((node) => node.textContent.trim() === '关闭')
   assert.ok(close, 'the dialog closes with 关闭')
   await act(async () => { close.click(); await new Promise((resolve) => setTimeout(resolve, 40)) })

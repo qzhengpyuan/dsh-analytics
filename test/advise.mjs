@@ -2,7 +2,8 @@
 // 落在建议的过程名与注意事项上，而不是表字数。
 import assert from 'node:assert/strict'
 
-import { adviseDataset, adviseTable } from '../lib/advise.js'
+import { adviceInvocation, adviseDataset, adviseTable } from '../lib/advise.js'
+import { runAdvice } from '../lib/adviseRun.js'
 import { createTools } from '../lib/tools.js'
 
 let checks = 0
@@ -406,6 +407,97 @@ check('no recommendation is emitted with an empty variable list', () => {
     const named = Object.entries(params).filter(([key]) => !['procedure', 'groupValues', 'statistics', 'postHoc'].includes(key))
     assert.ok(named.some(([, value]) => (Array.isArray(value) ? value.length > 0 : value)), `${entry.analysis} 的参数里一个变量都没有：${JSON.stringify(params)}`)
   }
+})
+
+// ── 一键运行：建议 → 面板真跑一次 ────────────────────────────────────────────
+// 这里用一个假工作区记下被调用的方法：断言「第几条建议变成了什么调用」，
+// 不碰引擎（引擎路径由 tools/smoke 各自的套件负责）。
+const acheck = async (name, fn) => {
+  try {
+    await fn()
+    checks += 1
+    console.log(`ok   ${name}`)
+  } catch (error) {
+    console.error(`FAIL  ${name}: ${error.message}`)
+    process.exitCode = 1
+  }
+}
+
+const fakeWorkspace = (dataset = { variables: [{ name: 'y', type: 'numeric' }], rows: [[1]] }) => ({
+  dataset,
+  calls: [],
+  async runSyntax(syntax, options = {}) {
+    this.calls.push({ method: 'runSyntax', syntax, options })
+    return { runId: 7, items: [{ id: 't1', kind: 'table', title: 'Descriptive Statistics' }] }
+  },
+  async addChart(kind, options = {}) {
+    this.calls.push({ method: 'addChart', kind, options })
+    return { runId: 8, item: { id: 'c1', title: 'chart: y' }, chart: { kind } }
+  },
+  coxTable(params) {
+    this.calls.push({ method: 'coxTable', params })
+    return { items: [{ id: 'x1', title: 'Cox 回归' }] }
+  },
+  poissonTable(params) {
+    this.calls.push({ method: 'poissonTable', params })
+    return { items: [{ id: 'p1', title: '泊松回归' }] }
+  },
+  multinomialTable(params) {
+    this.calls.push({ method: 'multinomialTable', params })
+    return { items: [{ id: 'm1', title: '多项 Logistic 回归' }] }
+  },
+})
+
+await acheck('adviceInvocation hands back the stored params and rejects bad indexes', () => {
+  const result = { recommendations: [{ analysis: '描述', how: { tool: 'pspp_analyze', params: { procedure: 'descriptives', variables: ['y'] } } }] }
+  assert.deepEqual(adviceInvocation(result, 0).params, { procedure: 'descriptives', variables: ['y'] })
+  assert.throws(() => adviceInvocation(result, 1), /建议序号/)
+  assert.throws(() => adviceInvocation({ recommendations: [{ analysis: '描述' }] }, 0), /没有可直接执行的参数/)
+})
+
+await acheck('the first pspp_analyze recommendation runs as real syntax with its pairwise hint', async () => {
+  const dataset = {
+    variables: [
+      { name: 'arm', type: 'numeric' },
+      { name: 'score', type: 'numeric' },
+    ],
+    rows: Array.from({ length: 40 }, (_, index) => [(index % 2) + 1, 10 + (index % 5)]),
+  }
+  const workspace = fakeWorkspace(dataset)
+  const advise = adviseDataset(dataset, {})
+  const index = advise.recommendations.findIndex((entry) => entry.how.tool === 'pspp_analyze' && entry.how.params.by)
+  assert.ok(index >= 0, '两组连续结局应该给出一条带 by 的 pspp_analyze 建议')
+  const outcome = await runAdvice(workspace, advise, index)
+  const call = workspace.calls.find((entry) => entry.method === 'runSyntax')
+  assert.ok(call, 'runAdvice 必须真的跑一次语法')
+  assert.match(call.syntax, /T-TEST|ONEWAY/i)
+  assert.equal(call.options.pairwise.group, 'arm')
+  assert.equal(outcome.runId, 7)
+})
+
+await acheck('a chart recommendation is drawn by addChart, not run as syntax', async () => {
+  const workspace = fakeWorkspace()
+  const advise = { recommendations: [{ analysis: '生存曲线', how: { tool: 'pspp_chart', params: { type: 'km', time: 'time', event: 'event' } } }] }
+  await runAdvice(workspace, advise, 0)
+  assert.deepEqual(workspace.calls.map((entry) => entry.method), ['addChart'])
+  assert.equal(workspace.calls[0].kind, 'km')
+})
+
+await acheck('plugin procedures reach their own workspace method', async () => {
+  const workspace = fakeWorkspace()
+  await runAdvice(workspace, { recommendations: [{ analysis: 'Cox', how: { tool: 'pspp_cox', params: { time: 'time', event: 'event', covariates: ['x'] } } }] }, 0)
+  await runAdvice(workspace, { recommendations: [{ analysis: '泊松', how: { tool: 'pspp_poisson', params: { dependent: 'n', independents: ['x'] } } }] }, 0)
+  assert.deepEqual(workspace.calls.map((entry) => entry.method), ['coxTable', 'poissonTable'])
+  assert.deepEqual(workspace.calls[0].params.covariates, ['x'])
+})
+
+await acheck('a tool the panel cannot run is refused instead of half-executed', async () => {
+  const workspace = fakeWorkspace()
+  await assert.rejects(
+    () => runAdvice(workspace, { recommendations: [{ analysis: '导出成册', how: { tool: 'pspp_report_book', params: { path: '/tmp/x.docx' } } }] }, 0),
+    /没有这一类结果视图/,
+  )
+  assert.equal(workspace.calls.length, 0, '被拒的建议不能先跑一半')
 })
 
 console.log(`\nadvise: ${checks} checks passed`)

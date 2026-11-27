@@ -42,8 +42,8 @@ PSPP 2.1.3 里这些过程**整个不存在**（原文见 FEATURES §13.1），�
 ## 5. 怎么验
 
 ```bash
-npm test        # 66 个套件，全绿时 975 条 ok 断言（不装 poppler 974）
-npm run e2e     # 真浏览器 9 条（真 Chromium + 真引擎，不进 npm test；没装 playwright 时 skip）
+npm test        # 67 个套件，全绿时 988 条 ok 断言（不装 poppler 987）
+npm run e2e     # 真浏览器 10 条（真 Chromium + 真引擎，不进 npm test；没装 playwright 时 skip）
 ```
 
 - 纯函数套件（图表模型、Word/Excel XML、字典、统计量、缺失值、聚类、生存、判别…）+ jsdom 面板套件 + **真引擎**套件（smoke/routes/flow/poll/repro 直接跑包内 PSPP）。

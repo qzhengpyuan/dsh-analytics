@@ -1,3 +1,14 @@
+## 0.122.0
+
+把「方法建议」从一份只读清单变成点一下就真跑，并给结果句子补一份 APA 写法。
+
+- **方法建议一键运行**：`api/advise` 的每条建议多一个 `runnable`（五类面板视图能跑：`pspp_analyze` / `pspp_chart` / `pspp_cox` / `pspp_poisson` / `pspp_multinomial`），新接口 `api/advise/run { sessionId, index }` 按序号取该条的 `how` 参数真跑 —— 客户端传不进参数，跑什么由服务端按同一份建议算。`pspp_analyze` 复用对话框同一条 `buildAnalysis` 路径（`pairwise` 的两两比较参数照带），图表走 `addChart`、Cox/Poisson/多项 Logistic 走各自的表构建器；插件自算的过程没有 runId，输出项从 state 里取最后一张。面板（分析 →「方法建议…」）在可跑行给出「运行」按钮，跑完关对话框、切到输出并提示「已运行第 N 条建议」；不可跑的一行写「让 agent 跑」，点了也不会半执行。运行本身用 `adviseMethods({ append: false })`，不会再多落一张建议表。
+- **APA 写法**：新 `lib/apa.js`（`apaOf`），`pspp_sentences` 与「视图 → 结果句子…」在同一批句子里多给一份 `apa.lines`：p / r / R² / α 不写前导 0（`.006`、`< .001`），t / F / χ² / d 一律两位小数，t 带 df、相关带 `r(n−2)`、方差分析在有平方和时给 η²、独立样本 t 在有分组统计时给 Cohen's d；认不出的表进 `skipped`，不猜。英文界面给英文句式。
+- **测试**：新 `test/apa.mjs`（8 条）；`test/advise.mjs` +5（取参数、越界/缺 how、四类分派、白名单外工具 0 调用）；`test/routes.mjs` +2 块（真引擎跑一条 t 检验后 `apa.lines` 非空且句式正确；`api/advise/run` 真跑一条建议、输出多两项、建议表张数不变、越界 400）；`test/client.mjs` 覆盖「运行」按钮、请求体只带 index、跑完关框与提示、APA 段渲染；`test/e2e.mjs` +1（真浏览器点运行，对话框关掉、输出多表、toast 出现）。
+- 变异验证：去掉 `append: false` 守卫 → `test/routes.mjs` 报「一键运行不能再落一张建议表」；`apaP` 保留前导 0 → `test/apa.mjs` 三条红；把 `pspp_report_book` 加进白名单 → `test/advise.mjs` 报「Missing expected rejection」。
+
+全量 67 套件 / 988 ok / 0 FAIL；`test/e2e.mjs` 10 条。
+
 ## 0.121.0
 
 补上 PLAN §3.3 里两条「未自证」的断言：一条纯函数，一条真浏览器。

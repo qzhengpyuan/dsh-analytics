@@ -1,6 +1,6 @@
 # dsh-analytics 功能说明
 
-> 版本 0.121.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
+> 版本 0.122.0 · 引擎 GNU PSPP 2.1.3 · 更新记录见 [CHANGELOG.md](CHANGELOG.md)
 > 这是一个把 SPSS 风格的数据分析工作台装进 DeepSeek Harness（DSH）侧边栏的插件：
 > **界面自己画，统计计算全部交给内置的 PSPP 引擎**，同时把同一份数据暴露成 37 个 agent 工具，让模型能在对话里直接分析、转换、画图。这些工具不再是「装了插件就有」，而是挂在插件自带的「统计分析」Agent 预设里（见 §9）。
 
@@ -491,9 +491,9 @@ SVG 尺寸 560×360，字体 Noto Sans CJK SC，中文标签正常。图表文�
 | `pspp_pairwise` | 两两比较（Welch t，默认 Bonferroni） | `group`、`variables`、`adjust`、`layout`（rows/matrix） |
 | `pspp_partial` | 偏相关（残差法，PSPP 没有 PARTIAL CORR） | `variables`（≥2）、`controls`（可空） |
 | `pspp_profile` | **数据体检（0.106.0）**：每变量类型/缺失/不同取值/均值/标准差/偏度/离群 + 一份「哪里会坏」的清单 | — |
-| `pspp_sentences` | **结果变句子（0.106.0，0.110.0 扩表型）**：把一次运行的表写成能粘进稿子的句子（中文/英文），每句带用到的数字；认描述统计、频数、相关、三种 t 检验、方差分析、卡方、Logistic 的 OR 与 95% CI、Mann-Whitney 与 Kruskal-Wallis（两种版式）、Cronbach's α、回归拟合与系数；面板「视图 → 结果句子…」是同一套判断的图形入口 | `runId`（缺省最近一次）、`language`（zh/en） |
+| `pspp_sentences` | **结果变句子（0.106.0，0.110.0 扩表型）**：把一次运行的表写成能粘进稿子的句子（中文/英文），每句带用到的数字；认描述统计、频数、相关、三种 t 检验、方差分析、卡方、Logistic 的 OR 与 95% CI、Mann-Whitney 与 Kruskal-Wallis（两种版式）、Cronbach's α、回归拟合与系数；面板「视图 → 结果句子…」是同一套判断的图形入口；0.122.0 起同一批多给 `apa.lines`（APA 写法，p / r 不写前导 0、`p < .001`、效应量能算才算） | `runId`（缺省最近一次）、`language`（zh/en） |
 | `pspp_numbers` | **结构化数值（0.106.0）**：表格转成真数字/null 的二维结构，整表可算时 `numeric: true` | `runId`（缺省最近一次） |
-| `pspp_advise` | **方法建议（0.107.0）**：按数据形状排出该跑的过程，每条带「为什么/怎么做/要注意」；0/1 结局不当连续测量，生存只在像随访时间时提 | `question`（只改排序）、`outcome`、`group`、`predictors` |
+| `pspp_advise` | **方法建议（0.107.0）**：按数据形状排出该跑的过程，每条带「为什么/怎么做/要注意」；0/1 结局不当连续测量，生存只在像随访时间时提；0.122.0 起面板里能跑的建议带「运行」按钮，按该条的 `how` 参数直接跑 | `question`（只改排序）、`outcome`、`group`、`predictors` |
 | `pspp_repro` | **复现包（0.107.0）**：把变量字典、每次运行的真语法、日志与版本号写成一组能重跑的文件 | `path`（目录）、`includeData` |
 | `pspp_power` | **功效与样本量（0.108.0）**：t / 配对 t / 单样本 t（d）、方差分析（f）、相关（r）、两比例、卡方（w）；`sample` 求每组例数、`power` 求把握度，真反演非中心 t/F/χ² | `method`、`mode`、`effect`、`alpha`、`power`、`n`、`groups`、`p1`/`p2`、`df` |
 
@@ -505,6 +505,7 @@ SVG 尺寸 560×360，字体 Noto Sans CJK SC，中文标签正常。图表文�
 - `pspp_advise` 把「该跑什么」变成可检查的推理：结局取**取值最多**的数值列（1/2/3 这种编码是分组，不是测量值），`discrete` 列优先当分组；二分结局（只取 0/1）按比例比较（交叉表），不推 t 检验/方差分析/线性回归；生存只在结局名或标签像随访时间（`time|时间|随访|duration|survival`）或问题里问生存时才提 —— 单凭「有 0/1 列」推 Cox 会误伤大批数据。每条建议带工具名与参数，agent 可以直接照做。
 - `pspp_power` 回答「需要多少例」：不抄 `16/d²` 这类近似口诀，非中心 t 用卡方混合积分、非中心 F/χ² 用 Poisson 权重的不完全 Beta/Gamma，临界值二分反解；t 检验 d=0.5 给 64、相关 r=0.3 给 85、方差分析 f=0.25/三组给 53，与 G*Power 对得上。`sample` 与 `power` 两种模式互为校验（搜出来的 n 代回去必须达标、n−1 必须不达标）。
 - `pspp_repro` 写的是「别人能不能重跑」：`syntax/*.sps` 是**引擎真正收到的那一份语法**（不是界面上填的参数），`dataset.json` 记变量字典与版本号，`README.md` 写清「换 `GET FILE` 路径、按编号顺序执行」—— 后面的脚本可能依赖前面的变换。默认不带数据副本（几百万行不该被悄悄复制）。
+- **一键运行（0.122.0）**：`api/advise` 的每条建议多一个 `runnable`（`pspp_analyze` / `pspp_chart` / `pspp_cox` / `pspp_poisson` / `pspp_multinomial` 五类面板视图能跑），新接口 `api/advise/run { sessionId, index }` 只收序号、按服务端同一份建议取参数真跑；面板「分析 → 方法建议…」的可跑行给「运行」按钮，跑完关对话框、切到输出并提示「已运行第 N 条建议」，没有对应视图的工具那一行写「让 agent 跑」、点了也不执行一半。运行用 `adviseMethods({ append: false })`，不会再多落一张建议表。
 
 `pspp_analyze` 支持的过程：
 `frequencies`、`descriptives`、`crosstabs`、`ttest_independent`、`ttest_paired`、`ttest_one_sample`、`oneway`、`glm`、`correlation`、`regression`、`logistic`、`factor`、`reliability`、`npar`（卡方）、`npar_binomial`、`npar_ks`、`npar_runs`、`npar_wilcoxon`、`npar_sign`、`npar_mannwhitney`、`npar_kruskal`、`npar_friedman`、`npar_jonckheere`、`npar_mcnemar`、`npar_cochran`、`npar_kendall`、`examine`、`means`、`ctables`、`roc`、`cluster`。
@@ -803,7 +804,7 @@ SPSS 数据里最常见的两个坑，这一版都按 SPSS 的口径处理了：
 | 实用程序 → 变量 / OMS | 变量视图 + 输出导航栏 | 等价（无 OMS 语法） |
 | 扩展 → Python / R | — | 缺（可用 `pspp_run` 跑宏；跨语言计算得把数据导出后再回来） |
 | 帮助 → 查找过程 | 帮助 → 查找过程…（Ctrl+Shift+F） | 按整条菜单路径搜索全部命令（0.86.0）；输入即过滤，↑↓ 选、回车执行 |
-| （无对应） | 视图 → 结果句子… | 插件自算（0.110.0）：把最近一次运行的表写成句子，句数、全部复制、逐句复制、认不出的表列在下面；和 `pspp_sentences` 同一套判断 |
+| （无对应） | 视图 → 结果句子… | 插件自算（0.110.0；0.122.0 多一段 APA 写法）：把最近一次运行的表写成句子，句数、全部复制、逐句复制、APA 行（p 与 r 不写前导 0）、认不出的表列在下面；和 `pspp_sentences` 同一套判断 |
 | 帮助 → 关于 | 帮助 → 关于 PSPP 分析 | 原生 |
 
 规模：分析菜单 65 个可点条目（PSPP 过程对话框、插件自算的过程与图表入口混排在一起，逐条对照见上一节的菜单映射）、转换 8 个、数据 10 项、图形 7 种、输出工具 40 个（`pspp_*`，对话里可直接调用，和面板走同一套引擎与会话数据集）。
@@ -818,9 +819,9 @@ npm run bundle-engine   # 从系统 PSPP 重新打包 engine/<本机平台>/
 node scripts/bundle-engine.mjs --from-prefix out --platform linux-x64   # 从容器里编好的 prefix 导入
 ```
 
-- 测试：`npm test` 依次跑 66 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/flow/poll、设置存储、路径白名单、预设挂载、缺失值、重复个案、异常个案、精确检验与风险差、分层卡方、多因子对比、引擎崩溃文案），全绿时共 975 条 ok 断言（Linux 与 Windows 相同；含装了 poppler 才跑的 1 条 pdf-notes —— 不装 poppler 是 974） —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`repro` 覆盖复现包（它 spawn 引擎，所以属于 engine job 而不是 pure tests）与 `engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`tools` 覆盖 47 个工具的 `execute()` 与输出渲染，`smoke` 里的 ONEWAY 用例覆盖「真引擎那张 `Multiple Comparisons (score)` 表上的两两比较注文」，`weight` 覆盖「上一轮 WEIGHT BY 被重放时注文怎么说」（真引擎跑通打开、分析、变换、图表、三种汇总表与五个导出工具），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」，`update` 覆盖版本比较、缓存与「检查失败不等于已是最新」，`import` 覆盖导入向导（跳过行、列名/类型覆盖、缺失值标记、预览不动数据集），`redraw` 覆盖「每种图型都能按原类型重绘、几何型图拒绝换类型、拼版与未知类型各自的说法」，`charts` 覆盖副标题位置与删除、拼版单文档/顺序/像素尺寸与间隙、3× 导出的像素倍数，`docs` 覆盖「文档链接不指向空文件、FEATURES 版本戳等于 package.json、CHANGELOG 首段是被发的版本、PLAN 六节齐全、SCOPE 回答三问」，`crash` 覆盖引擎缺陷 banner 的中文文案（Linux 139 与 Windows 3 同一条分支、不泄露 build_system、普通语法错误不被误判）。**退出码纪律（0.54.98 起）**：每个套件的失败必须让 `node test/x.mjs` 以非零退出码结束 —— `check()` 的 catch 里设 `process.exitCode = 1`，末尾再兜一次；`test/regression.mjs` 曾把这一句写在文件中部，导致其后一千多行的失败只打印不生效，Win10 用逐条 TAP 抓到。仓库级抽查法：对每个套件在最后一个 `check(` 块里插一条 `assert.ok(false)`，脚本 `rc` 必须非零（`test/zip.mjs` 是辅助模块、不打 `ok` 行，属预期例外）。全仓普查（0.54.99）结论：34 个套件注入 `throw` 后全部 `rc=1`（`update` 之后加入，同形），没有第二个 `regression` 那样的静默失败；但 `client`/`smoke`/`routes`/`exact`/`pdf-notes` 五个是**崩溃型**（失败时一条 `ok` 都不打，只吐堆栈），按「逐套件 `^ok` 表」比对版本时会把「断言红了」误读成「套件没跑」，做版本对照要按 `rc` 而不是 `^ok` 基数判断。失败行统一以 `FAIL ` 开头、后接用例名（0.56.2 起全部 29 个打失败行的套件同形：`FAIL  <用例名>` 或 `FAIL  <用例名>: <异常文案>`）；`pdf-notes` 在没装 `pdftotext` 的机器上永远 `exit 0` + 一行 skip，是唯一「本机不可证伪」的断言，只由 CI 的 `pdf-notes` job 覆盖。
+- 测试：`npm test` 依次跑 67 个套件（纯函数、jsdom 面板、真引擎 smoke/routes/flow/poll、设置存储、路径白名单、预设挂载、缺失值、重复个案、异常个案、精确检验与风险差、分层卡方、多因子对比、引擎崩溃文案），全绿时共 988 条 ok 断言（Linux 与 Windows 相同；含装了 poppler 才跑的 1 条 pdf-notes —— 不装 poppler 是 987） —— `build` 覆盖每个对话框的语法构造与八种图表模型，`office` 覆盖 Word/Excel 的 XML 结构与公式映射，`tables`/`regression` 覆盖统计量与括号、`poll` 覆盖轮询签名与数据集指纹，`repro` 覆盖复现包（它 spawn 引擎，所以属于 engine job 而不是 pure tests）与 `engine` 覆盖引擎定位（平台目录优先、扁平回退、动态库变量分平台），`tools` 覆盖 47 个工具的 `execute()` 与输出渲染，`smoke` 里的 ONEWAY 用例覆盖「真引擎那张 `Multiple Comparisons (score)` 表上的两两比较注文」，`weight` 覆盖「上一轮 WEIGHT BY 被重放时注文怎么说」（真引擎跑通打开、分析、变换、图表、三种汇总表与五个导出工具），`preset` 覆盖「23 个工具只在预设半挂载、缺宿主半要抛错、bundle patch 仍带预设」，`update` 覆盖版本比较、缓存与「检查失败不等于已是最新」，`import` 覆盖导入向导（跳过行、列名/类型覆盖、缺失值标记、预览不动数据集），`redraw` 覆盖「每种图型都能按原类型重绘、几何型图拒绝换类型、拼版与未知类型各自的说法」，`charts` 覆盖副标题位置与删除、拼版单文档/顺序/像素尺寸与间隙、3× 导出的像素倍数，`apa` 覆盖 APA 写法（p / r / R² / α 不写前导 0、`p < .001`、t 带 df、方差分析给 η²、独立样本 t 给 d、认不出的过程进 `skipped` 不猜），`docs` 覆盖「文档链接不指向空文件、FEATURES 版本戳等于 package.json、CHANGELOG 首段是被发的版本、PLAN 六节齐全、SCOPE 回答三问」，`crash` 覆盖引擎缺陷 banner 的中文文案（Linux 139 与 Windows 3 同一条分支、不泄露 build_system、普通语法错误不被误判）。**退出码纪律（0.54.98 起）**：每个套件的失败必须让 `node test/x.mjs` 以非零退出码结束 —— `check()` 的 catch 里设 `process.exitCode = 1`，末尾再兜一次；`test/regression.mjs` 曾把这一句写在文件中部，导致其后一千多行的失败只打印不生效，Win10 用逐条 TAP 抓到。仓库级抽查法：对每个套件在最后一个 `check(` 块里插一条 `assert.ok(false)`，脚本 `rc` 必须非零（`test/zip.mjs` 是辅助模块、不打 `ok` 行，属预期例外）。全仓普查（0.54.99）结论：34 个套件注入 `throw` 后全部 `rc=1`（`update` 之后加入，同形），没有第二个 `regression` 那样的静默失败；但 `client`/`smoke`/`routes`/`exact`/`pdf-notes` 五个是**崩溃型**（失败时一条 `ok` 都不打，只吐堆栈），按「逐套件 `^ok` 表」比对版本时会把「断言红了」误读成「套件没跑」，做版本对照要按 `rc` 而不是 `^ok` 基数判断。失败行统一以 `FAIL ` 开头、后接用例名（0.56.2 起全部 29 个打失败行的套件同形：`FAIL  <用例名>` 或 `FAIL  <用例名>: <异常文案>`）；`pdf-notes` 在没装 `pdftotext` 的机器上永远 `exit 0` + 一行 skip，是唯一「本机不可证伪」的断言，只由 CI 的 `pdf-notes` job 覆盖。
 - smoke：真实引擎跑一遍打开 → 分析 → 保存。
-- **真浏览器端到端（0.119.0 起，0.121.0 为 9 条）**：`npm run e2e` → `test/e2e.mjs`，9 条断言，自己起一个最小宿主（`node:http` 随机端口；页面依次加载 React 19 的四个 CJS 产物、真 `client.js` bundle 与一小段 harness；harness 提供假的 `betterSidebar`/`sidebarRight`、把插件 `apply(ctx)` 挂上、把 `registerTab` 登记的 `component` 渲染进 480 px 宽的 `#side`；`/analytics/*` 交给 `lib/routes.js` 的 handler），用真 Chromium 打开并截图。它断言的是 jsdom 判不了的东西：每个顶层菜单的弹层与子菜单必须完整落在侧栏内（480 px 与 380 px 两个宽度）、帮助 → 打开示例数据后输出里真出现 `Descriptive Statistics`/`Statistics`/`chart: `、描述… 对话框跑完多一张表、「图形 → 条形图」真画一张 SVG（图元数 ≥ 10、属性里没有 `NaN`）、成册报告导出后用 `file://` 逐张查图 `naturalWidth > 0`（打印预览不缺图）、控制台不许有报错。**不进 `npm test`** —— Chromium 是 260 MB 的外部依赖，找不到就打印一行 skip 并 exit 0；CI 里是独立 job。
+- **真浏览器端到端（0.119.0 起，0.122.0 为 10 条）**：`npm run e2e` → `test/e2e.mjs`，10 条断言，自己起一个最小宿主（`node:http` 随机端口；页面依次加载 React 19 的四个 CJS 产物、真 `client.js` bundle 与一小段 harness；harness 提供假的 `betterSidebar`/`sidebarRight`、把插件 `apply(ctx)` 挂上、把 `registerTab` 登记的 `component` 渲染进 480 px 宽的 `#side`；`/analytics/*` 交给 `lib/routes.js` 的 handler），用真 Chromium 打开并截图。它断言的是 jsdom 判不了的东西：每个顶层菜单的弹层与子菜单必须完整落在侧栏内（480 px 与 380 px 两个宽度）、帮助 → 打开示例数据后输出里真出现 `Descriptive Statistics`/`Statistics`/`chart: `、描述… 对话框跑完多一张表、「方法建议…」点「运行」真跑一条建议（对话框关掉、输出多表）、「图形 → 条形图」真画一张 SVG（图元数 ≥ 10、属性里没有 `NaN`）、成册报告导出后用 `file://` 逐张查图 `naturalWidth > 0`（打印预览不缺图）、控制台不许有报错。**不进 `npm test`** —— Chromium 是 260 MB 的外部依赖，找不到就打印一行 skip 并 exit 0；CI 里是独立 job。
 - routes：43 个 `api/*` 端点的 200/400 分支（含撤销/重做、查找/替换、格式转换、上传、工作表列表、偏相关、两两比较、表 1/表 2、多选题、会话回收、`api/heartbeat`、新增的 `api/settings`）。
 
 目录：

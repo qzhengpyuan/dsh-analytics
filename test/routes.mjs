@@ -1670,6 +1670,47 @@ r = await call('POST', `${base}/api/guide`, { sessionId: sid })
   assert.ok(state.dataset, 'the walkthrough leaves a dataset open')
 }
 
+// APA 写法与句子一起回（同一份解析结果）：示例数据在 guide 那一步已经打开。
+{
+  r = await call('POST', `${base}/api/run`, { sessionId: sid, syntax: 'T-TEST GROUPS=sex(0 1) /VARIABLES=salary.' })
+  assert.equal(r.code, 200, r.text.slice(0, 200))
+  r = await call('POST', `${base}/api/sentences`, { sessionId: sid })
+  const result = r.json().result ?? {}
+  const apa = result.apa?.lines ?? []
+  console.log('apa', r.code, apa.length, String(apa[0]?.text ?? '').slice(0, 70))
+  assert.ok((result.sentences ?? []).length >= 1, '句子与 APA 走同一次运行')
+  assert.ok(apa.some((line) => /^独立样本 t 检验.*t\(\d+\) = -?\d/.test(line.text)), JSON.stringify(apa).slice(0, 300))
+  assert.ok(apa.some((line) => /p [=<] \./.test(line.text)), 'APA 的 p 不写前导 0')
+}
+
+// 方法建议 → 一键运行：只认序号，参数由宿主按当前数据重算。
+{
+  r = await call('POST', `${base}/api/advise`, { sessionId: sid })
+  assert.equal(r.code, 200)
+  const advice = r.json().result
+  assert.ok(advice.recommendations.length > 0, '示例数据应该能给出建议')
+  assert.ok(advice.recommendations.some((entry) => entry.runnable === true), '至少一条建议能在面板里直接跑')
+  const index = advice.recommendations.findIndex((entry) => entry.runnable === true)
+  const before = r.json().state.items.length
+  // 前面还有一次 api/advise（另一段用例），所以比的是「运行前后建议表张数不变」。
+  const adviceTablesBefore = r.json().state.items.filter((item) => item.title === '方法建议').length
+  r = await call('POST', `${base}/api/advise/run`, { sessionId: sid, index })
+  assert.equal(r.code, 200, r.text.slice(0, 300))
+  const ran = r.json().result
+  assert.equal(ran.index, index)
+  assert.ok(ran.analysis, '结果要说清跑的是哪条建议')
+  const after = r.json().state.items.length
+  assert.ok(after > before, `跑完要多出输出项：${before} -> ${after}`)
+  // 运行不该再追加一张建议表（adviseMethods({ append: false })），否则每点一次多一张。
+  const adviceTablesAfter = r.json().state.items.filter((item) => item.title === '方法建议').length
+  assert.equal(adviceTablesAfter, adviceTablesBefore, '一键运行不能再落一张建议表')
+  // 越界序号：400 + 说清范围，而不是默默跑最后一条。
+  r = await call('POST', `${base}/api/advise/run`, { sessionId: sid, index: 99 })
+  assert.equal(r.code, 400)
+  assert.match(r.text, /建议序号/)
+  console.log('advise run', ran.tool, ran.analysis, `${before}->${after}`)
+}
+
 r = await call('POST', `${base}/api/close`, { sessionId: 'pivot01' })
 
 r = await call('POST', `${base}/api/close`, { sessionId: sid })

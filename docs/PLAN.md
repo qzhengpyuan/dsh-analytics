@@ -84,6 +84,9 @@
 | 0.118.0 | 交接与门禁：`docs/SCOPE.md`（能力边界一页）、`docs/HANDOFF.md`（接手第一页）、`test/docs.mjs` 5 条（链接/版本戳/CHANGELOG 首段/PLAN 节序/SCOPE 三问）、PLAN §3 重写与 §2 排序 | 66 套件 / 969 ok |
 | 0.118.1 | 修 0.117.0 复验的三条 P2：打开示例数据先确认（宿主半默认拒绝「换掉已打开的数据集」）、英文界面引导标题进词典、竖排键值表第一列跟着翻（`keyValue`） | 66 套件 / 970 ok；三处都做过变异验证 |
 | 0.119.0 | 真浏览器端到端：新 `test/e2e.mjs`（自带最小宿主 + 真 Chromium + 真引擎，7 条，480/380 px 两个宽度）+ `npm run e2e` + CI `e2e` job；顺手修两个只有真机才看得见的缺陷（图标点的 `cx="NaN"`、弹层与子菜单被侧栏裁掉） | 66 套件 / 970 ok，另有 e2e 7 条（不进 `npm test`）；三处修复都做过变异验证 |
+| 0.120.0 | §3.4 同类缺陷普查：图表三个入口加「坐标必须是有限数」的闸（`assertFiniteNumbers` / `assertFiniteSvg`），修 KM 曲线 S=0 的 `0 × ∞` 置信带；`charts` +2、`survival` +1、e2e 第 ⑦ 条真跑一张插件 SVG | 66 套件 / 973 ok，e2e 8 条；变异验证单测与 e2e 都红 |
+| 0.121.0 | §3.3 两条未自证断言：成册 6 条目交替用例（表 1–4 / 图 1–2 各自连续、docx 与 html 顺序一致）、HTML 成册的内嵌图断言 + e2e 第 ⑧ 条真浏览器 `file://` 逐张查 `naturalWidth` | 66 套件 / 975 ok，e2e 9 条；§3.3 只剩「逐列字符串 A 格式」 |
+| 0.122.0 | 方法建议一键运行（`runnable` + `api/advise/run`，五类视图能跑，不可跑的写「让 agent 跑」；运行用 `append: false` 不再多落建议表）+ APA 写法（新 `lib/apa.js`，`pspp_sentences` 与结果句子多给 `apa.lines`）；新 `test/apa.mjs`、`advise` +5、`routes` +2 块、`client` 两段、e2e 第 ⑨ 条 | 67 套件 / 988 ok，e2e 10 条；三处变异验证都红 |
 
 ## 3. 下一批候选（排序即优先级）
 
@@ -141,6 +144,7 @@
 
 | 日期 | 谁 | 改了什么 |
 | --- | --- | --- |
+| 2026-11-27 | lead | 0.122.0 发布：方法建议一键运行（`runnable` + `api/advise/run`，客户端只传序号，`append: false` 防多落一张建议表）+ APA 写法（`lib/apa.js`，`pspp_sentences` 与结果句子多给 `apa.lines`）；新 `test/apa.mjs` 8 条、`advise` +5、`routes` +2 块、`client` 两段、e2e 第 ⑨ 条；三处变异验证都红 |
 | 2026-11-26 | lead | 0.121.0 发布：§3.3 两条未自证断言落地 —— 成册 6 条目交替用例（表 1–4 / 图 1–2 各自连续、docx 与 html 顺序一致）、HTML 成册的内嵌图断言 + e2e 第 ⑧ 条真浏览器 `file://` 逐张查 `naturalWidth`；§3.3 只剩「逐列字符串 A 格式」一条（需真引擎） |
 | 2026-11-26 | lead | 0.120.0 发布：§3.4 同类缺陷普查落地（`assertFiniteNumbers` / `assertFiniteSvg` 挂在 `buildChartModel` / `renderSvg` / `composeChartGrid`），扫出并修好 KM 曲线 S=0 的 `0 × ∞` 置信带；`test/charts` +2、`test/survival` +1、e2e 第 ⑦ 条改成真跑一张插件 SVG；变异验证（y 缩放恒 NaN）单测与 e2e 都红 |
 | 2026-11-26 | lead | 0.119.0 发布：§3.1 最小端到端用例落地（`test/e2e.mjs` 7 条 + `npm run e2e` + CI `e2e` job），它抓出的两处真机缺陷（图标点 NaN、弹层被侧栏裁掉）同批修完并做变异验证；§3 重排：3.1 标完成、新增 3.4 同类缺陷普查、原 3.4/3.5 顺延为 3.5/3.6 |
