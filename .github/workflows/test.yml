@@ -170,8 +170,7 @@ jobs:
       - name: poppler (pdftotext) and a CJK font
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils fonts-noto-cjk
 
-      # The repository is private, so the release asset needs the job's token:
-      # an anonymous download of a private release answers 404.
+      # Pass the job's token so CI is not rate-limited when pulling the engine asset.
       - name: engine (linux-x64 from the engine-v1 release)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -245,8 +244,7 @@ jobs:
           echo "asset=engine-$dir.tgz" >> "$GITHUB_OUTPUT"
           echo "runner ${{ matrix.os }} -> $dir (engine-$dir.tgz)"
 
-      # The repository is private, so the release asset needs the job's token:
-      # an anonymous download of a private release answers 404.
+      # Pass the job's token so CI is not rate-limited when pulling the engine asset.
       - name: engine (${{ steps.engine.outputs.asset }} from engine-v1)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -113,10 +113,10 @@ async function main() {
     assert.deepEqual(normalizeAllowedDirs('', home), [])
     // Windows maps a leading slash onto the current drive, so the expectation has to
   // be built instead of written out.
-  const POSIX_A = resolve('/mnt/F/a')
-  const POSIX_B = resolve('/mnt/F/b')
-  assert.deepEqual(normalizeAllowedDirs('/mnt/F/a\n/mnt/F/b', home), [POSIX_A, POSIX_B])
-    assert.deepEqual(normalizeAllowedDirs(['/mnt/F/a', '', ' ', '/mnt/F/a'], home), [POSIX_A], 'duplicates collapse')
+  const POSIX_A = resolve('/data/a')
+  const POSIX_B = resolve('/data/b')
+  assert.deepEqual(normalizeAllowedDirs('/data/a\n/data/b', home), [POSIX_A, POSIX_B])
+    assert.deepEqual(normalizeAllowedDirs(['/data/a', '', ' ', '/data/a'], home), [POSIX_A], 'duplicates collapse')
     assert.throws(() => normalizeAllowedDirs(['relative/dir'], home), /绝对路径/)
     assert.throws(() => normalizeAllowedDirs(42, home), /字符串数组/)
   })

@@ -1034,7 +1034,7 @@ check('the table sanitiser decodes entities before looking at a scheme', () => {
     assert.doesNotMatch(sanitizeTableHtml(`<table><tr><td><a href="${href}">x</a></td></tr></table>`), /href/i, href)
   }
   // The allow-list must not eat the links a table legitimately holds.
-  for (const href of ['https://example.com/a', '/mnt/E/x.csv', '#top', './a.html', '../b', '?q=1', 'mailto:a@b.c']) {
+  for (const href of ['https://example.com/a', '/data/x.csv', '#top', './a.html', '../b', '?q=1', 'mailto:a@b.c']) {
     assert.match(sanitizeTableHtml(`<table><tr><td><a href="${href}">x</a></td></tr></table>`), /href/, href)
   }
   // A numeric reference does not need its semicolon in an attribute value:

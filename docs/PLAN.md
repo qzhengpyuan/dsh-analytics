@@ -87,6 +87,7 @@
 | 0.120.0 | §3.4 同类缺陷普查：图表三个入口加「坐标必须是有限数」的闸（`assertFiniteNumbers` / `assertFiniteSvg`），修 KM 曲线 S=0 的 `0 × ∞` 置信带；`charts` +2、`survival` +1、e2e 第 ⑦ 条真跑一张插件 SVG | 66 套件 / 973 ok，e2e 8 条；变异验证单测与 e2e 都红 |
 | 0.121.0 | §3.3 两条未自证断言：成册 6 条目交替用例（表 1–4 / 图 1–2 各自连续、docx 与 html 顺序一致）、HTML 成册的内嵌图断言 + e2e 第 ⑧ 条真浏览器 `file://` 逐张查 `naturalWidth` | 66 套件 / 975 ok，e2e 9 条；§3.3 只剩「逐列字符串 A 格式」 |
 | 0.122.0 | 方法建议一键运行（`runnable` + `api/advise/run`，五类视图能跑，不可跑的写「让 agent 跑」；运行用 `append: false` 不再多落建议表）+ APA 写法（新 `lib/apa.js`，`pspp_sentences` 与结果句子多给 `apa.lines`）；新 `test/apa.mjs`、`advise` +5、`routes` +2 块、`client` 两段、e2e 第 ⑨ 条 | 67 套件 / 988 ok，e2e 10 条；三处变异验证都红 |
+| 0.122.1 | §3.3 最后一条：强制字符串列的 A 格式宽度真引擎往返（`smoke`）；公开上架前清理（HANDOFF 去开发机路径与磁盘状态、测试夹具路径中性化、install 示例去写死版本、CI 注释、`private: false`） | 67 套件 / 988 ok（smoke 为崩溃型套件，不打 ok 行），e2e 10 条 |
 
 ## 3. 下一批候选（排序即优先级）
 
@@ -113,7 +114,7 @@
 
 - ~~成册在**多表多图混合**时的编号连续~~（已完成，0.121.0）：6 条目交替用例，表 1–4 与图 1–2 各自连续，docx 与 html 阅读顺序一致。
 - ~~`.html` 打印预览不缺图~~（已完成，0.121.0）：图片必须内嵌 `data:image/png;base64`；真浏览器用 `file://` 打开逐张查 `naturalWidth > 0`（e2e 第 ⑧ 条）。
-- 逐列强制「字符串」时 `lib/dataset.js` 的宽度推断走 A 格式分支（**没有真引擎用例**，见 §3.2 批 0.58.0 遗留）。
+- ~~逐列强制「字符串」时 `lib/dataset.js` 的宽度推断走 A 格式分支~~（已完成，0.122.1）：真引擎用例在 `test/smoke.mjs` —— 数字形值强制成字符串后宽度取最长值、格式 `A10`，短值列守 `A8` 下限；存 `.sav` 再重开，宽度与前导 0 都不变。
 
 ### 3.4 同类缺陷普查（已完成，0.120.0）
 
@@ -144,6 +145,7 @@
 
 | 日期 | 谁 | 改了什么 |
 | --- | --- | --- |
+| 2026-11-27 | lead | 0.122.1 发布：§3.3 最后一条落地（强制字符串列 A 格式宽度的真引擎往返）+ 公开上架前清理（HANDOFF、测试夹具路径、install 示例、CI 注释、`private: false`） |
 | 2026-11-27 | lead | 0.122.0 发布：方法建议一键运行（`runnable` + `api/advise/run`，客户端只传序号，`append: false` 防多落一张建议表）+ APA 写法（`lib/apa.js`，`pspp_sentences` 与结果句子多给 `apa.lines`）；新 `test/apa.mjs` 8 条、`advise` +5、`routes` +2 块、`client` 两段、e2e 第 ⑨ 条；三处变异验证都红 |
 | 2026-11-26 | lead | 0.121.0 发布：§3.3 两条未自证断言落地 —— 成册 6 条目交替用例（表 1–4 / 图 1–2 各自连续、docx 与 html 顺序一致）、HTML 成册的内嵌图断言 + e2e 第 ⑧ 条真浏览器 `file://` 逐张查 `naturalWidth`；§3.3 只剩「逐列字符串 A 格式」一条（需真引擎） |
 | 2026-11-26 | lead | 0.120.0 发布：§3.4 同类缺陷普查落地（`assertFiniteNumbers` / `assertFiniteSvg` 挂在 `buildChartModel` / `renderSvg` / `composeChartGrid`），扫出并修好 KM 曲线 S=0 的 `0 × ∞` 置信带；`test/charts` +2、`test/survival` +1、e2e 第 ⑦ 条改成真跑一张插件 SVG；变异验证（y 缩放恒 NaN）单测与 e2e 都红 |

@@ -166,6 +166,34 @@ if (genderVar?.valueLabels?.F !== labelPair.F || genderVar?.valueLabels?.M !== l
 }
 console.log('value labels ok:', JSON.stringify(genderVar.valueLabels))
 
+// 逐列强制「字符串」时宽度推断必须走 A 格式分支（PLAN §3.3 最后一条，批 0.58.0
+// 的遗留）：一列工号看起来是数字（0001234567，Number() 也认），用户要求当字符串，
+// 宽度要按最长值取 10，不是默认的 8；引擎拿到 A10 之后原样存回来，前导 0 不许掉。
+// 反过来短值列不能窄于 A8（PSPP 的最小字符串宽度），两边都在真引擎上验一次。
+{
+  const wideCsv = join(root, 'wide-string.csv')
+  await writeFile(wideCsv, 'code,name\n0001234567,alpha\n0002345678,beta\n42,gamma\n', 'utf8')
+  const wide = new Workspace({ id: 'smoke-wide', engine, root: join(root, 'wide'), config: { timeoutMs: 60000 } })
+  await wide.init()
+  await wide.open(wideCsv, { names: ['code', 'name'], types: ['string', 'string'] })
+  const codeVar = wide.dataset.variables.find((variable) => variable.name === 'code')
+  const nameVar = wide.dataset.variables.find((variable) => variable.name === 'name')
+  assert.equal(codeVar?.type, 'string', 'the wizard forced code to a string variable')
+  assert.equal(codeVar?.width, 10, `width follows the longest value: ${codeVar?.width}`)
+  assert.equal(codeVar?.format, 'A10', `the string format is A10: ${codeVar?.format}`)
+  assert.equal(nameVar?.width, 8, `a short string column keeps the A8 floor: ${nameVar?.width}`)
+  assert.equal(nameVar?.format, 'A8', `a short string column is A8: ${nameVar?.format}`)
+  await wide.save(join(root, 'wide-string.sav'))
+  await wide.open(join(root, 'wide-string.sav'))
+  const wideBack = wide.dataset.variables.find((variable) => variable.name === 'code')
+  assert.equal(wideBack?.type, 'string', 'the reloaded column is still a string')
+  assert.equal(wideBack?.width, 10, `the saved dictionary keeps A10: ${wideBack?.width}`)
+  const wideRows = wide.page(0, 3).rows
+  assert.deepEqual(wideRows, [['0001234567', 'alpha'], ['0002345678', 'beta'], ['42', 'gamma']],
+    `string values keep their leading zeros through the engine: ${JSON.stringify(wideRows)}`)
+  console.log('forced string width round-trip:', JSON.stringify(wideRows), wideBack?.format)
+}
+
 // A quoted string may contain a line break (a multi-line address, an open
 // answer pasted into a cell). The save path goes through CSV, and PSPP's TXT
 // reader cannot carry an embedded newline: three cases came back as four, with

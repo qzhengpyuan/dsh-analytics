@@ -1,3 +1,11 @@
+## 0.122.1
+
+PLAN §3.3 的最后一条落地（真引擎用例），以及一轮公开上架前的清理：仓库与文档里不再留开发机的绝对路径与磁盘状态。
+
+- **强制字符串列的 A 格式宽度**：导入向导把一列数字形值（`0001234567`）强制成字符串时，宽度按最长值取 10、格式写 `A10`，不再用默认的 8；短值列仍守住 `A8` 下限。真引擎往返（存 `.sav` → 重开）后宽度与前导 0 都不变（`test/smoke.mjs`）。这一条补上了 0.58.0 起「只有代码、没有真引擎取证」的空档。
+- **公开前的清理**：`docs/HANDOFF.md` 去掉开发机的绝对路径、磁盘余量与本地凭据/代理细节，改成占位符与通用步骤；`test/*.mjs` 里当夹具用的 `/mnt/…` 路径改成中性的 `/data/…`（断言值同步）；`docs/install.md` 的示例版本与校验和不再写死；`.github/workflows/test.yml` 的注释改回「公开仓库」的事实；`package.json` 的 `private` 改为 `false`，为 `npm publish` 让路。
+- 计数不变：67 套件 / 988 ok / 0 FAIL（`test/smoke.mjs` 是崩溃型套件，只断言、不打 ok 行）；e2e 10 条。
+
 ## 0.122.0
 
 把「方法建议」从一份只读清单变成点一下就真跑，并给结果句子补一份 APA 写法。
@@ -930,7 +938,7 @@ Win10 复验 0.57.0 的报告（`win10-report-0570.md`）里 1 条 P1、1 条 P2
 - **P2 被经过的图标永久丢失 `title`**：`hideToolTip()` 只还原 `tipState.current.anchor` 那一个按钮，而 `onToolbarOver` 每经过一个按钮就 `removeAttribute('title')` ⇒ 旧按钮从此没有原生提示。改成 `tipState.current.stripped = new Map()` 记录**每一个**被摘掉 title 的按钮，离开工具栏（或组件卸载）时全部还原。
 - **P3-1 `api/update` 在没有会话时 401**：`lib/routes.js` 里它与 `api/version` 一样只回公开信息（版本号、Release 地址），提到**插件自己的**会话闸门之前；没接线时仍回 503；`api/state` 之类一律仍要会话（新增用例两侧都断言）。附实测：本机不带 cookie 时 `api/version` 与 `api/update` **都是 401**，真正拦住的是宿主 `/api` 那层围栏（启动令牌）而不是插件 —— 这条按评审的说法归宿主，插件侧只保证自家闸门不再多拦一层。
 - **P3-2 `figures` 计数名不副实**：随 P1 一并修好（现在图真的成节，计数即节数）。
-- **P3-3 `src570/pspp.html` 这类引擎输出被 `git add -A` 带进仓库**：`.gitignore` 加 `pspp.html` 与 `src*/pspp.html`，已跟踪的那份 `git rm --cached`（工作副本备份在 `/mnt/E/备份文件/pspp-html-20261122/`）。
+- **P3-3 `src570/pspp.html` 这类引擎输出被 `git add -A` 带进仓库**：`.gitignore` 加 `pspp.html` 与 `src*/pspp.html`，已跟踪的那份 `git rm --cached`（工作副本另存到了仓库外，不随仓库分发）。
 
 用例：`test/office.mjs` 新增 2 条（三条目「表 1 / 图 1 / 表 2」——图必须自成节、`<w:drawing>` 不得落在任何 `<w:tbl>` 内、顺序按勾选；HTML 侧同序）、`test/client.mjs` 扩 2 条（图表行也有勾选框；经过的图标离开工具栏后 title 全部还原）、`test/routes.mjs` 扩 1 条（无会话时 `api/update` 200、`api/state` 仍 401）。
 

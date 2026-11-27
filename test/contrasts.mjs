@@ -4,8 +4,7 @@
 // interactions can only be tested here — there is no engine table to compare
 // against. The reference numbers therefore come from R 4.4.3 run on this box:
 // `lm(y ~ a*b)` followed by `car::linearHypothesis`. The R script and its full
-// output are kept with the report at
-// /mnt/E/临时文件/glm-r-check.R and /mnt/E/临时文件/glm-r-out.txt; each check
+// output are kept with the review report, outside this repository; each check
 // below quotes the line it asserts against.
 import assert from 'node:assert'
 import { describeContrasts, designColumns, generalLinearTest } from '../lib/contrasts.js'

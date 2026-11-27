@@ -21,8 +21,8 @@ npm 依赖：**无运行时 npm 依赖**。peer 只有 `@deepseek-ai/cordis` 与
 每个版本都按平台挂 `dsh-analytics-pspp-<版本>-<平台>.tgz`（如 `-linux-x64`、`-win32-x64`，各自带对应平台的引擎，约 34 MB）；0.49.0 之前叫 `dsh-analytics-<版本>-<平台>.tgz`，0.31.5 及更早只有一个不带平台后缀的 `dsh-analytics-<版本>.tgz`：
 
 ```bash
-# 1. 下载：到 releases/latest 页拿 dsh-analytics-<版本>-<平台>.tgz（下文以 0.32.0 的 linux-x64 为例）
-curl -L -O https://github.com/qzhengpyuan/dsh-analytics/releases/download/v0.26.5/dsh-analytics-0.26.5.tgz
+# 1. 下载：到 releases/latest 页拿 dsh-analytics-pspp-<版本>-<平台>.tgz
+curl -L -O https://github.com/qzhengpyuan/dsh-analytics/releases/download/v<版本>/dsh-analytics-pspp-<版本>-linux-x64.tgz
 
 # 2. 装进目标 profile（<profile> = web / desktop …）
 dsh plugin --profile <profile> add file:$PWD/dsh-analytics-<版本>-linux-x64.tgz
@@ -34,7 +34,7 @@ dsh plugin --profile <profile> add file:$PWD/dsh-analytics-<版本>-linux-x64.tg
 # 4. 重载：设置 → 插件 → dsh-analytics 关一次再开（host 半重载；面板里已打开的数据集会清空）
 ```
 
-校验：`sha256sum dsh-analytics-0.26.5.tgz` 应为 `1d03d471a91f4e5faebdff8252b1d86df39b0f9dc393b9c45fd4b339ce50651e`（每个版本的校验和写在它的 Release 说明里）。
+校验：`sha256sum dsh-analytics-pspp-<版本>-linux-x64.tgz`，与 Release 里的 `SHA256SUMS-<版本>` 对比。
 
 这个 .tgz 已经在临时目录里 `pnpm add file:…` 验过：宿主半 `import('dsh-analytics')` 与预设半 `import('dsh-analytics/tools')` 都能解析，`engine/linux-x64/bin/pspp --version` 打印 `pspp (GNU PSPP) 2.1.3`。客户端半是浏览器模块（`window.__ModuleLoader__`），在 Node 里 import 会报 `window is not defined`，属正常。
 

@@ -53,7 +53,7 @@ check('a host validation message keeps its numbers and loses its chinese', () =>
 })
 
 check('paths, numbers and plain ascii are left alone', () => {
-  for (const text of ['/mnt/E/临时文件/a.sav'.replace('临时文件', 'tmp'), 'C:\\Temp\\a.sav', '0.944', 'Descriptive Statistics', '']) {
+  for (const text of ['/data/tmp/a.sav'.replace('临时文件', 'tmp'), 'C:\\Temp\\a.sav', '0.944', 'Descriptive Statistics', '']) {
     assert.equal(localize(text, 'en'), text)
   }
 })

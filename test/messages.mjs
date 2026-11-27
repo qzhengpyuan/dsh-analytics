@@ -79,7 +79,7 @@ check('the engine location is stripped from any message that leaves the host', (
     stripEngineLocation('C:\\Users\\q\\.dsh\\analytics\\c2\\runs\\6-8529db\\run.sps:2.1-2.10: error: Unknown command `FREQUENCIS\'.'),
     'Unknown command `FREQUENCIS\'.',
   )
-  assert.equal(stripEngineLocation('/home/q/.dsh/analytics/s/runs/3/run.sps:1.1-1.4: error: bad'), 'bad')
+  assert.equal(stripEngineLocation('/home/someone/.dsh/analytics/s/runs/3/run.sps:1.1-1.4: error: bad'), 'bad')
   assert.equal(stripEngineLocation('error: the moon is made of cheese'), 'the moon is made of cheese')
   assert.equal(stripEngineLocation('run.sps:1: 警告: 未知命令'), '警告: 未知命令', 'a warning keeps its own label')
 })

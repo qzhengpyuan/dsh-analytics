@@ -1,7 +1,7 @@
 {
   "name": "dsh-analytics-pspp",
-  "version": "0.122.0",
-  "private": true,
+  "version": "0.122.1",
+  "private": false,
   "description": "dsh-analytics: AI-assisted statistics workbench for DeepSeek Harness, built on a bundled GNU PSPP engine with an SPSS-style interface — data editor, syntax editor, output viewer, charts, agent tools, and multi-format import (.sav/.por/.xlsx/.ods/.dta/.csv).",
   "type": "module",
   "main": "index.js",
