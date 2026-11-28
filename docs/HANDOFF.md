@@ -74,10 +74,11 @@ sha256sum dsh-analytics-pspp-X.Y.Z-linux-x64.tgz | tee SHA256SUMS | tee SHA256SU
 - **jsdom 不校验 SVG 的数值属性**：`<circle cx="NaN">` 在 jsdom 里只换一条 React warning，真机上 Chromium 判成非法长度、元素根本不画 —— 工具栏图标的点就这么隐身了若干版本。凡是从字符串 `Number()` 出来再喂给 SVG 属性的坐标，都要有「是有限数」的断言（`test/client.mjs` 现在有一条 `apIcon` 的）。0.120.0 起 `lib/charts.js` 有 `assertFiniteNumbers` / `assertFiniteSvg` 两道闸，挂在 `buildChartModel` / `renderSvg` / `composeChartGrid` —— 新画的图从这三处进，别自己拼字符串绕过；它们抓到的第一例是 KM 曲线 S=0 的 `0 × ∞`。
 - **`getBoundingClientRect()` 在 jsdom 里恒为 0**：菜单/弹层的位置与裁切只能在真浏览器里验（`npm run e2e`）。纯函数套件里别写「量一下位置」的断言，会永远绿。
 - **e2e 的浏览器要走回退链**：本机 Chromium 的版本未必是 playwright 期望的那个，直接 `chromium.launch()` 会报没装浏览器；`test/e2e.mjs` 已经按「期望版本 → 缓存里版本号最高的 → 系统 chrome」回退，别把那三段删成一段。
+- **npm 发布对新包是异步的**：`npm publish` 回 `202`、打印 `+ name@version` 就算成功，但注册表先建 `0.0.0-stage` 占位版本，真正的版本要几分钟后才出现在 packument 与 tarball 上 —— 期间 `npm view` 与下载 404 不要重发。web 登录 token 不能发布（带 `--otp` 也 403），必须 granular token 勾 Bypass 2FA；bypass token 不能 `unpublish`，清占位要去 npmjs.com 走 2FA。
 
-## 6. 交接时的具体事实（2026-11-27）
+## 6. 交接时的具体事实（2026-11-28）
 
-- 最新版本 **0.122.1**（tag `v0.122.1`，Release 三资产齐全，CI 绿）。
+- 最新版本 **0.122.2**（tag `v0.122.2`，Release 三资产齐全，CI 绿；npm 上 `dsh-analytics-pspp` 的 `latest` 指向 0.122.2）。
 - **没有未修的 P0/P1**。最近一次独立复验（0.117.0）结论是 6 条验收全 PASS、P0=0、P1=0、P2=3 —— 三条 P2 已在 0.118.1 修完并各自补了断言（含变异验证）。
 - **真浏览器门禁**：`npm run e2e`（10 条，真 Chromium + 真引擎）。它不是 `npm test` 的一部分：找不到 playwright 就 skip 并 exit 0。CI 是独立 `e2e` job（`npm install --no-save playwright@1.65.1`）。截图默认落 `<tmp>/dsh-analytics-e2e/panel.png`。
 - 工作树干净、无草稿分支；profile 的 `cordis.patch.yml` 末尾可能有连续多行 `# reload-nudge <版本>`，那是热重载痕迹，不要删。
@@ -87,4 +88,4 @@ sha256sum dsh-analytics-pspp-X.Y.Z-linux-x64.tgz | tee SHA256SUMS | tee SHA256SU
 
 
 
-按 [PLAN.md](PLAN.md) §3 的顺序做：§3.5 npm 发布（需要仓库所有者的 npm 凭据）。§3.1 最小端到端用例随 0.119.0 落地，§3.2 的边界说明随 0.118.0 落地，§3.4 同类缺陷普查随 0.120.0 落地，§3.3 随 0.121.0 与 0.122.1 全部落地（最后一条是强制字符串列的 A 格式宽度真引擎往返）；0.122.0 落地的是方法建议的一键运行与 APA 写法。
+[PLAN.md](PLAN.md) §3 的前五条全部落地，剩下的是 §3.6 候补（按需插入）：面板大表虚拟化的实机观感、宿主侧 93 条 `${}` 拼接报错的英文覆盖、PSPP 引擎升级评估。npm 发布在 0.122.2 收口（`dsh-analytics-pspp`，granular token 带 Bypass 2FA；新包 `publish` 先回 `202`，判据见 §5）。

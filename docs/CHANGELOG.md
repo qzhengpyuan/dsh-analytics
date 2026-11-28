@@ -1,3 +1,11 @@
+## 0.122.2
+
+把 0.122.1 发到 npm，并把「安装来源」与发布踩过的坑写进文档；代码与测试计数不变。
+
+- **npm 上架**：`dsh-analytics-pspp@0.122.1` 于 2026-11-28 发布，`latest` 指向它；npm 上的 tarball 与 Release 资产同字节（sha256 `a29521c3eea00667481f096b9e396d65ee2f27bf27bc8ea3b8043266d676204c`，36826274 字节）。
+- **文档**：`README.md` 与 `docs/install.md` 写出 npm 作为 tarball 来源（`npm pack dsh-analytics-pspp@<版本>`）；`docs/PLAN.md` §3.5 标完成，并记下三处判据 —— web 登录 token 不能发布、即便带 `--otp` 也 403；granular token 必须勾 Bypass 2FA；新包 `npm publish` 先回 `202` 并建 `0.0.0-stage` 占位，真版本要等几分钟，期间 404 属正常。`docs/HANDOFF.md` 的版本与下一步同步。
+- 计数不变：67 套件 / 988 ok / 0 FAIL；e2e 10 条。
+
 ## 0.122.1
 
 PLAN §3.3 的最后一条落地（真引擎用例），以及一轮公开上架前的清理：仓库与文档里不再留开发机的绝对路径与磁盘状态。

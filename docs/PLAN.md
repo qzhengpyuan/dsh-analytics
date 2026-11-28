@@ -88,6 +88,7 @@
 | 0.121.0 | §3.3 两条未自证断言：成册 6 条目交替用例（表 1–4 / 图 1–2 各自连续、docx 与 html 顺序一致）、HTML 成册的内嵌图断言 + e2e 第 ⑧ 条真浏览器 `file://` 逐张查 `naturalWidth` | 66 套件 / 975 ok，e2e 9 条；§3.3 只剩「逐列字符串 A 格式」 |
 | 0.122.0 | 方法建议一键运行（`runnable` + `api/advise/run`，五类视图能跑，不可跑的写「让 agent 跑」；运行用 `append: false` 不再多落建议表）+ APA 写法（新 `lib/apa.js`，`pspp_sentences` 与结果句子多给 `apa.lines`）；新 `test/apa.mjs`、`advise` +5、`routes` +2 块、`client` 两段、e2e 第 ⑨ 条 | 67 套件 / 988 ok，e2e 10 条；三处变异验证都红 |
 | 0.122.1 | §3.3 最后一条：强制字符串列的 A 格式宽度真引擎往返（`smoke`）；公开上架前清理（HANDOFF 去开发机路径与磁盘状态、测试夹具路径中性化、install 示例去写死版本、CI 注释、`private: false`） | 67 套件 / 988 ok（smoke 为崩溃型套件，不打 ok 行），e2e 10 条 |
+| 0.122.2 | npm 上架后的文档同步：README / install.md 写出 npm 作为 tarball 来源，§3.5 标完成并记 2FA、`202` 异步发布与 `0.0.0-stage` 占位三处判据，HANDOFF 版本与下一步更新 | 67 套件 / 988 ok，e2e 10 条；`npm view dsh-analytics-pspp version` = 0.122.2 |
 
 ## 3. 下一批候选（排序即优先级）
 
@@ -124,9 +125,11 @@
 
 **判据（已验证）**：十个图型逐一构建 + 渲染的断言（`test/charts.mjs`）、S=0 的回归断言（`test/survival.mjs`）；把 `renderSvg` 的 y 缩放改成恒含 `NaN` 时，`test/charts.mjs` 多条红（`图型 bar 的 SVG 属性 y1 不是有限数："NaN"`）、e2e 第 ⑦ 条红（`api/chart` 400 + 控制台 400）。
 
-### 3.5 发布到 npm（阻塞在用户）
+### 3.5 发布到 npm（已完成，0.122.2）
 
-`npm whoami` 无凭据、包名 `dsh-analytics-pspp` 未被占用 ⇒ 要用户 `npm login` 后 `npm publish`。未登录前一概不做。
+`dsh-analytics-pspp` 已上架：0.122.1 于 2026-11-28 发布、`latest` 指向它，0.122.2 是文档同步版；npm 上的 tarball 与 Release 资产同字节，安装仍走 `scripts/install.mjs` 或 `dsh plugin add file:<tgz>`。
+
+踩过的三处（完整判据见 HANDOFF §5）：第一，`npm login` 的 web token 不能发布，即便带 `--otp` 也返回 `403 ... Two-factor authentication or granular access token with bypass 2fa enabled is required`；第二，新建 granular token 必须勾 **Bypass 2FA** 并给 Read and write；第三，`npm publish` 对新包先回 `202` 并建一个 `0.0.0-stage` 占位版本，真正的版本要等几分钟才在 packument 与 tarball 上出现，期间查询 404 属正常，别重发。占位版本不能由 bypass-2FA token `unpublish`（`Granular access tokens that bypass two-factor authentication may not perform this action`），要清得在 npmjs.com 上用 2FA 操作。
 
 ### 3.6 候补（未排期，按需插入）
 
@@ -145,6 +148,7 @@
 
 | 日期 | 谁 | 改了什么 |
 | --- | --- | --- |
+| 2026-11-28 | lead | 0.122.2 发布（文档同步）：npm `dsh-analytics-pspp` 上架后的安装来源与 §3.5 完成记录；补 granular token 需 Bypass 2FA、新包 `publish` 回 `202` 并建 `0.0.0-stage` 占位、bypass token 不能 `unpublish` 三条判据 |
 | 2026-11-27 | lead | 0.122.1 发布：§3.3 最后一条落地（强制字符串列 A 格式宽度的真引擎往返）+ 公开上架前清理（HANDOFF、测试夹具路径、install 示例、CI 注释、`private: false`） |
 | 2026-11-27 | lead | 0.122.0 发布：方法建议一键运行（`runnable` + `api/advise/run`，客户端只传序号，`append: false` 防多落一张建议表）+ APA 写法（`lib/apa.js`，`pspp_sentences` 与结果句子多给 `apa.lines`）；新 `test/apa.mjs` 8 条、`advise` +5、`routes` +2 块、`client` 两段、e2e 第 ⑨ 条；三处变异验证都红 |
 | 2026-11-26 | lead | 0.121.0 发布：§3.3 两条未自证断言落地 —— 成册 6 条目交替用例（表 1–4 / 图 1–2 各自连续、docx 与 html 顺序一致）、HTML 成册的内嵌图断言 + e2e 第 ⑧ 条真浏览器 `file://` 逐张查 `naturalWidth`；§3.3 只剩「逐列字符串 A 格式」一条（需真引擎） |

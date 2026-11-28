@@ -43,7 +43,7 @@ node scripts/install.mjs web --apply    # 真的装：装进 profile + 把 dsh-a
 - 仓库已公开（2026-11-18 起），一条命令安装不再需要 token；脚本仍会在有 `GITHUB_TOKEN` / `~/.dsh/.credentials.yaml` 的 `refs.GITHUB_TOKEN` 时带上它（撞上 GitHub 的匿名限流时更稳）。
 - 走代理时加 `NODE_USE_ENV_PROXY=1`（Node 的 `fetch` 默认不读 `https_proxy`）。
 - 想手动装：`dsh plugin --profile <profile> add file:<tgz>`，再把 `"dsh-analytics"` 加进 `~/.dsh/profiles/<profile>/package.json` 的 `dsh.profile.bundles`。
-- 这个包**没有发到 npm**：`dsh-analytics` 这个名字在 npm 上已被别的包占用（0.4.0），换名字只会把文档拆成两份。
+- 已发布到 npm（0.122.2 起，包名 `dsh-analytics-pspp`）：npm 上的 tarball 与 Release 的 `.tgz` 是同一个文件，`npm pack dsh-analytics-pspp@<版本>` 可以替代从 Release 下载，安装仍走上面的步骤（`scripts/install.mjs` 或 `dsh plugin add file:<tgz>`）。`dsh-analytics` 这个名字在 npm 上已被别的包占用（0.4.0），所以包名带了 `-pspp` 后缀。
 
 `linux-x64` 与 `win32-x64` 是实测平台；`linux-arm64`、`darwin-arm64`、`darwin-x64` 的引擎在 `engine-v1` 里有 CI 产物，但**没有真机验证**。细节与检查清单见 [docs/install.md](docs/install.md)。
 

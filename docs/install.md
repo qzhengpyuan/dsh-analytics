@@ -16,6 +16,16 @@
 
 npm 依赖：**无运行时 npm 依赖**。peer 只有 `@deepseek-ai/cordis` 与 `dsh-better-sidebar`（后者标 optional）。
 
+## 从 npm 取同一份 tarball（0.122.2 起）
+
+包名 `dsh-analytics-pspp`。npm 上的 tarball 与 Release 的平台包同字节，所以可以：
+
+```bash
+npm pack dsh-analytics-pspp@<版本> --registry=https://registry.npmjs.org
+```
+
+然后按下面的手工装步骤装这个 .tgz。本机 `~/.npmrc` 的默认 registry 指向镜像时必须显式带 `--registry`，否则可能拿到旧索引或 404。
+
 ## 安装（从 Release 的 .tgz 手工装）
 
 每个版本都按平台挂 `dsh-analytics-pspp-<版本>-<平台>.tgz`（如 `-linux-x64`、`-win32-x64`，各自带对应平台的引擎，约 34 MB）；0.49.0 之前叫 `dsh-analytics-<版本>-<平台>.tgz`，0.31.5 及更早只有一个不带平台后缀的 `dsh-analytics-<版本>.tgz`：
